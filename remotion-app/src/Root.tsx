@@ -3,12 +3,15 @@ import { Composition } from "remotion";
 import "./fonts";
 import { Overlay } from "./Overlay";
 import { FootageComposite, footageMetadata, TestComposition } from "./Scenes";
+import { Projects } from "./projects";
 
-// Every composition: vertical 1080x1920 at 60 fps.
-// Final deliverables render as H.264 MP4. The overlay renders with alpha.
+// Talking-head edits (one composition per project, src/projects/<slug>/)
+// come first. The three test compositions below are the setup check from
+// Step 2: vertical 1080x1920 at 60 fps, H.264 MP4 and an alpha overlay.
 export const RemotionRoot: React.FC = () => {
   return (
     <>
+      <Projects />
       <Composition
         id="TestComposition"
         component={TestComposition}

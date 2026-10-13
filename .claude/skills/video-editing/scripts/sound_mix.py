@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Render a sound-design cue sheet into editable stems + a final mixed export (System D).
-No Remotion: numpy places the clips sample-accurately, ffmpeg decodes/encodes/muxes.
+The audio engine of the talking-head workflow (Remotion builds the picture): numpy places the clips sample-accurately, ffmpeg decodes/encodes/muxes.
 
   python3 scripts/sound_mix.py work/sound/cues.json --out work/sound/render_v1 [--passes 1,2,3] [--no-music] [--limiter]
 

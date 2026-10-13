@@ -146,14 +146,70 @@ def main():
                 warn(f"sound {x['id']}: file content changed since indexing - run sfx_index.py rescan")
     else:
         err("data/sounds.json missing (run: python3 scripts/sfx_index.py build-doc)")
-    # no Remotion dependency anywhere in executable code
-    rx = re.compile(r"""(require\(\s*['"]@?remotion|from\s+['"]@?remotion|import\s+.*['"]@?remotion|@remotion/)""")
-    for f in list((root / "scripts").rglob("*")) + list((root / "templates").rglob("*")):
-        if f.is_file() and f.name != "validate.py" and f.suffix in (".js", ".mjs", ".ts", ".tsx", ".py", ".html", ".json") and rx.search(f.read_text(encoding="utf-8", errors="ignore")):
-            err(f"Remotion dependency found in {f.relative_to(root)} (not allowed)")
-    for pj in root.rglob("package.json"):
-        if "remotion" in pj.read_text(encoding="utf-8", errors="ignore").lower():
-            err(f"Remotion listed in {pj.relative_to(root)} (not allowed)")
+    # ---------------- Joseph's gain presets (starting clip gains) must stay as documented
+    mixsrc = (root / "scripts" / "sound_mix.py").read_text(encoding="utf-8")
+    plansrc = (root / "scripts" / "sfx_plan.py").read_text(encoding="utf-8")
+    presets = [
+        (mixsrc, r'"whoosh":\s*\("WHOOSHES",\s*"peak",\s*-12\.0,\s*\(-12\.0,\s*-10\.0\)\)', "sound_mix whoosh -12 (max -10)"),
+        (mixsrc, r'"texture":\s*\("TEXTURES",\s*"onset",\s*-7\.0,\s*\(-7\.0,\s*-6\.0\)\)', "sound_mix texture -7..-6"),
+        (mixsrc, r'"riser":\s*\("RISERS",\s*"peak",\s*-5\.0,', "sound_mix riser -5"),
+        (mixsrc, r'mus\.get\("gain_db",\s*-19\)', "sound_mix music -19"),
+        (plansrc, r'GAIN = \{"whoosh": -12\.0, "texture": -7\.0, "riser": -5\.0', "sfx_plan presets"),
+    ]
+    for src_txt, rx_, label in presets:
+        if not re.search(rx_, src_txt):
+            err(f"gain preset changed or missing: {label} (Joseph's presets must stay: whoosh -12/-10, texture -6..-7, riser -5, music -19)")
+    sd = (root / "references" / "sound-design.md").read_text(encoding="utf-8")
+    for s in ("**-12 dB**", "**-10 dB**", "**-6 to -7 dB**", "**-5 dB**", "**-19 dB**", "not loudness targets"):
+        if s not in sd:
+            err(f"sound-design.md lost the gain preset text {s!r}")
+
+    # ---------------- non-destructive editing rules (SKILL.md) and the Remotion workflow docs
+    skill = (root / "SKILL.md").read_text(encoding="utf-8")
+    for phrase in ("remove footage", "add new cuts", "change playback speed", "shorten or lengthen pauses", "replace the dialogue",
+                   "different voice", "automatic zooms", "solely for retention", "keeps running underneath", "never modified"):
+        if phrase not in skill:
+            err(f"SKILL.md is missing the non-destructive rule about '{phrase}'")
+    for doc in ("remotion.md", "workflow.md"):
+        if doc not in skill:
+            err(f"SKILL.md does not route to references/{doc}")
+    if "edit_qc.py" not in (root / "references" / "workflow.md").read_text(encoding="utf-8"):
+        err("workflow.md does not run edit_qc.py (timeline QC) before delivery")
+
+    # ---------------- Remotion app: kit present and the timeline contract intact
+    app = None
+    for d in [root, *root.parents]:
+        if (d / "remotion-app" / "package.json").exists():
+            app = d / "remotion-app"
+            break
+    if app is None:
+        warn("remotion-app/ not found next to the skill: the Remotion workflow is unavailable here (HTML toolchain only)")
+    else:
+        kit = app / "src" / "kit"
+        for f in ("SourceFootage.tsx", "TalkingHeadEdit.tsx", "SoundPreview.tsx", "timing.ts", "types.ts", "motion.ts", "tokens.ts",
+                  "beats/CaptionAccent.tsx", "beats/StatCard.tsx", "beats/HorizonTitle.tsx"):
+            if not (kit / f).exists():
+                err(f"Remotion kit file missing: remotion-app/src/kit/{f}")
+        if not (app / "scripts" / "export-sfx.ts").exists():
+            err("remotion-app/scripts/export-sfx.ts missing (sound intents export)")
+        sf = kit / "SourceFootage.tsx"
+        if sf.exists():
+            code = re.sub(r"/\*.*?\*/|//[^\n]*", "", sf.read_text(encoding="utf-8"), flags=re.S)
+            for prop in ("trimBefore", "trimAfter", "playbackRate", "loop", "startFrom", "endAt", "toneFrequency"):
+                if re.search(rf"\b{prop}\b", code):
+                    err(f"SourceFootage.tsx uses {prop}: the original footage must play untouched (no trim/speed/loop)")
+        the = kit / "TalkingHeadEdit.tsx"
+        if the.exists() and "Timeline mismatch" not in the.read_text(encoding="utf-8"):
+            err("TalkingHeadEdit.tsx lost its duration/fps guard (Timeline mismatch)")
+        projects = app / "src" / "projects"
+        for f in list(projects.rglob("*.ts")) + list(projects.rglob("*.tsx")):
+            code = f.read_text(encoding="utf-8")
+            if re.search(r"<SourceFootage[^>]*\b(trimBefore|trimAfter|playbackRate|loop)\b", code) or "playbackRate" in code:
+                err(f"{f.relative_to(app)} changes footage timing (playbackRate/trim on the source is not allowed)")
+        pkg = (app / "package.json").read_text(encoding="utf-8")
+        for bad in ("@remotion/lambda", "@remotion/cloudrun"):
+            if bad in pkg:
+                err(f"remotion-app depends on {bad}: rendering must stay local (no cloud render service)")
     # every template declares its sound intents
     for t in (root / "templates").glob("*.html"):
         if "window.sfxCues" not in t.read_text(encoding="utf-8"):
@@ -174,8 +230,8 @@ def main():
     n_alt = sum(len(r.get("alternates", [])) for r in refs)
     per_cat = ", ".join("%s %d" % (c, sum(1 for r in refs if r["category"] == c)) for c in V.CATEGORIES)
     nsnd = len(json.loads((root / "data" / "sounds.json").read_text())["sounds"]) if (root / "data" / "sounds.json").exists() else 0
-    print("%d references (%s), %d alternates, %d image files; System D: %d indexed sounds, source doc checksum verified, no Remotion. %d errors, %d warnings."
-          % (len(refs), per_cat, n_alt, total_files, nsnd, len(errors), len(warnings)))
+    print("%d references (%s), %d alternates, %d image files; System D: %d indexed sounds, source doc checksum verified, gain presets checked; Remotion kit + timeline contract %s. %d errors, %d warnings."
+          % (len(refs), per_cat, n_alt, total_files, nsnd, "checked" if app else "not found", len(errors), len(warnings)))
     sys.exit(1 if errors else 0)
 
 

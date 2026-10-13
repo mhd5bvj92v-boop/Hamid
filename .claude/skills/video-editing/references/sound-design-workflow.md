@@ -1,6 +1,6 @@
 # Sound Design Workflow (System D, step by step)
 
-This is how Claude performs the sound design on a real project in this environment, with no Remotion. It is the operational counterpart to `sound-design.md`, which holds the rules and taste. Everything runs from the skill folder; project files live in the project's `work/` folder.
+This is how Claude performs the sound design on a real project: step 8 of `workflow.md`. Remotion builds the picture; this procedure builds the sound from the same beat timings and mixes it under the **untouched original dialogue**. It is the operational counterpart to `sound-design.md`, which holds the rules and taste. Everything runs from the skill folder; project files live in `work/<slug>/sound/`.
 
 Claude does the editing: analysis, cue sheet, sound selection, placement, mix, export and validation. **Claude measures and inspects audio but cannot hear it.** Never write "I listened to" anything. Write "measured" or "auditioned by analysis", and ask the user to listen to the final mix.
 
@@ -11,11 +11,11 @@ Claude does the editing: analysis, cue sheet, sound selection, placement, mix, e
 ```bash
 ffmpeg -version | head -1 && ffprobe -version | head -1
 python3 -c "import numpy, PIL; print('numpy', numpy.__version__)"
-node scripts/render_html.js --html templates/stat-card.html --still 1 --out /tmp/vv_check.png   # only if animations are rendered here
 python3 scripts/sound_selftest.py          # ~1 min: proves index -> audition -> mix -> QC on synthetic fixtures (temp folder)
+python3 scripts/edit_selftest.py           # ~2 min: Remotion picture -> mix -> sound_qc + edit_qc on synthetic footage
 ```
 
-If any of these is missing, stop and tell the user exactly what's missing. Don't fall back to Remotion or to tools that aren't installed.
+If any of these is missing, stop and tell the user exactly what's missing. Don't fall back to tools that aren't installed.
 
 **Library:** `python3 scripts/sfx_index.py search` (or read `sound-library-index.md`).
 - If it is **empty**, ask the user for an authorised SFX folder, then run `sfx_index.py scan <folder>`.
@@ -23,34 +23,35 @@ If any of these is missing, stop and tell the user exactly what's missing. Don't
 - Review entries marked `signal (low)` or `UNC`, and fix them with `sfx_index.py set ID --category ... --role ...`.
 
 **Picture and voice:**
-- Locate the edited picture: the composite from the visual systems (`work/edit_vN.mp4`) or the user's export.
-- Locate the dialogue source. If the picture's audio track is just the voice, the cue sheet's `dialogue.file` is the picture itself. If the original audio also contains music or old effects, ask for a clean dialogue file. The old audio is then simply not used ("muted"); it is never deleted or edited.
-- Note the fps (`compose.py probe`). All timing is frame-based.
+- The picture is the Remotion render: `work/<slug>/renders/picture.mp4` (`edit_render.py picture <slug>`).
+- The dialogue is the **original** cut (`project.json` → `source.path`). `edit_render.py sfx` writes it into `plan.json` as `dialogue.file`, so the mix is built from the untouched original, never from a re-encode. If the user's audio already contains music or old effects, say so and ask whether they want them kept (they are part of their cut) or supply a clean dialogue file; never strip or replace audio on your own.
+- The fps is the approved fps of `Edit-<slug>`. All timing is frame-based.
 
 ## Step 1. Analyse first, always
 
 Never place a single sound before this breakdown exists.
 
-1. **Animations built with this skill** (exact, measured). For every rendered beat, run:
+1. **Remotion beats** (exact, measured):
    ```bash
-   node scripts/render_html.js --html templates/<template>.html --config work/beats/NN.json \
-        --analyze-only --motion work/sound/NN_motion.json --cues work/sound/NN_cues.json --fps <footage fps>
+   python3 scripts/edit_render.py sfx <slug>
    ```
-   - The **motion report** gives every element's movement segments, with travel, fastest frame, first-visible and last-visible frames. `MOVEMENT` means a slide or zoom (whoosh); `MICRO` means a drift inside a pop (texture or silence).
-   - The **cue file** gives the template's declared sound intents (`recommended` / `optional` / `silence-ok`), with times resolved from the measured motion.
-   - Times are layer-relative. The plan's `offset` (the layer's `@start` in `compose.py`) places them on the video timeline.
-2. **Footage and existing animations** (candidates, to be confirmed visually):
+   - `layers/<beat>.json`: each beat kind's declared sound intents (`recommended` / `optional` / `silence-ok`), with times measured from the same pose functions the component renders: the fastest frame for movements, the first visible frame (opacity ≥ 0.5) for events. Times are beat-relative; the plan's `offset` is the beat's `at`.
+   - `timeline.json`: every beat window on the source timeline, the full-screen windows (music is gated off there) and lint warnings.
+   - `plan.json`: the draft plan for `sfx_plan.py` (video = the picture, dialogue = the original, `hook_end` from `beats.ts`).
+   - For beats built from HTML templates instead, `render_html.js --analyze-only --motion --cues` does the same measurement.
+2. **The footage and the picture** (candidates, to be confirmed visually):
    ```bash
-   python3 scripts/video_events.py work/edit_v1.mp4 --out work/sound/video_events.json --strip work/sound/events.png
+   python3 scripts/video_events.py work/<slug>/renders/picture.mp4 --out work/<slug>/sound/video_events.json --strip work/<slug>/sound/events.png
    ```
+   The user's own cuts are part of the edit: a cut that already exists in their footage can take a camera click or sci-fi hit, but never move or remove it.
    This finds cuts (transition frames), motion segments with their fastest frame, and speech regions. Open the strip with Read and keep only real edit events. Gestures and head turns don't get sound.
-3. **Story and voice:** take the hook end, segment changes, chapters, reveals and conclusions from the edit plan (`work/edit-plan.md`) and the transcript.
+3. **Story and voice:** take the hook end, segment changes, chapters, reveals and conclusions from the edit plan (`work/<slug>/plan/edit-plan.md`) and the transcript.
 4. **Draft the cue sheet:**
    ```bash
-   python3 scripts/sfx_plan.py work/sound/plan.json --out work/sound/cues.json
+   python3 scripts/sfx_plan.py work/<slug>/sound/plan.json --out work/<slug>/sound/cues.json
    ```
-   `plan.json` lists the video, `hook_end`, every layer (`cues` file, `offset`, `system`, `fullscreen` + `duration`), the optional `events` file and the optional user `music`.
-5. **Write the breakdown** (`work/sound/breakdown.md`) and report it before placing anything. One row per moment, classified as **MOVEMENT** (whoosh), **EVENT** (texture) or **BUILD** (riser and hit), plus the deliberate **SILENCE** decisions:
+   `plan.json` lists the video, the dialogue, `hook_end`, every layer (`cues` file, `offset`, `system`, `fullscreen` + `duration`), the optional `events` file and the optional user `music`.
+5. **Write the breakdown** (`work/<slug>/sound/breakdown.md`) and report it before placing anything. One row per moment, classified as **MOVEMENT** (whoosh), **EVENT** (texture) or **BUILD** (riser and hit), plus the deliberate **SILENCE** decisions:
    ```
    | TC          | Moment                          | Class    | Source of timing            | Plan                      |
    |-------------|---------------------------------|----------|-----------------------------|---------------------------|
@@ -71,7 +72,7 @@ For each cue in the pass:
 1. **Choose by the rules** (`sound-design.md` §3-5). Look up candidates with `sfx_index.py search ...` or the `candidates` list in the draft.
 2. **Audition the variations by analysis:**
    ```bash
-   python3 scripts/sfx_audition.py --group "<variation folder>" --fit-duration <movement seconds> --out work/sound/aud_<cue>.png
+   python3 scripts/sfx_audition.py --group "<variation folder>" --fit-duration <movement seconds> --out work/<slug>/sound/aud_<cue>.png
    ```
    Open the sheet. Pick the variation whose length, attack (time to loudest point) and weight fit the moment. Record your choice in the cue as `"sound": "WSH-004"` and `"auditioned": ["WSH-003", "WSH-004", "WSH-005"]`, with a one-line `reason`.
 3. **Keep the measured target time.** `t` is the fastest frame for movements, the event frame for textures, and the transition frame for risers and hits. Keep `link.event_t` pointing at the visual event so QC can verify it.
@@ -81,10 +82,10 @@ For each cue in the pass:
 Render and report after each pass:
 
 ```bash
-python3 scripts/sound_mix.py work/sound/cues.json --out work/sound/pass1 --passes 1 --no-music
-python3 scripts/sound_mix.py work/sound/cues.json --out work/sound/pass2 --passes 1,2 --no-music
-python3 scripts/sound_mix.py work/sound/cues.json --out work/sound/pass3 --passes 1,2,3 --no-music
-python3 scripts/sound_qc.py work/sound/pass3 --events work/sound/video_events.json
+python3 scripts/sound_mix.py work/<slug>/sound/cues.json --out work/<slug>/sound/pass1 --passes 1 --no-music
+python3 scripts/sound_mix.py work/<slug>/sound/cues.json --out work/<slug>/sound/pass2 --passes 1,2 --no-music
+python3 scripts/sound_mix.py work/<slug>/sound/cues.json --out work/<slug>/sound/pass3 --passes 1,2,3 --no-music
+python3 scripts/sound_qc.py work/<slug>/sound/pass3 --events work/<slug>/sound/video_events.json
 ```
 
 Report each pass from `cuesheet.csv`: what was placed, where (timecode), which variation was chosen and why, and what was deliberately left silent.
@@ -102,8 +103,8 @@ Report each pass from `cuesheet.csv`: what was placed, where (timecode), which v
 Deliver pass 3 for review. Add music only after approval:
 
 ```bash
-python3 scripts/sound_mix.py work/sound/cues.json --out work/sound/final_v1 --passes 1,2,3      # includes "music" from cues.json
-python3 scripts/sound_qc.py work/sound/final_v1 --events work/sound/video_events.json
+python3 scripts/sound_mix.py work/<slug>/sound/cues.json --out work/<slug>/sound/final_v1 --passes 1,2,3      # includes "music" from cues.json
+python3 scripts/sound_qc.py work/<slug>/sound/final_v1 --events work/<slug>/sound/video_events.json
 ```
 
 **Music** goes in `cues.json` as `"music": {"file": "<user track>", "gain_db": -19, "fade": 0.4}`. The mixer silences it inside `fullscreen_windows` and `graphic_windows`, and QC verifies that.
@@ -119,18 +120,18 @@ When the user changes something, either by editing `cues.json` or by reporting w
 
 ## Deliverables (what "done" means)
 
-All of these live in `work/sound/final_vN/`:
+All of these live in `work/<slug>/sound/final_vN/`:
 
 | File | What it is |
 |---|---|
-| `final.mp4` | Picture stream copied untouched, plus the mixed audio (AAC 320k, 48 kHz) |
+| `final.mp4` | **The deliverable**: the Remotion picture stream copied untouched, plus the mixed audio (AAC 320k, 48 kHz). Checked by `sound_qc.py` and `edit_qc.py`. |
 | `mix.wav` | The full mix, 48 kHz / 24-bit |
 | `stems/*.wav` | DIALOGUE, WHOOSHES, TEXTURES, RISERS, HITS, ENV, MUSIC, each aligned to 00:00:00:00, to drop onto separate tracks in any NLE/DAW |
 | `cuesheet.csv` | Track, cue, anchor timecode, clip-in timecode, file, gain, event and reason |
 | `session.json` | Every placement as rendered, plus source file hashes and auto-fixes |
 | `qc_report.md` / `.json` | The validation results |
 
-Also deliver the editable `cues.json` itself. Report the numbers from the QC report: errors and warnings, true peak, the loudest stack, the sync errors in milliseconds, and which cues were left silent and why.
+Also deliver the editable `cues.json` itself, and refresh the Studio preview: `python3 scripts/edit_render.py sound-preview <slug> --session work/<slug>/sound/final_vN/session.json`. Report the numbers from the QC report: errors and warnings, true peak, the loudest stack, the sync errors in milliseconds, and which cues were left silent and why.
 
 ## Cue sheet schema (`cues.json`)
 
@@ -192,5 +193,6 @@ Always prefer the measured value from `--motion` over this table. The table is f
 - [ ] No clipping: mix sample peak and final true peak are within the ceiling. The loudest stack was identified and reported.
 - [ ] One family per track. Original audio and every library file are unchanged (sha256).
 - [ ] Every placed sound was compared with its variations (`auditioned`).
-- [ ] `final.mp4` exists, has picture and audio, and its picture is bit-identical to the edited picture.
-- [ ] `sound_qc.py` exits 0. Report its warnings honestly.
+- [ ] `final.mp4` exists, has picture and audio, and its picture is bit-identical to the Remotion picture.
+- [ ] `sound_qc.py` exits 0, and `edit_qc.py <slug> --final .../final.mp4` exits 0 (original timeline, duration and dialogue sync preserved). Report warnings honestly.
+- [ ] No sound was invented or reported as placed without an accessible, authorised file behind it.

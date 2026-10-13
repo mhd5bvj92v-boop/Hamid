@@ -11,14 +11,18 @@ Every animation needs a reason to exist. Before animating anything, answer: *wha
 - **Change over time:** count-ups, fills, growth.
 - **Transition:** we are moving to a new section.
 
-If none applies, it should not move. Sometimes the strongest decision is to keep the speaker on screen with nothing added.
+If none applies, it should not move. Sometimes the strongest decision is to keep the speaker on screen with nothing added. "It keeps attention" is **not** a reason: no animation exists solely for retention.
+
+**The footage never moves.** No automatic zooms, punch-ins, shakes or reframing of the talking head; motion belongs to the graphics. Only a zoom the user explicitly asks for is allowed, as a documented beat.
 
 **Prioritise** smooth, purposeful motion, natural timing, one action at a time, light as motion (glows igniting, sweeps), and camera moves that are slow and singular.
 **Avoid** generic template moves, excessive zoom, random bounce or elastic overshoot, spinning, shake, glitch, cheap transitions (star wipes, spins, 3D cube flips), effects on every word, and motion that competes with the speaker's gestures.
 
 ## Timing (at 30 fps; scale proportionally for 24/60)
 
-| Action | Duration | Easing (`templates/_runtime.js`) |
+These easings exist identically in the HTML templates (`templates/_runtime.js`) and in the Remotion kit (`remotion-app/src/kit/motion.ts`, used with `useCurrentFrame()`). Never use CSS transitions or keyframes in Remotion: every pose is a function of the frame.
+
+| Action | Duration | Easing (`_runtime.js` / `kit/motion.ts`) |
 |---|---|---|
 | Small UI element enter | 240-320 ms (7-10 f) | `outCubic` |
 | Hero card / modal enter | 350-450 ms | `outQuart` |
@@ -45,10 +49,10 @@ Rules:
 |---|---|---|
 | Talking head → full-screen | hard cut on a speech beat | 8-frame blur + brightness dip; light-streak flash (FUL-006, FUL-012); portal rise (FUL-093) |
 | Full-screen → talking head | hard cut | soft defocus (FUL-060 style blurred bars) |
-| Overlay in/out | element enter/exit only, the plate is untouched | `--focus` dim/blur ramps 0.3s |
+| Overlay in/out | element enter/exit only, the plate is untouched | `FOCUS` dim/blur ramps 0.3s |
 | Full-screen → full-screen | match-cut on shape (arc → arc, circle → orb) | light sweep across the frame |
 
-Rules: transitions last ≤10 frames unless they are a section opener. The cut happens on the consonant or beat of speech, not mid-word.
+Rules: transitions last ≤10 frames unless they are a section opener. The cut into a scene happens on the consonant or beat of speech, not mid-word. These are transitions of the *graphics layer*: the user's own cuts in the footage are never added, moved or smoothed away.
 
 ## Camera language for full-screen scenes
 
@@ -58,10 +62,10 @@ Rules: transitions last ≤10 frames unless they are a section opener. The cut h
 
 ## Syncing sound to motion (System D)
 
-- **Whooshes:** the sound's **loudest point** sits on the movement's **fastest frame**. With this skill's easings, out-curves (`outCubic`/`outQuart`/`outExpo`) are fastest at the start of the move and in-out curves at the midpoint. Prefer the value measured by `render_html.js --motion`.
+- **Whooshes:** the sound's **loudest point** sits on the movement's **fastest frame**. With this skill's easings, out-curves (`outCubic`/`outQuart`/`outExpo`) are fastest at the start of the move and in-out curves at the midpoint. Prefer the value measured by `edit_render.py sfx` (Remotion beats) or `render_html.js --motion` (HTML templates).
 - **Textures:** the sound's **transient** sits on the **first visible frame** of the pop or reveal, or on the frame the state changes.
 - **Risers:** they **resolve on the transition frame**, with a hit's transient on the same frame. Lead cut-transition sounds by 2-3 frames only when they're not peak- or event-locked.
-- **Motion and sound are one design.** When an animation is re-timed, re-run `--motion/--cues` and re-render the sound. QC flags anything more than 1 frame off.
+- **Motion and sound are one design.** When a beat is re-timed, re-run `edit_render.py sfx` and re-render the sound. QC flags anything more than 1 frame off.
 
 ## Syncing motion to speech
 

@@ -1,6 +1,6 @@
 # System B: Text Inspiration & Text Animations
 
-Typography that appears with speech: hooks, key phrases, numbers, name supers, and full-screen kinetic type.
+Typography that appears with speech: strong hook text, selective captions, key phrases, numbers, name supers, editorial layouts, animated words and full-screen kinetic type. Text is layered over the untouched footage; it never replaces or re-times the dialogue.
 
 **Primary references:** TXT-001..TXT-010.
 **Captions on live UI frames:** ONS-001, ONS-002, ONS-005.
@@ -46,7 +46,7 @@ None of the references show word-for-word subtitles. They show **selected phrase
 3. **The key word lands on its stressed syllable.** Start the 0.35-0.45s entrance about 4-6 frames *before* the stress so it resolves on it.
 4. **Hold** until the thought ends, at least 1.2s after the last word appears.
 5. **Exit** with the phrase: 0.2-0.3s fade and drift, finished before the next designed beat begins. Do not overlap two text beats.
-6. Put the timestamps into the template config: `lines[].at` per line, or `lines[].words[{w, at}]` per word.
+6. Put the timestamps into the beat: the beat's `at` (seconds on the source timeline) plus `lines[].at` per line, or `lines[].words[{w, at}]` per word (seconds from the beat start).
 
 ## Animation vocabulary (pick one per beat)
 
@@ -60,23 +60,29 @@ None of the references show word-for-word subtitles. They show **selected phrase
 
 Avoid: bouncing letters, rotating words, per-letter random pops, typewriter on long sentences, emoji stickers, colour-cycling text, and karaoke highlight on every word. None of these appear in the library.
 
-## Implementation
+## Implementation (Remotion)
 
-`templates/caption-serif-accent.html` covers the TXT-001..TXT-009 patterns. It supports these line styles: `sans`, `sans-sm`, `serif`, `script`, `bold`, `tracked`, `micro`, plus `nameSuper` (`plain`/`boxed`/`highlight`/`serif`). Example config:
+The kit's `CaptionAccent` kind is a 1:1 port of `templates/caption-serif-accent.html` (TXT-001..TXT-009). Line styles: `sans`, `sans-sm`, `serif`, `script`, `bold`, `tracked`, `micro`, plus `nameSuper` (`plain`/`boxed`/`highlight`/`serif`). A beat in `beats.ts`:
 
-```json
+```ts
 {
-  "anchor": {"x": 0.5, "y": 0.58},
-  "colors": {"accent": "#F2A14A", "glow": "rgba(242,161,74,.38)"},
-  "lines": [
-    {"text": "Lower Your", "style": "sans", "at": 0.10},
-    {"text": "Resting Heart Rate", "style": "serif", "at": 0.45},
-    {"text": "Before Bed", "style": "tracked", "at": 0.95}
-  ],
-  "outAt": 2.6,
-  "nameSuper": {"name": "Guest Name", "role": "Role", "x": 0.06, "y": 0.86, "at": 0.2, "outAt": 2.4}
+  id: "b04-rule", kind: "CaptionAccent", at: 12.4,
+  reason: "the rule itself is the point", refs: ["TXT-003"],
+  props: {
+    anchor: { x: 0.5, y: 0.58 },
+    colors: { accent: "#F2A14A", glow: "rgba(242,161,74,.38)" },
+    lines: [
+      { text: "Lower Your", style: "sans", at: 0.1 },
+      { text: "Resting Heart Rate", style: "serif", at: 0.45 },
+      { text: "Before Bed", style: "tracked", at: 0.95 },
+    ],
+    outAt: 2.6,
+    nameSuper: { name: "Guest Name", role: "Role", x: 0.06, y: 0.86, at: 0.2, outAt: 2.4 },
+  },
 }
 ```
+
+Other references (gradient bold TXT-006, extended caps TXT-007, count-up money TXT-008, path flow TXT-010) become new kinds built from those images (`remotion.md` §4).
 
 Text behind the subject (TXT-005) needs a per-frame subject matte. Check for `rembg`, `backgroundremover` or RobustVideoMatting, or ask the user for a matte or roto pass. Composite in this order: plate, then text, then the matted subject, then any foreground caption.
 

@@ -1,6 +1,6 @@
 # System A: On-Screen Visuals (speaker stays visible)
 
-Graphics that share the frame with the talking head. They support the explanation while the speaker keeps eye contact.
+Graphics that share the frame with the talking head: floating UI, cards, labels, diagrams and supporting graphics around or beside the speaker. They support the explanation while the speaker keeps eye contact. The footage underneath is never moved, zoomed or re-timed.
 
 **Primary references:** the five live composites ONS-001..ONS-005. These are the only references in the library that show graphics *on real footage*, so treat them as the ground truth for placement and scale.
 **Element references:** ONS-006..ONS-079. These are elements designed on plain backgrounds; lift the element and place it on footage using the rules below.
@@ -21,7 +21,7 @@ Use System A when the speaker says something that a viewer would understand fast
 
 ## How to design it
 
-1. **Find the free zone.** Look at the actual frames (extract them with `scripts/compose.py frames`). The face plus 10% margin is forbidden. In the references, UI lives in the **55-85% height band**: over the chest, beside or over the mic, never over the eyes or mouth.
+1. **Find the free zone.** Look at the actual frames (extract them from the original with `scripts/compose.py frames`). The face plus 10% margin is forbidden. In the references, UI lives in the **55-85% height band**: over the chest, beside or over the mic, never over the eyes or mouth.
 2. **Choose a real-world container:** list chips, a message card, a calendar, a widget, a stat card, a prompt bar or an app tile. Prefer the plainest object that carries the idea (ONS-003 uses two messages, not a dashboard).
 3. **Size it for a phone.** At 1080x1920 the references use UI titles of ~30px, body ~24px, and chips about 40-45% of frame width (ONS-001). Panels for messages or calendars span 45-70% of the width (ONS-003, ONS-004). If text is under ~20px at 1080w it is unreadable on a phone; cut words instead of shrinking.
 4. **Match the footage.** On dark, warm studio footage use dark-glass UI (`rgba(22,23,28,.86)`) with one blue accent (LIVE-UI family). On bright footage use FROST-LIGHT or NEUMORPHIC-LIGHT elements (ONS-018, ONS-035, ONS-065) or darken the plate locally.
@@ -29,7 +29,7 @@ Use System A when the speaker says something that a viewer would understand fast
    1. the footage's own dark lower area (most of ONS-001..005);
    2. the element's own shadow and hairline border;
    3. a bottom vignette or local darkening;
-   4. a full-frame dim and blur (`--focus start:end:0.6:6`), only when the graphic is large or busy.
+   4. a full-frame dim and blur (`FOCUS` in `beats.ts`, e.g. `{start, end, brightness: 0.6, blur: 6}`), only when the graphic is large or busy. It changes the look, never the timing.
 6. **Pair with a caption only when it helps.** The live references pair every UI beat with a 2-3 word caption above it ("to posting" plus a calendar). The caption names the idea and the UI proves it. See System B.
 7. **One accent, one focal point.** Exactly one element is "active" (glowing border, blue fill or highlighted card). Everything else stays neutral.
 
@@ -51,17 +51,19 @@ For 16:9 talking heads with the speaker off-centre, put the UI on the empty side
 - **Exit:** all elements together over 200-300ms (fade plus 8-10px drift), or a cut on the next scene change. Never let elements trickle out.
 - **Duration:** on screen for the length of the idea, usually 2-4s. Under 1.2s nothing is readable.
 
-## Implementation
+## Implementation (Remotion)
 
-| Need | Template / tool |
-|---|---|
-| list chips, message cards, "You" node with connector | `templates/live-ui-list.html` (ONS-001, ONS-003) |
-| calendar, streak or progress grid | `templates/progress-grid.html` (ONS-004) |
-| big stat with glowing curve | `templates/stat-card.html` (ONS-024, ONS-050) |
-| AI prompt typing | `templates/ai-input-bar.html` (ONS-034, ONS-044) |
-| anything else | copy the closest template and keep `_runtime.js` / `_ui.css` |
+Every overlay is a beat in `remotion-app/src/projects/<slug>/beats.ts`, rendered above `SourceFootage` (`remotion.md`).
 
-Render a transparent sequence with `node scripts/render_html.js`, then composite it with `python3 scripts/compose.py overlay --layer seq@START [--focus ...]`. For editor handoff, encode ProRes 4444 with `compose.py encode --out x.mov`. Full commands are in `implementation.md`.
+| Need | Remotion kind | Reference template to port from |
+|---|---|---|
+| big stat with glowing curve | `StatCard` (kit; default 40% wide, in the 58-85% band) | `templates/stat-card.html` (ONS-024, ONS-050) |
+| list chips, message cards, "You" node with connector | port to a kit or project kind | `templates/live-ui-list.html` (ONS-001, ONS-003) |
+| calendar, streak or progress grid | port | `templates/progress-grid.html` (ONS-004) |
+| AI prompt typing | port | `templates/ai-input-bar.html` (ONS-034, ONS-044) |
+| labels, callouts, diagrams, anything else | new component from the chosen references (`remotion.md` §4) | the closest template |
+
+Preview with `edit_render.py still <slug> --t <s>` over the real footage. For an NLE handoff of a single overlay, the HTML toolchain still renders ProRes 4444 layers (`implementation.md`).
 
 ## Common mistakes
 
@@ -77,7 +79,7 @@ Render a transparent sequence with `node scripts/render_html.js`, then composite
 
 Every System A overlay gets a sound plan. Full rules are in `sound-design.md` §10.
 
-- **Measure, don't guess.** Run `render_html.js --analyze-only --motion --cues` on the beat. Rows, cards and widgets that fade in with a small rise are **events**: their sound is a texture (UI click, or sci-fi impact if the element is *revealed*), placed on the first visible frame at -6 to -7 dB. Only real slides or zooms (≥6% of frame travel) get a whoosh, with its loudest point on the measured fastest frame at -12 dB.
+- **Measure, don't guess.** `edit_render.py sfx <slug>` exports each beat's intents, measured from its pose functions. Rows, cards and widgets that fade in with a small rise are **events**: their sound is a texture (UI click, or sci-fi impact if the element is *revealed*), placed on the first visible frame at -6 to -7 dB. Only real slides or zooms (≥6% of frame travel) get a whoosh, with its loudest point on the measured fastest frame at -12 dB.
 - **Sequences get one emphasis per element** (rows, chips, grid cells), using varied variations. If the ticks are under ~70 ms apart, use one continuous gears or mechanism clip instead.
 - **State changes and button presses** get a sci-fi click or UI click. Typing gets keyboard writing, trimmed to the typing window. Exits stay silent.
 - **These sounds play over speech.** Keep them intimate, put transients between words where possible, and let `sound_qc.py` confirm that nothing is louder than the voice. There is no music change for overlays: the talking-head music bed (-19 dB) continues under them.

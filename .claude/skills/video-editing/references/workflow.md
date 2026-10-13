@@ -1,101 +1,134 @@
-# Editing Workflow (talking-head video or script → finished visuals and sound)
+# Editing Workflow (already-cut talking head → finished visuals, sound and export)
 
-Follow these steps in order. Steps 0-10 cover the visuals (Systems A-C), and step 7b covers the sound (System D, detailed in `sound-design-workflow.md`). Each step produces a concrete artifact in the project's `work/` folder, so progress is inspectable and resumable.
+This is the **default workflow for every talking-head project**. The user supplies a video that is already cut: its cuts, pauses, reactions, dialogue and pacing are intentional. Claude adds text, on-screen visuals, full-screen animations and sound design, then composites and exports. Claude never edits the cut itself.
+
+Every step writes a concrete artifact to `work/<slug>/` (git-ignored), so progress is inspectable and resumable. Editable sources live in `remotion-app/src/projects/<slug>/` (Remotion) and `work/<slug>/sound/cues.json` (sound).
+
+## The timeline contract (read before every project)
+
+| Never | Allowed |
+|---|---|
+| remove footage, add cuts, rearrange or re-order clips | layering graphics over the footage |
+| change speed; shorten or lengthen pauses | covering the footage with a full-screen scene while it keeps running underneath |
+| replace the dialogue or generate a different voice | adding effects and music *under* the untouched dialogue |
+| automatic zooms or reframing nobody asked for | a dim/blur of the footage behind a busy overlay (look only, `FOCUS` in `beats.ts`) |
+| animations that exist only for retention | a centre crop to 9:16 when the source is not vertical, **only with the user's approval** (`--fit cover`) |
+
+How it is enforced:
+- the footage enters only through `SourceFootage` (no trim, speed, loop or order props exist);
+- the composition is exactly `round(source duration × fps)` frames long, and `TalkingHeadEdit` throws if it is not;
+- the final mix uses the **original** file's dialogue at 0 dB (`sound_mix.py` refuses any other gain);
+- `edit_qc.py` compares the export with the original: duration, frame count, frame-by-frame alignment outside the graphics, the return to sync after every full-screen scene, audio lag 0 ms, and the original's sha256.
 
 ## 0. Intake
 
-- Gather what you have: video file(s), script/transcript, aspect ratio, platform, brand colours/fonts, deadline, and the final destination (finished MP4, or overlay layers for an NLE).
-- Probe the footage: `python3 scripts/compose.py probe input.mp4`. Extract review frames: `python3 scripts/compose.py frames input.mp4 --every 1 --out work/frames`.
-- Check the tools: `ffmpeg`, `node` + Playwright/Chromium (`node scripts/render_html.js` errors clearly if they are missing), plus optionally Blender, an ASR (whisper), and a matting tool. For sound, run `python3 scripts/sound_selftest.py` and check the sound library (`python3 scripts/sfx_index.py search`). If it's empty, ask the user for an authorised SFX folder. Write down what is available in `work/notes.md`. Plan only with tools that exist.
-- If only a script exists (no video), design for the script and mark all timings as provisional.
+```bash
+python3 scripts/edit_init.py /path/to/my-cut.mp4 --slug my-video
+```
+
+- It probes the footage (resolution, rotation, frame rate, VFR, duration, audio), records its sha256, links the original's folder into `remotion-app/public/projects/<slug>/footage/` (no copy), writes `work/<slug>/project.json`, and creates `remotion-app/src/projects/<slug>/` with the composition `Edit-<slug>`.
+- **Frame rate:** the approved rate defaults to the source's constant frame rate. A variable-frame-rate source, or any other delivery rate, needs `--fps N` after the user approves it. State the rate in the plan.
+- **Aspect:** a source that isn't 9:16 stops intake. Ask the user how to reframe; `--fit cover` (centre crop) only after approval.
+- Extract review frames at the source resolution and look at them: `python3 scripts/compose.py frames <original> --every 1 --out work/<slug>/frames`.
+- Check the tools once per environment: `python3 scripts/edit_selftest.py` (Remotion render + mix + QC on synthetic media, ~2 min). Check the sound library: `python3 scripts/sfx_index.py search`. If it's empty, ask for an authorised SFX folder and say plainly that no sound effects can be placed until then. Write what is available in `work/<slug>/notes.md`. Plan only with tools and assets that exist.
 
 ## 1. Understand the story
 
-Read or listen to the whole thing before designing anything. Write `work/story.md`:
-- The one-sentence point of the video.
-- The structure: hook, setup, main points, payoff/CTA (with timestamps).
-- The emotional arc: where trust and face matter most, and where energy should peak.
-- The concrete nouns, numbers, names, tools, comparisons and processes mentioned.
+Watch/listen to the whole cut and read the transcript before designing anything. Get word timestamps (a user-supplied transcript/SRT, or a local ASR such as whisper if installed; check before promising). Write `work/<slug>/plan/story.md`:
+- the one-sentence point of the video;
+- the structure: hook, setup, main points, payoff/CTA (with timestamps);
+- the emotional arc: where trust and face matter most, where energy peaks;
+- the concrete nouns, numbers, names, tools, comparisons and processes mentioned.
+
+The pacing is the user's. Don't note places to tighten, cut or speed up; that is not this job.
 
 ## 2. Find the moments that need visual support
 
-Go through the transcript and mark candidate beats. A beat qualifies if at least one is true:
-- it contains a number, name, tool, list, comparison or process (good for System A);
-- it is the hook, a rule, or a memorable phrase (good for System B);
-- it is an abstract idea, a metaphor, a section break or a big reveal (good for System C).
+Mark candidate beats in the transcript. A beat qualifies if at least one is true:
+- it contains a number, name, tool, list, comparison or process (System A);
+- it is the hook, a rule, or a memorable phrase (System B);
+- it is an abstract idea, a metaphor, a section break or a big reveal (System C).
 
-Then **remove** candidates that are emotional or personal, that come less than ~4s after another beat with no new idea, or where the speaker is already showing something with their hands. Aim for clarity, not coverage.
+Then **remove** candidates that are emotional or personal, that come less than ~4s after another beat with no new idea, where the speaker is already showing something with their hands, or whose only purpose would be "keeping attention". Aim for clarity, not coverage.
 
 ## 3. Decide the treatment for each beat
 
-For each beat, decide in this order:
-1. **Nothing.** Is the face alone strongest here? If yes, keep it.
-2. **Text (System B).** Is the *phrase itself* the point?
-3. **On-screen (System A).** Would a familiar object (card, list, chart, UI) make it instantly concrete while keeping the speaker?
-4. **Full-screen (System C).** Does it need the whole frame (metaphor, big number, structure, chapter)?
+For each beat, in this order:
+1. **Nothing.** Is the face alone strongest here? Keep it.
+2. **Text (System B).** Is the *phrase itself* the point? (hooks, rules, key words)
+3. **On-screen (System A).** Would a familiar object (card, list, chart, label, diagram) make it concrete while the speaker stays visible?
+4. **Full-screen (System C).** Does it need the whole frame (metaphor, big number, structure, chapter)? It covers the footage briefly; the dialogue continues.
 
-Budget guideline for a 60s talking head: about 6-10 text beats, 3-6 on-screen beats and 1-3 full-screen beats. Adjust to the content; it is not a quota.
+Budget guideline for a 60s talking head: about 6-10 text beats, 3-6 on-screen beats and 1-3 full-screen beats (full-screen ≤ 20-25% of the runtime). It is not a quota.
 
 ## 4. Find references
 
-For each beat, run `python3 scripts/search.py <keywords> --cat ONS|TXT|FUL`. Shortlist 1-3 IDs, then **open the images with Read** (the paths are printed). Do not design from memory or from the text descriptions alone. Read each entry's Observed vs Inferred notes (`--show ID`).
+For each beat, run `python3 scripts/search.py <keywords> --cat ONS|TXT|FUL`. Shortlist 1-3 IDs, then **open the images with Read**. Read each entry's Observed vs Inferred notes (`--show ID`). The library is the primary design inspiration: if a reference fits better than a kit component, build a new component from the reference rather than reusing a generic one.
 
-## 5. Write the visual concept
+## 5. Write the plan and get approval
 
-Create `work/edit-plan.md`, a beat sheet the user can approve:
+Create `work/<slug>/plan/edit-plan.md`:
 
 ```
-| # | In-Out (s) | Spoken words | System | Concept (one line) | Refs | Family | Template/tool |
-|---|-----------|--------------|--------|--------------------|------|--------|---------------|
-| 1 | 0.4-2.9 | "What's the 30,000ft view on..." | B | sans lead + amber serif "30,000ft" | TXT-001 | SERIF-ACCENT-CAPTION | caption-serif-accent |
-| 2 | 5.1-8.6 | "...consistency in posting" | A | 30-day calendar fills to 15/30 | ONS-004 | LIVE-UI | progress-grid |
-| 3 | 12.0-14.8 | "we've helped over 300..." | C | horizon rises, 300 counts up | FUL-002 | HORIZON-ARC | fullscreen-horizon-title |
+Source: my-cut.mp4, 1080x1920, 30 fps, 58.4 s (timeline preserved: 1752 frames, no cuts/speed changes)
+Approved frame rate: 30 fps (source)   Palette: warm amber accents (warm grade)   Sound library: 214 sounds indexed
+
+| # | In-Out (s) | Spoken words | System | Concept (one line) | Refs | Kind / component | Sound |
+|---|-----------|--------------|--------|--------------------|------|------------------|-------|
+| 1 | 0.4-2.9 | "What's the 30,000ft view on..." | B | sans lead + amber serif "30,000ft" | TXT-001 | CaptionAccent | pop on key word |
+| 2 | 5.1-8.6 | "...consistency in posting" | A | 30-day calendar fills to 15/30 | ONS-004 | ProgressGrid (port) | UI click + gears |
+| 3 | 12.0-14.8 | "we've helped over 300..." | C | horizon rises, 300 counts up | FUL-002 | HorizonTitle | riser + hit, classy airy |
 ```
 
-Add a **Sound** column with each beat's sound intent: whoosh, texture, riser/hit, or **silence**, following `sound-design.md` §10. Also state the section palette and family choices, chosen from the footage's grade (see `design-language.md` §5). **Share the plan with the user before heavy rendering** when a review loop is possible.
+State what is *not* touched (the cut, the dialogue, the pacing) and any approximation. **Share the plan before heavy rendering** whenever the user can review.
 
-## 6. Develop each animation
+## 6. Build in Remotion
 
-For every beat, write a config JSON (`work/beats/02-calendar.json`) with exact timestamps from the transcript. Copy and modify a template when the design needs more than config. Keep `_runtime.js` timing helpers, and keep everything deterministic (`renderFrame(t)` must depend only on `t`).
+- Write the beats in `remotion-app/src/projects/<slug>/beats.ts`: `id`, `kind`, `at` (seconds on the source timeline), `props` (times inside are seconds from the beat start), `reason`, `refs`. Use word timestamps for `at` and line/word times. Set `HOOK_END` (seconds) for the first riser.
+- Kit kinds: `CaptionAccent` (B, TXT-001..009), `StatCard` (A; C with `fullscreen: true`; ONS-024/050), `HorizonTitle` (C, FUL-002). For anything else, port the closest template or build from the chosen references as a new component with a pure `*.timing.ts` (see `remotion.md` §4).
+- Preview stills over the real footage at key moments (entering, landed, before exit): `python3 scripts/edit_render.py still <slug> --t <s>`. Open them with Read. Use Remotion Studio (`cd remotion-app && npm run dev`) for live review.
 
-## 7. Implement
+## 7. Picture
 
-- Overlays: `node scripts/render_html.js --html templates/<template>.html --config work/beats/NN.json --out work/seq/NN --fps <footage fps>`.
-- Full-screen scenes: the same, with an opaque template (or Blender / generated-image paths, see `system-c-full-screen.md`).
-- Composite: `python3 scripts/compose.py overlay --base input.mp4 --out work/edit_v1.mp4 --layer work/seq/01@0.40 --layer work/seq/02@5.10 --focus 5.0:8.6:0.62:6 --fullscreen work/seq/03@12.0`.
-- For NLE handoff: `python3 scripts/compose.py encode --frames work/seq/NN --out work/layers/NN.mov` (ProRes 4444 with alpha), plus the beat sheet as the timing sheet.
+```bash
+python3 scripts/edit_render.py picture <slug>        # work/<slug>/renders/picture.mp4 (+ render log)
+```
 
-## 7b. Sound design (System D)
+Extract QC frames from it (`compose.py frame`), compare them with the references (`compare.py`), and fix (steps 9-10).
 
-Do this after the picture is locked (or at least the beat timings). The full procedure is in `sound-design-workflow.md`.
+## 8. Sound design (System D)
 
-1. **Measure:** run `render_html.js --analyze-only --motion --cues` for every beat, and `video_events.py` on the composite.
-2. **Draft:** run `sfx_plan.py` to produce `cues.json`, then write the breakdown (MOVEMENT / EVENT / BUILD / SILENCE) and report it.
-3. **Pass 1 (whooshes), pass 2 (textures), pass 3 (risers and hits):** audition the variations, fill in `sound` and `auditioned`, then render with `sound_mix.py --passes ... --no-music` and report after each pass.
-4. **Validate:** `sound_qc.py` must exit 0. Hand off for review.
-5. **Pass 4 (music):** only after approval, -19 dB under the talking head, silent in `fullscreen_windows`. Then re-run QC.
+After the picture timings are locked. Full procedure: `sound-design-workflow.md`.
 
-## 8. Preview
+1. **Measure:** `python3 scripts/edit_render.py sfx <slug>` writes `timeline.json`, per-beat sound intents measured from the same pose functions the components render (fastest frame, first visible frame), and `plan.json` (video = the picture, dialogue = the original). Optionally `video_events.py` on the picture for cuts and motion in the footage.
+2. **Draft:** `python3 scripts/sfx_plan.py work/<slug>/sound/plan.json --out work/<slug>/sound/cues.json`, then write the breakdown (MOVEMENT / EVENT / BUILD / SILENCE) and report it.
+3. **Passes 1-3:** audition, fill in `sound` and `auditioned`, render with `sound_mix.py --passes ... --no-music`, report after each pass.
+4. **Validate:** `sound_qc.py` must exit 0.
+5. **Studio preview:** `python3 scripts/edit_render.py sound-preview <slug> --session work/<slug>/sound/final_vN/session.json` lets the user hear the placements in Remotion Studio.
+6. **Pass 4 (music):** only after approval, -19 dB under the talking head, silent in full-screen windows. Re-run QC.
 
-- Render stills first: `node scripts/render_html.js ... --still <t> --bg work/frames/t_0012.png --out work/preview/NN.png` at the beat's key moments (entering, landed, before exit).
-- Then render the composite and extract QC frames: `python3 scripts/compose.py frame work/edit_v1.mp4 --t 6.2 --out work/qc/6.2.png`.
-- Look at the frames yourself with Read. Do not assume they look right.
+If the library is empty or has no fitting sound, place nothing and say so. Never invent or claim a sound.
 
-## 9. Compare with the references
+## 9. Final QC
 
-`python3 scripts/compare.py --render work/qc/6.2.png --refs ONS-004 --out work/qc/cmp-02.png`, then open it.
-Judge it with `quality-control.md`. Write the result in `work/qc/report.md`: what matches, what differs, and what you will change.
+```bash
+python3 scripts/sound_qc.py work/<slug>/sound/final_vN
+python3 scripts/edit_qc.py <slug> --final work/<slug>/sound/final_vN/final.mp4
+```
+
+Both must exit 0. Then look at the frames yourself (`quality-control.md`): every beat entering, landed and before exit, plus the first and last frame of every full-screen scene.
 
 ## 10. Improve
 
-Fix the gaps (scale, colour, timing, legibility, clutter), re-render, and re-compare. Usually 1-3 rounds. Stop when every beat passes QC or when the remaining gaps are limitations of the tools (state those honestly).
+Fix the gaps (scale, colour, timing, legibility, clutter), re-render, and re-compare. Usually 1-3 rounds. Stop when every beat passes QC or when the remaining gaps are limitations of the tools (state them honestly).
 
 ## Delivering
 
 Tell the user exactly what exists:
-- files produced (paths, durations, resolution, codec), including `final.mp4`, the sound stems, `cuesheet.csv`, `cues.json` and `qc_report.md`;
-- the sound QC numbers: errors and warnings, true peak, loudest stack, sync errors, and the cues deliberately left silent. Say that the mix was verified by measurement and ask the user to listen;
+- `work/<slug>/sound/final_vN/final.mp4` (1080x1920, approved fps, H.264 + AAC) with its duration and frame count, and the `edit_qc` and `sound_qc` results;
+- the editable sources: `remotion-app/src/projects/<slug>/` (beats, components), `cues.json`, the stems and `cuesheet.csv`;
 - what was rendered and checked (which frames you inspected);
-- what was *not* done or is approximate (for example: "3D hourglass replaced by a 2.5D still", "no ASR available, timings by hand", "fonts substituted").
+- the sound numbers: errors and warnings, true peak, loudest stack, sync errors, deliberate silences; say the mix was verified by measurement and ask the user to listen;
+- what was *not* done or is approximate (inferred motion, substituted fonts, missing sound categories).
 
-Never claim a render, validation or tool output that did not happen.
+Never claim a render, validation or tool output that did not happen. Rendered media stays out of git.

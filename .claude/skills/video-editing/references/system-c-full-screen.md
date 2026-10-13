@@ -1,6 +1,8 @@
 # System C: Full-Screen Animations (replace the talking head)
 
-Scenes that cut away from the speaker for a moment: big ideas, metaphors, data stories, section openers and transitions.
+Scenes that cover the speaker for a moment: big ideas, metaphors, data stories, section openers and transitions.
+
+**The timeline keeps running.** A full-screen scene is an opaque layer above the footage, not a cut. The footage and the dialogue continue underneath without interruption, and when the scene ends the face returns exactly where the user's cut has it. Never pause, trim, slow down or re-order the footage to make room for a scene; fit the scene to the speech instead. `edit_qc.py` checks the first clean frame after every scene.
 
 **References:** FUL-001..FUL-093, plus the ONS references flagged `also_useful_for: FUL` (for example ONS-013, ONS-015, ONS-021, ONS-025, ONS-028).
 The library is mostly **stills (posters, hero sections, key visuals)**. Every motion design below is *inferred* from them. Build the motion to fit what the still implies, and tell the user it is an interpretation.
@@ -45,9 +47,9 @@ Limits:
 
 ## Production paths (choose by what the environment actually has)
 
-1. **HTML/CSS/SVG/Canvas → Playwright frames** (always available here). Good for typography, UI, charts, glows, planet arcs and particles. Template: `templates/fullscreen-horizon-title.html`; `templates/stat-card.html` with `"fullscreen": true`.
+1. **Remotion (the default).** React/CSS/SVG/Canvas drawn per frame: typography, UI, charts, glows, planet arcs, particles. Kit kinds: `HorizonTitle` (FUL-002) and `StatCard` with `fullscreen: true`; build other archetypes as new kinds from their references (`remotion.md` §4). The HTML templates (`templates/fullscreen-horizon-title.html`) remain the design sandbox.
 2. **Generated or licensed still plus 2.5D animation:** the hero object (hourglass, chess pieces, brain) as an image, animated with parallax layers, light sweeps, a particle overlay (sand, dust, sparks) and a camera push in HTML or ffmpeg. State that the base image was generated or sourced, and check licensing.
-3. **True 3D (Blender, if installed):** extruded numerals, glass tiles, neon rims, slat waves and coils. Use emission plus bloom (Eevee) or Cycles with glass/rim lights. Render a PNG sequence and composite it with `compose.py`.
+3. **3D:** React Three Fiber inside Remotion (`@remotion/three`, see the remotion-best-practices skill) for extruded numerals, glass tiles and rims. Blender is not part of the default setup; use it only if the user asks and it is installed, rendering a PNG sequence that the Remotion scene plays.
 4. **Third-party tools the user has** (After Effects, DaVinci Resolve/Fusion, Premiere): hand off ProRes 4444 layers plus a timing sheet if the user will finish there.
 
 Never claim a 3D render or a generated image exists until it does. If a path is unavailable, say which one you used instead.
@@ -65,7 +67,7 @@ Never claim a 3D render or a generated image exists until it does. If a path is 
 
 Full-screen scenes are where sound design is most visible. Full rules are in `sound-design.md` §10.
 
-- **No music inside the scene.** Set the scene's window in the cue sheet's `fullscreen_windows`; the mixer gates the music out, and QC verifies it.
+- **No music inside the scene.** `edit_render.py sfx` writes the scene's window into `fullscreen_windows`; the mixer gates the music out, and QC verifies it. The dialogue keeps playing under the scene at 0 dB.
 - **Cut in:** an entry texture (activate-energy / sci-fi entry, camera click or sci-fi hit) on the cut frame. For section changes, add a **riser that resolves on the cut with a hit beneath** (pass 3). Trim the riser's head so it doesn't swell over the speaker's last words.
 - **The hero move** (planet rise, object reveal, camera move): a whoosh sized to the move, with its loudest point on the measured fastest frame. Big and slow → classy airy or organic wind; standard → deep voice or hollow. Up to -10 dB for big moves.
 - **One impact per scene.** The reveal gets the loudest moment (sci-fi impact, or heavenly choir for a "big deal"). Counters and body text stay quiet or silent.

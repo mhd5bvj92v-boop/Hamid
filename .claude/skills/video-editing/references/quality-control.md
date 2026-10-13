@@ -4,13 +4,28 @@ Run this after every render round. QC means **looking at the frames**, not assum
 
 ## Procedure
 
-1. **Extract evidence.** For each beat, pull 3 frames from the *composited* video (entering, landed/mid, just before exit): `python3 scripts/compose.py frame edit.mp4 --t <t> --out work/qc/<beat>-<t>.png`. For full-screen scenes, add the first and last frame to check the transitions.
+0. **Prove the timeline first.** `python3 scripts/edit_qc.py <slug> --final <final.mp4>` and `python3 scripts/sound_qc.py <final dir>` must both exit 0 (see the Timeline checklist).
+1. **Extract evidence.** For each beat, pull 3 frames from the *final* video (entering, landed/mid, just before exit): `python3 scripts/compose.py frame work/<slug>/sound/final_vN/final.mp4 --t <t> --out work/<slug>/qc/<beat>-<t>.png`, or render a still straight from Remotion (`edit_render.py still <slug> --t <t>`). For full-screen scenes, add the first and last frame and the first frame after the scene.
 2. **Compare.** `python3 scripts/compare.py --render <frames> --refs <IDs chosen in the plan> --out work/qc/cmp-<beat>.png`, then open it with Read.
 3. **Check at phone size.** Look at a frame downscaled to 360px width (`compare.py --height 640` approximates this). If you have to squint, it fails.
 4. **Score with the checklists below.** Every "must" item has to pass. For each "should" item that fails, write the reason or a fix.
 5. **Check timing.** Extract frames at the stressed word's timestamp ±3 frames and confirm the key action resolves on the word.
 6. **Fix and repeat.** Change one thing at a time, re-render the still first, then the sequence.
 7. **Report honestly.** List the remaining differences from the references and any tool limitations.
+
+## Timeline checklist (non-destructive editing, every project)
+
+`edit_qc.py` measures these against the original recorded at intake. All must pass:
+- [ ] The original footage is byte-identical (sha256), and the output is a new file.
+- [ ] MP4, H.264, yuv420p, BT.709 limited range, 1080x1920, the approved constant frame rate, AAC 48 kHz.
+- [ ] Same duration as the source (±1 frame) and exactly `round(duration × fps)` frames: nothing removed or added.
+- [ ] Graphics-free frames match the source frame at the same time better than their neighbours: no cut, re-order, speed change or drift.
+- [ ] After every full-screen scene, the first clean frame is back in sync (the footage kept running underneath).
+- [ ] The final audio is aligned with the original dialogue (lag 0 ±1 ms) and still carries it.
+
+And by eye:
+- [ ] No pause was shortened or filled with a speed change; no automatic zoom or reframe was applied to the footage.
+- [ ] Every animation has an editorial reason (no retention-only motion).
 
 ## Universal checklist (all systems)
 
@@ -78,7 +93,10 @@ Run `python3 scripts/sound_qc.py <render folder> --events <video_events.json>`. 
 | Glow looks muddy | glow colour mixed with grey, or low alpha everywhere | glow in the accent hue only, brighter core, darker surroundings |
 | Banding in dark gradients | 8-bit encode of big smooth gradients | add 1-2% noise/grain, encode at higher quality (lower CRF) |
 | Old-style numerals in serif | font default | `font-variant-numeric: lining-nums` (set in templates) |
-| Wrong font rendered | web font not loaded / offline | install the font or change `fonts` in the config; recheck the still |
+| Wrong font rendered | web font not loaded / offline | Remotion: fonts are bundled in `src/fonts.ts` (add the weight there); HTML: install the font or change `fonts` in the config; recheck the still |
+| `Timeline mismatch` error in Remotion | the composition's fps/length differ from `source.ts` | never hand-edit `index.tsx`/`source.ts`; re-run `edit_init.py` with the approved `--fps` |
+| `edit_qc` frames ERROR | the picture drifted, was cut or re-timed | look for a trimmed or re-timed source (e.g. a second `<Video>`), or a beat that hides the footage longer than planned; never "fix" by editing the source |
+| `edit_qc` audio lag ≠ 0 | the mix was built from a re-encode or shifted file | the cue sheet's `dialogue.file` must be the original (`edit_render.py sfx` sets it) |
 
 ## Build-time test log (2026-10-13)
 
@@ -112,3 +130,15 @@ The sound toolchain was tested with `scripts/sound_selftest.py`. **The user's li
 - **The test also caught a real mixing mistake:** a riser swelled over the speaker's last words. It was fixed by trimming the riser's head, which is documented as the standard fix.
 
 **Not yet tested:** a real sound library, real talking-head footage, and listening (Claude cannot hear; the user must listen to the final mix).
+
+### Remotion workflow test log (2026-10-13)
+
+`scripts/edit_selftest.py` was run on **synthetic footage** (8 s, 1080x1920, 30 fps, moving test pattern, TTS dialogue) with one beat per system: CaptionAccent (TXT-001), StatCard (ONS-024) with a focus dim, and HorizonTitle (FUL-002), full-screen 5.2-7.6 s.
+- **Picture:** Remotion rendered 240 frames at 30 fps. The frames were inspected: the amber serif caption, the stat card in the UI band, the horizon scene, and a burned-in source frame counter that matched the output frame numbers.
+- **Sound:** intents measured from the kit's pose functions, `sfx_plan.py`, 12 cues with *synthetic* fixtures, `sound_mix.py`; `sound_qc.py` 0 errors (3 warnings: an auto-pulled hit, the sharp-bass style target, one window within 3 dB of the voice).
+- **sound_qc caught real mistakes during development:** a riser at -5 dB swelling over the speaker's last words before the full-screen cut, twice. The fix was the documented one (trim the riser's head; keep the cut off the speech).
+- **Timeline:** `edit_qc.py` 0 errors. 240/240 frames, 8.000 s, 12 graphics-free frames matched the source at the same time (PSNR ≥ 46 dB), back in sync after the full-screen scene, audio lag 0.00 ms.
+- **Negative tests:** a 0.5 s trimmed head, a 4% speed-up, an 80 ms audio shift and a 0.5 s cut in the middle were all **rejected**.
+- **Design fix found by looking:** the System A stat card's default size crossed the bottom-safe zone, and its small text was under 20 px. The default is now 40% wide in the 58-85% band, with a 20 px minimum text size.
+
+**Not yet tested:** real talking-head footage, VFR phone footage, `--fit cover`, `--scale` masters, a real sound library, and listening (Claude cannot hear).

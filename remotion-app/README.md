@@ -1,20 +1,31 @@
 # Remotion app
 
-The Remotion video composition engine for this repository. It was created with `npx create-video@latest --yes --blank remotion-app` (Remotion 4.0.535, React 19, TypeScript).
+The Remotion video composition engine for this repository: it renders the picture of every talking-head edit. It was created with `npx create-video@latest --yes --blank remotion-app` (Remotion 4.0.535, React 19, TypeScript).
 
-The editing system itself (reference library, design rules, sound design) is still the `video-editing` skill in `../.claude/skills/video-editing/`. This app does not change or replace it.
+The editing rules, reference library and sound design live in the `video-editing` skill (`../.claude/skills/video-editing/`), which drives this app. Its timeline rules apply here: the user's footage is never cut, trimmed, re-timed or re-voiced.
 
 ## Defaults
 
 | Setting | Value |
 |---|---|
-| Canvas | 1080 × 1920 (vertical), 60 fps |
+| Canvas | 1080 × 1920 (vertical). Talking-head edits: the source's (approved) frame rate. Setup-check compositions: 60 fps |
 | Deliverable | H.264 MP4 with AAC audio, yuv420p, BT.709 limited range, CRF 18 |
 | Transparent overlay | ProRes 4444 `.mov` with alpha (`yuva444p10le`) |
 | Timing | All animation is driven by `useCurrentFrame()` and `interpolate()`, so it is frame-exact. Beats are written in seconds and converted with `fps`. |
-| Fonts | Montserrat (house sans) and Instrument Serif italic (accent), bundled from npm via `@fontsource`. Renders need no Google Fonts access. |
+| Fonts | Montserrat 100-800 (house sans), Playfair Display italic and Instrument Serif italic (accents), bundled from npm via `@fontsource`. Renders need no Google Fonts access. |
 
-## Compositions (`src/Root.tsx`)
+## Talking-head edits (the default use)
+
+Every talking-head project is a composition `Edit-<slug>` in `src/projects/<slug>/`, created by the `video-editing` skill (`python3 ../.claude/skills/video-editing/scripts/edit_init.py <footage> --slug <slug>`):
+
+- `source.ts` is generated: the original's size, frame rate and duration. The composition is exactly as long as the source, at the approved frame rate, 1080x1920.
+- `beats.ts` is the editable list of designed beats (text, overlays, full-screen scenes) on the source timeline.
+- `Edit.tsx` renders `TalkingHeadEdit`: the untouched footage (`SourceFootage`: full length, original speed, no trim) with one `<Sequence>` per beat on top, plus an optional Studio sound preview.
+- The footage is reached through `public/projects/<slug>/footage/`, a link to the original's folder (git-ignored, never copied).
+
+The edit kit is in `src/kit/` (`SourceFootage`, `TalkingHeadEdit`, `CaptionAccent`, `StatCard`, `HorizonTitle`, `SoundPreview`, house motion and tokens). `scripts/export-sfx.ts` exports each beat's measured sound intents for the skill's sound pipeline (`npx tsx scripts/export-sfx.ts <slug> <outDir>`). Rendering, mixing and QC go through the skill's scripts; see `.claude/skills/video-editing/references/remotion.md`.
+
+## Setup-check compositions (`src/Root.tsx`)
 
 | ID | What it is | Output |
 |---|---|---|

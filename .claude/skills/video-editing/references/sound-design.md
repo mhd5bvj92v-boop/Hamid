@@ -4,10 +4,12 @@ This system adapts Joseph's sound design system (Ultimate Editors) to this skill
 
 - **Source:** `references/sources/UE-Sound-Design-Claude-Training-COMPLETE.md` is kept unmodified, with its sha256 recorded in `data/sources.json`. Read it once for the original voice.
 - **What carries over:** this file keeps Joseph's aesthetic, his three sound families, his selection tables, his levels and his pass order (Part A of his document).
-- **What is replaced:** his Remotion-specific operating instructions (Part B). The replacements are listed in §11.
+- **How it runs here:** his Remotion operating instructions (Part B) are mapped onto this repository's Remotion + cue-sheet pipeline in §11.
 - **Where the procedure lives:** `sound-design-workflow.md`, with the library itself in `sound-library-index.md`.
 
-**Remotion is not used and must not be introduced.** Sound is placed from a cue sheet by `scripts/sound_mix.py` (numpy + ffmpeg), which renders editable per-family stems and a final export.
+**Remotion builds the picture; the cue sheet drives the sound.** Sound timing is measured from the Remotion beats (`edit_render.py sfx`), placed from a cue sheet by `scripts/sound_mix.py` (numpy + ffmpeg, sample-accurate, voice untouched) into editable per-family stems and the final export, and previewed in Remotion Studio (`edit_render.py sound-preview`).
+
+**The gain presets in §6 are Joseph's starting clip gains, not loudness targets.** Keep them unless the material makes a change necessary, and record why. **Only authorised assets that are actually accessible are used**: never invent a sound, never claim a sound was added when the library doesn't have it, and never alter the user's dialogue.
 
 ---
 
@@ -64,7 +66,7 @@ You can tag a sound's role yourself: `python3 scripts/sfx_index.py set ID --role
 
 Use a whoosh any time something **moves**: text sliding in from the side or up/down, an image or UI element sliding in (sliding, not popping), a camera pan, a zoom, a camera move inside an animation, or a scene transition.
 
-**Placement:** find the fastest frame of the movement and put the whoosh's loudest point exactly there. For animations built with this skill, the frame is measured, not guessed: `render_html.js --motion` reports each movement segment's fastest frame. For footage, `video_events.py` proposes candidates.
+**Placement:** find the fastest frame of the movement and put the whoosh's loudest point exactly there. For animations built with this skill, the frame is measured, not guessed: each Remotion beat's pose functions report the fastest frame (`edit_render.py sfx`; for HTML templates, `render_html.js --motion`). For footage, `video_events.py` proposes candidates.
 
 Joseph's whoosh palette and selection logic (preserved):
 
@@ -189,11 +191,12 @@ Each pass is rendered and reported separately (`sound_mix.py --passes 1`, then `
 - Never put two sound families on one track.
 - Never delete, overwrite, move or re-encode original audio or library files. All outputs are new files; the original audio stays in the source, simply not used in the mix ("muted").
 - Never place a suck-back riser at a middle volume.
+- Never invent a sound asset or report a sound as placed when the library doesn't have a fit. Say what is missing and ask.
 - Never claim you listened to a sound. Claude measures and inspects audio; it cannot hear it. Say so, and ask the user to listen to the final mix.
 
 ## 10. Integration with the visual systems
 
-Every animation gets a sound plan derived from its movement, its events and its purpose. Each template declares its intents (`window.sfxCues`), and `render_html.js --cues` resolves their times from the measured motion. Priorities are `recommended`, `optional` and `silence-ok`.
+Every animation gets a sound plan derived from its movement, its events and its purpose. Each Remotion beat kind declares its intents in its `*.timing.ts` (`sfx(props, fps)`), with times measured from the same pose functions the component renders; `edit_render.py sfx` exports them per beat. (HTML templates do the same via `window.sfxCues` and `render_html.js --cues`.) Priorities are `recommended`, `optional` and `silence-ok`.
 
 ### System A (on-screen visuals, speaker visible)
 
@@ -236,32 +239,35 @@ Text sound must never mask the word it decorates: the transient sits on the firs
 
 Full-screen scenes carry the widest, roomiest sounds and the scene's single loudest moment.
 
-## 11. Remotion instructions replaced
+## 11. Joseph's Remotion instructions in this pipeline
 
-| Joseph's document (Remotion) | This skill (no Remotion) |
+His document assumed Remotion. This repository now uses Remotion for the picture, so most of his Part B applies directly. The one deliberate difference: the final mix is rendered by `sound_mix.py` from the cue sheet (sample-accurate anchors, voice bit-identical, clip protection, QC) instead of by Remotion's `<Audio>` mixer, and Remotion Studio shows a generated preview of the same placements.
+
+| Joseph's document (Remotion) | This pipeline |
 |---|---|
-| Sound design "inside the Remotion project, on the composition timeline" | A **cue sheet** (`work/sound/cues.json`) is the timeline. `sound_mix.py` renders it sample-accurately with numpy and ffmpeg. |
-| "Separate editable tracks so Joseph can inspect in Remotion Studio" | **Per-family stems** (DIALOGUE, WHOOSHES, TEXTURES, RISERS, HITS, ENV, MUSIC) aligned to 00:00:00:00, plus `cuesheet.csv` with timecodes and `session.json` with every placement. They import into Premiere, Resolve, Final Cut, Audacity or any DAW, or you edit `cues.json` and re-render. |
-| Remotion `<Audio>` volume per clip | `gain_db` per cue (clip gain), with family presets. |
-| Composition fps / frames | The footage's real fps from ffprobe; timecodes in HH:MM:SS:FF. |
+| Sound design "inside the Remotion project, on the composition timeline" | The **cue sheet** (`work/<slug>/sound/cues.json`) is the sound timeline, built from the Remotion beats' measured motion. `sound_mix.py` renders it sample-accurately; `edit_render.py sound-preview` puts the same placements on the Remotion Studio timeline as `<Audio>` layers (`SFX <id>`). |
+| "Separate editable tracks so Joseph can inspect in Remotion Studio" | In Studio: one `<Audio>` sequence per placement (preview, ±½ frame). For mixing: **per-family stems** (DIALOGUE, WHOOSHES, TEXTURES, RISERS, HITS, ENV, MUSIC) aligned to 00:00:00:00, plus `cuesheet.csv` and `session.json`. Stems import into Premiere, Resolve, Final Cut, Audacity or any DAW. |
+| Remotion `<Audio>` volume per clip | `gain_db` per cue (clip gain), with family presets; the preview converts it to `volume`. |
+| Composition fps / frames | The approved fps of `Edit-<slug>` (the source's rate unless approved otherwise); timecodes in HH:MM:SS:FF. |
 | "Mute anything that isn't the voice" in the composition | The mix uses the dialogue source and **excludes** other original audio (or a separate dialogue file is given). Original files are never modified or deleted, and the stems make "un-muting" a one-line change. |
 | "Library connected to the project" | The user's authorised folders, **indexed in place** by `sfx_index.py` (`sound-library-index.md`). |
 | "Audition the variations" (listening) | `sfx_audition.py`: measured envelope, transient, loudest point, length, loudness, brightness and low-end, drawn side by side. Claude inspects the sheet; it cannot listen. |
-| "Joseph fixes something by hand in Remotion Studio" (Step 8) | The user edits `cues.json`, or reports changes made in their NLE. Claude diffs the cue sheets and extends the same logic to every similar cue (`sound-design-workflow.md` §8). |
+| "Joseph fixes something by hand in Remotion Studio" (Step 8) | The user edits `cues.json` (or tells Claude what they changed while previewing in Studio or in their NLE). Claude diffs the cue sheets and extends the same logic to every similar cue (`sound-design-workflow.md` §8). |
 | "Generate a sound when the library has no fit" (one per generation) | No sound-effect generation model is available here. Report the gap and ask the user for a sound. Synthetic ffmpeg/numpy placeholders are allowed **only** for timing previews the user knows about, never in a delivered edit. |
 | "You cannot EQ/muffle audio you didn't create" | ffmpeg *can* process audio here. Keep Joseph's spirit: don't reshape library sounds by default. If a processed variant is needed (muffled, filtered), write it as a **new file**, log it in the cue, and never touch the original. |
-| Hand off in Remotion Studio for manual finishing | Hand off `final.mp4`, the stems, `cuesheet.csv`, `cues.json` and `qc_report.md`. Expect the user to refine in their mixer; that's by design. |
+| Hand off in Remotion Studio for manual finishing | Hand off `final.mp4`, the Remotion project (`Edit-<slug>`, with the sound preview), the stems, `cuesheet.csv`, `cues.json` and the QC reports. Expect the user to refine; that's by design. |
 
 ## 12. Quick reference
 
 ```bash
 python3 scripts/sfx_index.py scan /path/to/authorised/SFX              # index the user's library in place
 python3 scripts/sfx_index.py search riser metallic --cat RIS
-python3 scripts/sfx_audition.py --group "Whooshes/Hollow" --fit-duration 0.6 --out work/sound/aud_hollow.png
-node scripts/render_html.js --html templates/<template>.html --config beat.json --analyze-only --motion work/sound/NN_motion.json --cues work/sound/NN_cues.json
-python3 scripts/video_events.py work/edit_v1.mp4 --out work/sound/video_events.json --strip work/sound/events.png
-python3 scripts/sfx_plan.py work/sound/plan.json --out work/sound/cues.json      # draft cue sheet (proposals)
-python3 scripts/sound_mix.py work/sound/cues.json --out work/sound/render_v1 --passes 1,2,3 --no-music
-python3 scripts/sound_qc.py work/sound/render_v1 --events work/sound/video_events.json
+python3 scripts/sfx_audition.py --group "Whooshes/Hollow" --fit-duration 0.6 --out work/<slug>/sound/aud_hollow.png
+python3 scripts/edit_render.py sfx <slug>                               # Remotion beats -> measured intents + timeline + plan.json
+python3 scripts/video_events.py work/<slug>/renders/picture.mp4 --out work/<slug>/sound/video_events.json --strip work/<slug>/sound/events.png
+python3 scripts/sfx_plan.py work/<slug>/sound/plan.json --out work/<slug>/sound/cues.json      # draft cue sheet (proposals)
+python3 scripts/sound_mix.py work/<slug>/sound/cues.json --out work/<slug>/sound/final_v1 --passes 1,2,3 --no-music
+python3 scripts/sound_qc.py work/<slug>/sound/final_v1 --events work/<slug>/sound/video_events.json
+python3 scripts/edit_render.py sound-preview <slug> --session work/<slug>/sound/final_v1/session.json   # Studio preview
 python3 scripts/sound_selftest.py                                         # proves the toolchain works here
 ```

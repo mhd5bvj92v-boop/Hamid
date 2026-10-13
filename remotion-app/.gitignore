@@ -11,3 +11,7 @@ out
 public/test-media/
 public/footage/*
 !public/footage/.gitkeep
+
+# Talking-head projects: links to the untouched original footage and to the
+# authorised sound library. Never commit media.
+public/projects/

@@ -1,67 +1,67 @@
-# Video Visual Editing Skill
+# Talking-head video finishing: Claude Code + Remotion
 
-A reusable Claude Skill for premium short-form video editing. It has four coordinated systems:
+This repository turns an **already-cut** talking-head video into a premium vertical edit. Claude never re-edits the cut: no removed footage, new cuts, re-ordering, speed changes, re-timed pauses or replaced dialogue. It adds:
 
-- **A:** on-screen visuals
-- **B:** text and text animation
-- **C:** full-screen animations, built from a curated reference library
-- **D:** professional sound design, adapting Joseph's (Ultimate Editors) system to this toolchain
+1. **Text design and text animation** (System B)
+2. **On-screen visuals and overlays** beside the visible speaker (System A)
+3. **Full-screen animations** that cover the footage while the original timeline keeps running underneath (System C)
+4. **Sound design** based on Joseph's system (Ultimate Editors) (System D)
+5. **Final compositing and export**: a 1080x1920 H.264 MP4 at the approved frame rate
 
-The skill itself does not use Remotion: its own pipeline is HTML templates, Playwright and ffmpeg.
+| Part | Where |
+|---|---|
+| The editing skill (rules, workflow, reference library, sound system, scripts) | [`.claude/skills/video-editing/`](.claude/skills/video-editing/SKILL.md) |
+| The Remotion app (edit kit + one project per video) | [`remotion-app/`](remotion-app/README.md) |
+| Official Remotion Agent Skill (API knowledge) | [`.claude/skills/remotion-best-practices/`](.claude/skills/remotion-best-practices/SKILL.md), pinned in `skills-lock.json` |
+| Project rules for Claude Code | [`CLAUDE.md`](CLAUDE.md) |
 
-## Remotion app (composition engine)
+Claude Code discovers both skills automatically in any session started in this repository. The `video-editing` skill is the default workflow for every talking-head project.
 
-[`remotion-app/`](remotion-app/README.md) is a Remotion 4 project (React and TypeScript). It renders vertical 1080 × 1920, 60 fps H.264 MP4s and supports footage as a background layer, transparent overlays and frame-accurate audio. The official Remotion Agent Skill is installed at project level in [`.claude/skills/remotion-best-practices/`](.claude/skills/remotion-best-practices/SKILL.md) and pinned in `skills-lock.json`.
+## The workflow in short
 
 ```bash
-cd remotion-app && npm i && npm run test:render   # render the test compositions and verify them
+cd remotion-app && npm i && cd ..                                         # once
+S=.claude/skills/video-editing/scripts
+python3 $S/edit_init.py /path/to/my-cut.mp4 --slug my-video                # probe + hash + link the original (never copied or modified)
+# plan the beats with Claude (story -> beats -> references -> plan), then build them in remotion-app/src/projects/my-video/beats.ts
+python3 $S/edit_render.py picture my-video                                 # Remotion picture
+python3 $S/edit_render.py sfx my-video                                     # measured sound intents -> plan.json
+python3 $S/sfx_plan.py work/my-video/sound/plan.json --out work/my-video/sound/cues.json
+python3 $S/sound_mix.py work/my-video/sound/cues.json --out work/my-video/sound/final_v1 --passes 1,2,3 --no-music
+python3 $S/sound_qc.py work/my-video/sound/final_v1
+python3 $S/edit_qc.py my-video --final work/my-video/sound/final_v1/final.mp4   # proves duration, frames, sync, untouched original
 ```
 
-Note: the `video-editing` skill still contains the rule "No Remotion, ever" (non-negotiable 8 and its validator). It has deliberately not been changed yet. Decide how the two should work together before using both in one edit.
+`work/`, `remotion-app/out/` and `remotion-app/public/projects/` are git-ignored: rendered media never goes into the repository. Rendering is local only (no AWS/Lambda, no paid render service).
 
-- **Skill source:** [`.claude/skills/video-editing/`](.claude/skills/video-editing/SKILL.md) (skill name `video-editing`)
-- **Installable package:** [`dist/video-visual-editing.skill`](dist/video-visual-editing.skill) (zip archive, about 21 MB). It was built before the move and still uses the old folder and skill name `video-visual-editing`. Apart from the name and the packaging note in `SKILL.md`, its content matches the current source byte for byte.
+## Checks
 
-The skill used to live in `video-visual-editing/` at the repository root. It was moved to `.claude/skills/video-editing/` so Claude Code discovers it automatically. Only three things changed: the `name:` field and the packaging note in `SKILL.md`, and the `"skill"` label in `data/references.json`. Every other file is byte-identical. The old path is still in the git history.
+```bash
+python3 .claude/skills/video-editing/scripts/validate.py        # library, docs, gain presets, Remotion kit, timeline contract
+python3 .claude/skills/video-editing/scripts/edit_selftest.py   # end-to-end on synthetic footage, incl. tampered exports that must fail
+python3 .claude/skills/video-editing/scripts/sound_selftest.py  # sound toolchain on synthetic fixtures
+cd remotion-app && npm run lint && npm run test:render          # type-check; Step 2 render checks
+```
 
-## What's inside
+## What's inside the skill
 
 | Part | Contents |
 |---|---|
-| Reference library | 182 unique references (ONS 79, TXT 10, FUL 93) built from all 219 files of `inspiration.zip`. Originals are preserved byte-for-byte (37 duplicate/resized copies kept as linked alternates). Each entry records 12 fields, separating **observed** detail from **inferred** motion and use. Palettes are measured from the pixels. |
-| Searchable index | `references/library/INDEX.md`, per-category docs, `FAMILIES.md`, `SOURCES.md` (every original file → ID), contact sheets, `scripts/search.py` |
-| Design language | 10 principles, colour/type/shape tokens, composition patterns and 13 style-family recipes, all linked to reference IDs |
-| Visual systems | A on-screen visuals, B text and text animation, C full-screen animations: when to use, how to design and implement, mistakes, QC, plus a sound design section for each |
-| Workflow | 10-step process from story → beats → references → plan → build → sound (System D passes) → preview → compare → improve |
-| Tooling | Deterministic HTML animation templates, `render_html.js` (Playwright → transparent PNG sequences), `compose.py` (ffmpeg: ProRes 4444/WebM alpha, overlay, focus dim/blur, full-screen cuts), `compare.py` (side-by-side QC). Remotion is not required. |
-| Sound design (System D) | `references/sound-design.md` (Joseph's philosophy, families, selection tables, levels, passes, integration with A/B/C, Remotion replacements) and `references/sound-design-workflow.md` (procedure + cue-sheet schema). Also `references/sound-library-index.md` (your SFX library, indexed in place; **currently empty**), the unmodified source in `references/sources/`, and the scripts `sfx_index`, `sfx_audition`, `video_events`, `sfx_plan`, `sound_mix`, `sound_qc` and `sound_selftest`. The motion-measured sound intents live in every template. |
-| Extensibility | `ingest.py scan/commit` (exact and perceptual duplicate detection, alternates, next IDs, batch log), `validate.py` (integrity, checksums, docs in sync) |
+| Reference library | 182 unique references (ONS 79, TXT 10, FUL 93) from all 219 files of `inspiration.zip`, originals byte-for-byte, observed vs inferred notes, measured palettes, contact sheets, `search.py` |
+| Design language | principles, tokens, composition patterns and 13 style-family recipes linked to reference IDs |
+| Systems A/B/C | when to use, how to design, Remotion implementation, mistakes, QC, sound per system |
+| Remotion edit kit | `remotion-app/src/kit/`: `SourceFootage` (untouched, full-length base layer), `TalkingHeadEdit`, `CaptionAccent` (TXT-001..009), `StatCard` (ONS-024/050), `HorizonTitle` (FUL-002), house motion, sound preview |
+| Sound design (System D) | Joseph's rules and gain presets (whoosh -12/-10, texture -6..-7, riser -5, music -19 dB under the talking head only), library indexing in place, audition, cue sheet, sample-accurate mix with the original dialogue untouched, QC. The SFX library is **currently empty**. |
+| Workflow scripts | `edit_init`, `edit_render`, `edit_qc`, `edit_selftest`; the HTML template toolchain (`render_html.js`, `compose.py`) stays available for prototyping and NLE layer handoff |
 
-## Install
-
-- **This repository:** nothing to do. Claude Code loads project skills from `.claude/skills/`, so any session started in this repo has `video-editing` (also available as `/video-editing`).
-- **Claude Code (personal):** copy `.claude/skills/video-editing/` to `~/.claude/skills/video-editing/`
-- **Claude Code (other project):** copy it to `<project>/.claude/skills/video-editing/`
-- **Claude apps:** upload `dist/video-visual-editing.skill` where Skills are managed
-
-Requirements: Python 3 with Pillow and numpy; Node + Playwright/Chromium and ffmpeg for rendering; ffmpeg + numpy for sound.
-
-## Adding your sound effects
+## Adding sound effects or references
 
 ```bash
 cd .claude/skills/video-editing
 python3 scripts/sfx_index.py scan /path/to/your/SFX     # indexed in place; nothing is copied or modified
-python3 scripts/sound_selftest.py                       # checks the sound toolchain in this environment
+python3 scripts/ingest.py scan /path/to/new-images --batch-name batch-002   # then Claude fills the draft; ingest.py commit; validate.py
 ```
 
-## Adding more references later
+## History
 
-```bash
-cd .claude/skills/video-editing
-python3 scripts/ingest.py scan /path/to/new-images --batch-name batch-002
-# Claude analyses each new image and fills data/inbox/draft.json
-python3 scripts/ingest.py commit
-python3 scripts/validate.py
-```
-
-See `.claude/skills/video-editing/references/extending-library.md`.
+The skill used to live in `video-visual-editing/` at the repository root (still in the git history). `dist/video-visual-editing.skill` is the package built before Step 1; it predates the Remotion workflow and still says "No Remotion". Rebuild it before uploading it to the Claude apps.
