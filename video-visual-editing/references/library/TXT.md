@@ -67,7 +67,7 @@
 - **Colour palette (measured, dominant first):** `#101110` 26.2%  `#41291E` 19.6%  `#6F4434` 16.3%  `#44423D` 14.0%  `#6F584E` 13.9%  `#9D8A74` 10.0%
 - **Composition:** Asymmetric: the serif block pushes left of centre and the sans phrase continues to the right, creating a diagonal read from top-left to bottom-right. It sits at chest level, overlapping the mic.
 - **Lighting & effects:** Warm amber glow on the serif. Background is warm-graded orange/red bokeh.
-- **Depth & layering:** 2D over footage.
+- **Depth & layering:** Flat 2D text over the footage, in front of the shirt and mic; the face and background are untouched.
 
 **Inferred (creative interpretation - not visible in a still)**
 - **Animation behaviour:** INFERRED: '60mins' counts or slides in first on the stressed word, then 'Screen's off' types or fades in on its own beat. Consider a quick number tick-up 0->60 over 400ms only if the speech dwells on it.
@@ -90,8 +90,8 @@
 - **Typography:** Lead-in line is small white sans. The key phrase is an amber italic/semi-condensed serif with open tracking (~0.03em).
 - **Colour palette (measured, dominant first):** `#0E0F0E` 26.3%  `#2E2119` 20.3%  `#363430` 17.0%  `#6D4F44` 14.6%  `#633A2B` 12.2%  `#8E7D6B` 9.7%
 - **Composition:** Centred, two tiers, ~62% height. The lead-in is narrower than the key phrase.
-- **Lighting & effects:** Soft glow; warm grade.
-- **Depth & layering:** 2D.
+- **Lighting & effects:** A soft warm glow surrounds the amber 'Wind Down' (accent-coloured, ~20px radius at 1080w); the lead-in line has only a soft dark shadow. The footage is warm-graded with orange and red background bokeh.
+- **Depth & layering:** Flat 2D text over the footage; the caption sits in front of the shirt and lower mic, and the face is untouched.
 
 **Inferred (creative interpretation - not visible in a still)**
 - **Animation behaviour:** INFERRED: the lead-in reveals word by word in sync with speech (each word fading 120ms), then the key phrase arrives as a unit with a soft blur-to-sharp.
@@ -140,8 +140,8 @@
 - **Typography:** Heavy geometric sans (Inter/Satoshi Bold) with negative tracking (-0.02em), and a warm white-to-pale-yellow gradient fill. Secondary line is small regular white. Name tag: medium sans inside a thin 1px rounded rectangle.
 - **Colour palette (measured, dominant first):** `#1B1714` 20.7%  `#2F3120` 18.4%  `#463629` 16.8%  `#7F7168` 16.2%  `#56503C` 15.7%  `#B09C8C` 12.2%
 - **Composition:** Caption centred at ~52% height (upper chest). Name tag bottom-left at ~68% height, left-aligned with a safe margin.
-- **Lighting & effects:** Gentle warm glow around the gradient text.
-- **Depth & layering:** 2D.
+- **Lighting & effects:** A gentle warm glow surrounds the cream-to-yellow gradient text 'Social media'; the sub-line and name tag have only soft dark shadows. Natural daylight footage with green foliage.
+- **Depth & layering:** Flat 2D layers over the footage: the caption at upper-chest level and the name tag lower-left; the subject is not occluded.
 
 **Inferred (creative interpretation - not visible in a still)**
 - **Animation behaviour:** INFERRED: the gradient text wipes in left to right with a soft mask edge (250ms), the sub-line fades after it, and the name tag box draws its border (stroke-dashoffset) and then the text fades in.
@@ -166,12 +166,12 @@
 - **Typography:** Keyword in a wide/extended grotesk (Druk Wide / Monument Extended feel) with a subtle mint tint. Kicker is a thin sans. Name super is caps sans with tracking.
 - **Colour palette (measured, dominant first):** `#091418` 21.7%  `#352B24` 19.9%  `#503E34` 16.8%  `#181917` 16.1%  `#261D16` 15.4%  `#846E64` 10.1%
 - **Composition:** Keyword centred at ~42% height (just below the chin, across the hair and shoulders). Name super bottom-left at ~62% height.
-- **Lighting & effects:** Cool grade. The text is slightly luminous.
-- **Depth & layering:** 2D.
+- **Lighting & effects:** Cool, desaturated footage grade; 'GROWTH' is slightly luminous (a pale mint fill with a faint glow), and the kicker and name super carry soft shadows only.
+- **Depth & layering:** Flat 2D text over the footage; the keyword crosses the hair and shoulders and the name super sits over the jacket.
 
 **Inferred (creative interpretation - not visible in a still)**
 - **Animation behaviour:** INFERRED: letters of GROWTH rise with a 20ms stagger (y 30%->0, opacity), or the word scales horizontally from 0.9 to 1 width, matching the idea of growth.
-- **Suitable use cases:** Single-keyword emphasis such as 'the formula for GROWTH'.
+- **Suitable use cases:** Single-keyword emphasis ('the formula for GROWTH', 'the secret is CONSISTENCY'), topic labels, key-term introductions.
 - **Technical recreation:** Install a wide display face; fallback is Inter Black with letter-spacing .06em and transform scaleX(1.15). Colour #E9FFF6.
 
 > Note: Low-resolution source; the kicker text is partially illegible.
@@ -192,12 +192,12 @@
 - **Typography:** Number in a clean rounded-grotesk medium, very large (~7% of frame height) with a soft mint gradient and glow. Name in a solid white highlight box with dark text.
 - **Colour palette (measured, dominant first):** `#050606` 25.0%  `#282D2B` 18.5%  `#886D51` 16.5%  `#B6AD8E` 16.4%  `#DEE4DD` 12.8%  `#141616` 10.8%
 - **Composition:** Number centred at ~40% height across the chest. Name box at the left, ~60% height.
-- **Lighting & effects:** Mint glow behind the number.
-- **Depth & layering:** 2D.
+- **Lighting & effects:** A soft mint glow behind the '$100,000' figure separates it from the dark sweater; the name box is a solid white highlight with no glow. Bright daylight window background.
+- **Depth & layering:** Flat 2D text over the footage; the number sits across the chest and gesturing hands, and the name label is lower-left.
 
 **Inferred (creative interpretation - not visible in a still)**
 - **Animation behaviour:** INFERRED: the number counts up from $0 with ease-out over 600-800ms, landing on the spoken value. The highlight box wipes open from the left (scaleX 0->1) before its text appears.
-- **Suitable use cases:** Money, revenue and statistics in talking-head content.
+- **Suitable use cases:** Money, revenue and statistics in talking-head content ('which is a $100,000 business'), income claims, prices.
 - **Technical recreation:** Use tabular numerals (font-variant-numeric: tabular-nums) for the count-up so the width stays stable. Gradient #FFFFFF to #C9F5E3.
 
 ---
@@ -216,8 +216,8 @@
 - **Typography:** Gold (#E7A93B) italic display serif/script for the emotional verb, condensed bold caps sans for the time word, and tiny caps for the lead-in. Name super in a refined serif with a thin line accent.
 - **Colour palette (measured, dominant first):** `#B89271` 24.5%  `#24170E` 20.7%  `#483628` 18.0%  `#A77F61` 16.2%  `#69482F` 11.9%  `#C4A994` 8.7%
 - **Composition:** Caption left-of-centre at ~60% height, overlapping the mic. Name in the top-right quadrant at ~45% height, right-aligned, opposite the caption.
-- **Lighting & effects:** Gold text has a warm glow.
-- **Depth & layering:** 2D. The mic overlaps the frame, not the text.
+- **Lighting & effects:** The gold script 'steal' has a warm glow; 'TODAY' and the micro caps are crisp white with soft shadows; the serif name super has no glow. Warm beige wall background.
+- **Depth & layering:** Flat 2D text over the footage; the caption sits in front of the mic and shoulder area, and the name super floats top-right beside the head without touching the face.
 
 **Inferred (creative interpretation - not visible in a still)**
 - **Animation behaviour:** INFERRED: 'steal' writes or reveals with a quick mask sweep and a slight overshoot-free scale, then 'TODAY' snaps in 80ms later. The name super draws its hairline first, then the text appears.
