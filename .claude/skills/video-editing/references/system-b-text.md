@@ -41,7 +41,7 @@ None of the references show word-for-word subtitles. They show **selected phrase
 
 ## Synchronisation with speech
 
-1. Get word timestamps. Use the transcript the user supplies or a local ASR if one is installed (for example `whisper`/`faster-whisper` with word timestamps). Check what is available before promising it.
+1. Take the timing from the user's own timestamped script (as imported into `edit.json`; never re-timed by Claude). Word times exist only where the user's file has them (e.g. a JSON with words); otherwise time the key word inside the line by ear and waveform and say so. Automatic transcription is optional and not installed.
 2. **Connector words** appear on their spoken onset, minus 2 frames.
 3. **The key word lands on its stressed syllable.** Start the 0.35-0.45s entrance about 4-6 frames *before* the stress so it resolves on it.
 4. **Hold** until the thought ends, at least 1.2s after the last word appears.
@@ -62,7 +62,7 @@ Avoid: bouncing letters, rotating words, per-letter random pops, typewriter on l
 
 ## Implementation (Remotion)
 
-The kit's `CaptionAccent` kind is a 1:1 port of `templates/caption-serif-accent.html` (TXT-001..TXT-009). Line styles: `sans`, `sans-sm`, `serif`, `script`, `bold`, `tracked`, `micro`, plus `nameSuper` (`plain`/`boxed`/`highlight`/`serif`). A beat in `beats.ts`:
+The kit's `CaptionAccent` kind is a 1:1 port of `templates/caption-serif-accent.html` (TXT-001..TXT-009). Line styles: `sans`, `sans-sm`, `serif`, `script`, `bold`, `tracked`, `micro`, plus `nameSuper` (`plain`/`boxed`/`highlight`/`serif`). A beat (an entry of `beats` in `edit.json`, shown as TypeScript):
 
 ```ts
 {

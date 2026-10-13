@@ -1,0 +1,307 @@
+// The single project document (remotion-app/src/projects/<slug>/edit.json).
+// One file holds the user's timestamped script, the selected segments with
+// their A/B/C/D concepts and decisions, the Remotion timeline items (beats),
+// the sound effects and the approvals. The Studio UI, the Remotion Player,
+// the preview/final renderer and the skill's scripts all read this file.
+// Pure TypeScript: no React, no Node APIs.
+import type { KitBeat } from "./timing";
+import type { FocusWindow } from "./SourceFootage";
+import type { SourceInfo } from "./types";
+
+export type TranscriptSegment = {
+  id: string;
+  /** Seconds on the source timeline, exactly as the user provided them (null = missing). */
+  start: number | null;
+  end: number | null;
+  /** The user's own words, never rewritten. */
+  text: string;
+  /** Optional word timings, if the user's file has them. */
+  words?: { w: string; start: number; end: number }[];
+};
+
+export type Transcript = {
+  origin: "none" | "user-script";
+  importedFrom?: "pasted" | "srt" | "vtt" | "json";
+  importedAt?: string;
+  segments: TranscriptSegment[];
+};
+
+export type SegmentType = "text" | "onscreen" | "fullscreen" | "sound";
+export const SEGMENT_TYPES: { type: SegmentType; label: string; system: "A" | "B" | "C" | "D" }[] = [
+  { type: "text", label: "Text Animation", system: "B" },
+  { type: "onscreen", label: "On-Screen Visual", system: "A" },
+  { type: "fullscreen", label: "Full-Screen Animation", system: "C" },
+  { type: "sound", label: "Sound Design", system: "D" },
+];
+
+export type SfxFamily = "whoosh" | "texture" | "riser" | "hit";
+/** Joseph's starting clip gains (sound-design.md §6). Not loudness targets. */
+export const GAIN_PRESETS: Record<SfxFamily, { db: number; min: number; max: number }> = {
+  whoosh: { db: -12, min: -12, max: -10 },
+  texture: { db: -7, min: -7, max: -6 },
+  riser: { db: -5, min: -5, max: -5 },
+  hit: { db: -6, min: -12, max: -3 },
+};
+export const ANCHOR: Record<SfxFamily, "peak" | "onset"> = { whoosh: "peak", texture: "onset", riser: "peak", hit: "onset" };
+
+export type ConceptSfx = { family: SfxFamily; label: string; at: "start" | "end" | number; roles?: string[] };
+
+export type Concept = {
+  title: string;
+  /** A on-screen, B text, C full-screen, D sound. */
+  system: "A" | "B" | "C" | "D";
+  /** Kit beat kind (visual concepts). */
+  kind?: string;
+  props?: Record<string, unknown>;
+  /** Sound concepts: placements relative to the segment. */
+  sfx?: ConceptSfx[];
+  refs: string[];
+  family?: string;
+  description: string;
+  motion?: string;
+  sound?: string;
+  /** "claude" = proposed by Claude with the skill; "draft" = auto-drafted by the Studio from the kit + library. */
+  author: "claude" | "draft";
+  preview?: string;
+};
+
+export type Decision = {
+  choice: "A" | "B" | "C" | "D" | "none";
+  round: number;
+  decided: string;
+  custom?: string;
+  combine?: string[];
+  refs?: string[];
+  quote?: string;
+  note?: string;
+};
+
+export type CreativeSegment = {
+  id: string;
+  transcriptIds: string[];
+  start: number;
+  end: number;
+  /** Exact spoken text of the selected range (copied from the user's script). */
+  text: string;
+  type: SegmentType;
+  major: boolean;
+  round: number;
+  concepts: Partial<Record<"A" | "B" | "C", Concept>>;
+  recommend?: "A" | "B" | "C";
+  history: { round: number; concepts: CreativeSegment["concepts"]; replaced: string }[];
+  decision: Decision | null;
+  /** Timeline item built from the decision (visual types). */
+  beatId: string | null;
+  requests: { at: string; note: string }[];
+};
+
+export type SfxItem = {
+  id: string;
+  family: SfxFamily;
+  /** Linked to an animation event (moves with the beat) or a fixed time. */
+  link: { beatId: string; intent: string } | { time: number };
+  /** Authorised library sound id (data/sounds.json); null = not assigned yet. */
+  sound: string | null;
+  gainDb: number;
+  gainReason?: string;
+  offsetFrames: number;
+  enabled: boolean;
+  label: string;
+  segmentId?: string;
+};
+
+export type Approval = { gate: "direction" | "preview" | "final"; at: string; quote: string; scope?: string };
+
+export type EditDoc = {
+  version: 1;
+  slug: string;
+  source: SourceInfo & { sha256: string };
+  transcript: Transcript;
+  segments: CreativeSegment[];
+  beats: (KitBeat & { segmentId?: string })[];
+  sfx: SfxItem[];
+  focus: FocusWindow[];
+  hookEnd: number | null;
+  approvals: Approval[];
+  feedback: { at: string; quote: string; changes: string[] }[];
+  updated?: string;
+};
+
+// ------------------------------------------------------------------ timecodes
+
+export const fmtTime = (s: number | null | undefined, decimals = 2) => {
+  if (s === null || s === undefined || !Number.isFinite(s)) return "--:--";
+  const m = Math.floor(s / 60);
+  const r = s - m * 60;
+  return `${String(m).padStart(2, "0")}:${r.toFixed(decimals).padStart(decimals + 3, "0")}`;
+};
+
+/** "1:02.5", "00:01:02,500", "62.5", "01:02" -> seconds (null if unparseable). */
+export const parseTime = (raw: string): number | null => {
+  const s = raw.trim().replace(",", ".");
+  if (!s) return null;
+  if (/^\d+(\.\d+)?$/.test(s)) return parseFloat(s);
+  const parts = s.split(":");
+  if (parts.length < 2 || parts.length > 3 || parts.some((p) => !/^\d+(\.\d+)?$/.test(p))) return null;
+  const nums = parts.map(parseFloat);
+  return nums.reduce((acc, n) => acc * 60 + n, 0);
+};
+
+// ------------------------------------------------------------------ script import
+// The user's script is imported as written: text is never rewritten and
+// timestamps are never changed. Problems are flagged for the user to fix.
+
+const TS = String.raw`(\d{1,2}:)?\d{1,2}:\d{2}(?:[.,]\d{1,3})?|\d+(?:[.,]\d{1,3})?`;
+
+const cleanText = (t: string) => t.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+
+const withIds = (segs: Omit<TranscriptSegment, "id">[]): TranscriptSegment[] =>
+  segs.map((s, i) => ({ id: `T${String(i + 1).padStart(3, "0")}`, ...s }));
+
+/** SRT or VTT cues. */
+export const parseSubtitles = (raw: string): TranscriptSegment[] => {
+  const blocks = raw.replace(/\r/g, "").replace(/^WEBVTT[^\n]*\n/, "").split(/\n\s*\n/);
+  const out: Omit<TranscriptSegment, "id">[] = [];
+  const re = new RegExp(`^\\s*(${TS})\\s*-->\\s*(${TS})`);
+  for (const b of blocks) {
+    const lines = b.split("\n").filter((l) => l.trim() !== "");
+    const i = lines.findIndex((l) => re.test(l));
+    if (i < 0) continue;
+    const m = lines[i].match(re)!;
+    const text = cleanText(lines.slice(i + 1).join(" "));
+    if (!text) continue;
+    out.push({ start: parseTime(m[1]), end: parseTime(m[3]), text });
+  }
+  return withIds(out);
+};
+
+/**
+ * Pasted script, one cue per line. Accepted forms (separators -, –, —, -->, to):
+ *   [00:01.2 - 00:03.4] text      00:01.2 --> 00:03.4 text      1.2-3.4: text
+ *   [00:12] text   (start only: the end is flagged as missing, never guessed)
+ */
+export const parsePasted = (raw: string): TranscriptSegment[] => {
+  const out: Omit<TranscriptSegment, "id">[] = [];
+  const range = new RegExp(`^\\s*[\\[(]?\\s*(${TS})\\s*(?:-->|–|—|-|to)\\s*(${TS})\\s*[\\])]?\\s*[:|\\-–—]?\\s*(.*)$`);
+  const single = new RegExp(`^\\s*[\\[(]\\s*(${TS})\\s*[\\])]\\s*[:|\\-–—]?\\s*(.*)$`);
+  for (const line of raw.replace(/\r/g, "").split("\n")) {
+    if (!line.trim()) continue;
+    let m = line.match(range);
+    if (m && cleanText(m[5] ?? "")) {
+      out.push({ start: parseTime(m[1]), end: parseTime(m[3]), text: cleanText(m[5]) });
+      continue;
+    }
+    m = line.match(single);
+    if (m) {
+      out.push({ start: parseTime(m[1]), end: null, text: cleanText(m[3] ?? "") });
+      continue;
+    }
+    out.push({ start: null, end: null, text: cleanText(line) });
+  }
+  return withIds(out);
+};
+
+/** JSON: [{start, end, text, words?}] or {segments: [...]} (seconds or timecode strings). */
+export const parseJsonTranscript = (raw: string): TranscriptSegment[] => {
+  const data = JSON.parse(raw);
+  const arr: unknown[] = Array.isArray(data) ? data : (data.segments ?? data.transcript ?? []);
+  const t = (v: unknown) => (typeof v === "number" ? v : typeof v === "string" ? parseTime(v) : null);
+  return withIds(
+    arr.map((x) => {
+      const o = x as Record<string, unknown>;
+      const words = Array.isArray(o.words)
+        ? (o.words as Record<string, unknown>[]).map((w) => ({ w: String(w.w ?? w.word ?? w.text ?? ""), start: t(w.start) ?? NaN, end: t(w.end) ?? NaN }))
+        : undefined;
+      return { start: t(o.start ?? o.from), end: t(o.end ?? o.to), text: String(o.text ?? o.sentence ?? ""), ...(words ? { words } : {}) };
+    }),
+  );
+};
+
+export const detectFormat = (name: string, raw: string): Transcript["importedFrom"] => {
+  const n = name.toLowerCase();
+  if (n.endsWith(".srt")) return "srt";
+  if (n.endsWith(".vtt") || raw.trimStart().startsWith("WEBVTT")) return "vtt";
+  if (n.endsWith(".json")) return "json";
+  if (/^\s*[[{]/.test(raw)) {
+    // "[00:01.2 - 00:03.4] text" also starts with "[": only real JSON counts
+    try {
+      JSON.parse(raw);
+      return "json";
+    } catch {
+      /* not JSON */
+    }
+  }
+  if (/-->/.test(raw) && /^\s*\d+\s*$/m.test(raw)) return "srt";
+  return "pasted";
+};
+
+export const parseTranscript = (format: Transcript["importedFrom"], raw: string) =>
+  format === "srt" || format === "vtt" ? parseSubtitles(raw) : format === "json" ? parseJsonTranscript(raw) : parsePasted(raw);
+
+export type TranscriptIssue = { id: string; level: "error" | "warning"; message: string };
+
+/** Flags problems. Never fixes them: the user corrects the timing. */
+export const validateTranscript = (segs: TranscriptSegment[], duration: number): TranscriptIssue[] => {
+  const out: TranscriptIssue[] = [];
+  segs.forEach((s, i) => {
+    if (!s.text.trim()) out.push({ id: s.id, level: "warning", message: "empty text" });
+    if (s.start === null) out.push({ id: s.id, level: "error", message: "missing start time" });
+    if (s.end === null) out.push({ id: s.id, level: "error", message: "missing end time" });
+    if (s.start !== null && s.end !== null && s.end <= s.start) out.push({ id: s.id, level: "error", message: "end is not after start" });
+    if (s.start !== null && (s.start < 0 || s.start >= duration)) out.push({ id: s.id, level: "error", message: `start outside the video (0-${duration.toFixed(2)} s)` });
+    if (s.end !== null && s.end > duration + 0.05) out.push({ id: s.id, level: "error", message: `end after the video ends (${duration.toFixed(2)} s)` });
+    const prev = segs[i - 1];
+    if (prev && prev.start !== null && s.start !== null && s.start < prev.start) out.push({ id: s.id, level: "error", message: "starts before the previous line (order)" });
+    if (prev && prev.end !== null && s.start !== null && s.start < prev.end - 0.001) out.push({ id: s.id, level: "warning", message: `overlaps the previous line by ${(prev.end - s.start).toFixed(2)} s` });
+    for (const w of s.words ?? []) {
+      if (!Number.isFinite(w.start) || !Number.isFinite(w.end) || w.end < w.start) {
+        out.push({ id: s.id, level: "warning", message: `word "${w.w}" has invalid timing` });
+        break;
+      }
+    }
+  });
+  return out;
+};
+
+/** Combine two adjacent lines: text joined, start of the first, end of the second (no timing invented). */
+export const combineSegments = (segs: TranscriptSegment[], id: string): TranscriptSegment[] => {
+  const i = segs.findIndex((s) => s.id === id);
+  if (i < 0 || i >= segs.length - 1) return segs;
+  const a = segs[i];
+  const b = segs[i + 1];
+  const merged: TranscriptSegment = {
+    id: a.id,
+    start: a.start,
+    end: b.end,
+    text: `${a.text} ${b.text}`.trim(),
+    ...(a.words && b.words ? { words: [...a.words, ...b.words] } : {}),
+  };
+  return [...segs.slice(0, i), merged, ...segs.slice(i + 2)];
+};
+
+/** Split a line after word index `wordIndex` at the time the USER gives. */
+export const splitSegment = (segs: TranscriptSegment[], id: string, wordIndex: number, at: number): TranscriptSegment[] => {
+  const i = segs.findIndex((s) => s.id === id);
+  if (i < 0) return segs;
+  const s = segs[i];
+  const tokens = s.text.split(" ");
+  if (wordIndex < 0 || wordIndex >= tokens.length - 1) return segs;
+  const used = new Set(segs.map((x) => x.id));
+  let n = segs.length + 1;
+  while (used.has(`T${String(n).padStart(3, "0")}`)) n++;
+  const first: TranscriptSegment = { id: s.id, start: s.start, end: at, text: tokens.slice(0, wordIndex + 1).join(" ") };
+  const second: TranscriptSegment = { id: `T${String(n).padStart(3, "0")}`, start: at, end: s.end, text: tokens.slice(wordIndex + 1).join(" ") };
+  if (s.words) {
+    first.words = s.words.filter((w) => w.end <= at + 1e-6);
+    second.words = s.words.filter((w) => w.start >= at - 1e-6);
+  }
+  return [...segs.slice(0, i), first, second, ...segs.slice(i + 1)];
+};
+
+/** Transcript lines overlapping [start, end) (timeline selection -> highlighted text). */
+export const linesInRange = (segs: TranscriptSegment[], start: number, end: number) =>
+  segs.filter((s) => s.start !== null && s.end !== null && s.start < end && s.end > start);
+
+/** The line being spoken at time t (null between lines). */
+export const lineAt = (segs: TranscriptSegment[], t: number) =>
+  segs.find((s) => s.start !== null && s.end !== null && t >= s.start && t < s.end) ?? null;

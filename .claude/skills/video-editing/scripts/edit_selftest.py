@@ -34,88 +34,57 @@ import vedit as V  # noqa: E402
 import sound_selftest as SST  # noqa: E402
 
 SLUG = "selftest"
-BEATS = """// SELF-TEST beat list (synthetic footage). Also a worked example of the three systems.
-import type { KitBeat } from "../../kit/timing";
-import type { FocusWindow } from "../../kit/SourceFootage";
+# SELF-TEST timeline (synthetic footage): one beat per system. Written into edit.json.
+HOOK_END = 2.4
+BEATS = [
+    {"id": "b01-hook", "kind": "CaptionAccent", "at": 0.4, "segmentId": "S01",
+     "reason": "Hook question: the phrase itself is the point (System B)", "refs": ["TXT-001", "TXT-004"],
+     "props": {"lines": [{"text": "What's the", "style": "sans", "at": 0.1}, {"text": "big picture", "style": "serif", "at": 0.5},
+                         {"text": "here?", "style": "sans-sm", "at": 0.95}], "outAt": 1.6}},
+    {"id": "b02-stat", "kind": "StatCard", "at": 2.6, "segmentId": "S02",
+     "reason": "Speaker says 'we posted every day': a stat card makes the 30 concrete while he stays visible (System A)",
+     "refs": ["ONS-024", "ONS-050"],
+     "props": {"label": "Posts in one month", "value": 30, "accent": "#22E37A", "glow": "rgba(34,227,122,.5)", "header": "Last 30 days",
+               "pill": "Daily", "footnote": "One post every day", "outAt": 2.0, "drawDur": 0.9, "countAt": 0.7, "countDur": 0.9}},
+    {"id": "b03-horizon", "kind": "HorizonTitle", "at": 5.2, "segmentId": "S03",
+     "reason": "Payoff line: the number deserves the whole frame for a moment (System C); dialogue keeps running underneath",
+     "refs": ["FUL-002"],
+     "props": {"kicker": "Every single day", "value": 30, "body": "Posts in one month", "outAt": 1.9, "riseDur": 1.2, "numDur": 1.2,
+               "bodyAt": 1.1, "numAt": 0.4}},
+]
+FOCUS = [{"start": 2.6, "end": 5.0, "brightness": 0.7, "blur": 4}]
 
-export const HOOK_END: number | null = 2.4;
-
-export const BEATS: KitBeat[] = [
-  {
-    id: "b01-hook",
-    kind: "CaptionAccent",
-    at: 0.4,
-    reason: "Hook question: the phrase itself is the point (System B)",
-    refs: ["TXT-001", "TXT-004"],
-    props: {
-      lines: [
-        { text: "What's the", style: "sans", at: 0.1 },
-        { text: "big picture", style: "serif", at: 0.5 },
-        { text: "here?", style: "sans-sm", at: 0.95 },
-      ],
-      outAt: 1.6,
-    },
-  },
-  {
-    id: "b02-stat",
-    kind: "StatCard",
-    at: 2.6,
-    reason: "Speaker says 'we posted every day': a stat card makes the 30 concrete while he stays visible (System A)",
-    refs: ["ONS-024", "ONS-050"],
-    props: { label: "Posts in one month", value: 30, header: "Last 30 days", pill: "Daily", footnote: "One post every day", outAt: 2.0, drawDur: 0.9, countAt: 0.7, countDur: 0.9 },
-  },
-  {
-    id: "b03-horizon",
-    kind: "HorizonTitle",
-    at: 5.2,
-    reason: "Payoff line: the number deserves the whole frame for a moment (System C); dialogue keeps running underneath",
-    refs: ["FUL-002"],
-    props: { kicker: "Every single day", value: 30, body: "Posts in one month", outAt: 1.9, riseDur: 1.2, numDur: 1.2, bodyAt: 1.1, numAt: 0.4 },
-  },
-];
-
-export const FOCUS: FocusWindow[] = [{ start: 2.6, end: 5.0, brightness: 0.7, blur: 4 }];
-"""
-
-
-CONCEPTS = """// SELF-TEST concepts for moment M03 (payoff line), round 1.
-import type { ConceptBeat } from "../../kit/concepts";
-import type { KitBeat } from "../../kit/timing";
-
-export const CONCEPTS: ConceptBeat<KitBeat>[] = [
-  { moment: "M03", option: "A", round: 1, beat: { id: "M03A", kind: "HorizonTitle", at: 5.2, reason: "number as a full-screen moment", refs: ["FUL-002"],
-    props: { kicker: "Every single day", value: 30, body: "Posts in one month", outAt: 1.9, riseDur: 1.2, numDur: 1.2, bodyAt: 1.1, numAt: 0.4 } } },
-  { moment: "M03", option: "B", round: 1, beat: { id: "M03B", kind: "StatCard", at: 5.2, reason: "stat card beside the speaker", refs: ["ONS-050"],
-    props: { label: "Posts in one month", value: 30, accent: "#22E37A", glow: "rgba(34,227,122,.5)", outAt: 1.9 } } },
-  { moment: "M03", option: "C", round: 1, beat: { id: "M03C", kind: "CaptionAccent", at: 5.2, reason: "the number as designed type", refs: ["TXT-003"],
-    props: { lines: [{ text: "30", style: "serif", at: 0.1 }, { text: "posts in a month", style: "sans-sm", at: 0.5 }], outAt: 1.9 } } },
-];
-"""
 
 ANALYSIS = {"transcript": "synthetic TTS (selftest)", "notes": "8 s synthetic cut",
-            "moments": [{"id": "M01", "in": 0.4, "out": 2.4, "words": "What is the big picture here", "section": "Hook", "why": "hook question"},
-                        {"id": "M02", "in": 2.6, "out": 5.0, "words": "We posted every day", "section": "Body", "why": "a concrete number"},
-                        {"id": "M03", "in": 5.2, "out": 7.6, "words": "And that changed everything for us", "section": "Payoff", "why": "payoff"}],
+            "moments": [{"id": "S01", "start": 0.4, "end": 2.4, "text": "What is the big picture here", "type": "text", "section": "Hook", "why": "hook question"},
+                        {"id": "S02", "start": 2.6, "end": 5.0, "text": "We posted every day", "type": "onscreen", "section": "Body", "why": "a concrete number"},
+                        {"id": "S03", "start": 5.2, "end": 7.6, "text": "And that changed everything for us", "type": "fullscreen", "section": "Payoff", "why": "payoff"}],
             "keep_visible": []}
 
 
-def opt(title, system, kind, refs, desc):
-    return {"title": title, "system": system, "kind": kind, "refs": refs, "description": desc, "motion": "house easings", "sound": "per System D"}
+def opt(title, system, kind, refs, desc, props=None):
+    o = {"title": title, "system": system, "kind": kind, "refs": refs, "description": desc, "motion": "house easings", "sound": "per System D"}
+    if props:
+        o["props"] = props
+    return o
 
 
 PROPOSALS = {"moments": {
-    "M01": {"recommend": "A", "options": {
+    "S01": {"recommend": "A", "options": {
         "A": opt("Serif hook question", "B", "CaptionAccent", ["TXT-001"], "sans lead-in + amber serif 'big picture' under the chin"),
         "B": opt("Extended caps keyword", "B", "new kind", ["TXT-007"], "one tracked keyword PICTURE with a thin kicker"),
         "C": opt("Question chip", "A", "new kind", ["ONS-034"], "a prompt-bar chip types the question beside the speaker")}},
-    "M02": {"recommend": "B", "options": {
+    "S02": {"recommend": "B", "options": {
         "A": opt("Calendar fills", "A", "ProgressGrid (port)", ["ONS-004"], "a 30-day grid fills cell by cell"),
         "B": opt("Stat card 30", "A", "StatCard", ["ONS-024"], "glass stat card, curve draws to a peak, 30 counts up"),
         "C": opt("Big serif 30", "B", "CaptionAccent", ["TXT-003"], "asymmetric serif number with a sans phrase")}},
-    "M03": {"recommend": "A", "options": {
-        "A": opt("Horizon number", "C", "HorizonTitle", ["FUL-002"], "full-screen planet horizon, 30 rises from the atmosphere"),
-        "B": opt("Green stat card", "A", "StatCard", ["ONS-050"], "speaker stays visible; green stat card beside him"),
-        "C": opt("Serif number caption", "B", "CaptionAccent", ["TXT-003"], "the number as designed type under the chin")}},
+    "S03": {"recommend": "A", "options": {
+        "A": opt("Horizon number", "C", "HorizonTitle", ["FUL-002"], "full-screen planet horizon, 30 rises from the atmosphere",
+                 {"kicker": "Every single day", "value": 30, "body": "Posts in one month", "riseDur": 1.2, "numDur": 1.2, "bodyAt": 1.1, "numAt": 0.4}),
+        "B": opt("Green stat card", "A", "StatCard", ["ONS-050"], "speaker stays visible; green stat card beside him",
+                 {"label": "Posts in one month", "value": 30, "accent": "#22E37A", "glow": "rgba(34,227,122,.5)"}),
+        "C": opt("Serif number caption", "B", "CaptionAccent", ["TXT-003"], "the number as designed type under the chin",
+                 {"lines": [{"text": "30", "style": "serif", "at": 0.1}, {"text": "posts in a month", "style": "sans-sm", "at": 0.5}]})}},
 }}
 
 
@@ -187,38 +156,39 @@ def main():
         say("3. Creative Director phases 1-3 (analyze, options, approval)")
         ED = [py, str(HERE / "edit_decisions.py")]
         pdir = app / "src" / "projects" / SLUG
-        assert (pdir / "creative-log.json").exists(), "edit_init must create the creative decision log"
+        assert (pdir / "edit.json").exists() and (pdir / "CREATIVE-LOG.md").exists(), "edit_init must create edit.json and the creative log"
         (d / "analysis.json").write_text(json.dumps(ANALYSIS))
         step(ED + ["analyze", SLUG, "--file", str(d / "analysis.json")], env)
         dup = json.loads(json.dumps(PROPOSALS))
-        dup["moments"]["M03"]["options"]["B"] = dict(dup["moments"]["M03"]["options"]["A"], title="copy")
-        (d / "dup.json").write_text(json.dumps({"moments": {"M03": dup["moments"]["M03"]}}))
+        dup["moments"]["S03"]["options"]["B"] = dict(dup["moments"]["S03"]["options"]["A"], title="copy")
+        (d / "dup.json").write_text(json.dumps({"moments": {"S03": dup["moments"]["S03"]}}))
         step(ED + ["propose", SLUG, "--file", str(d / "dup.json")], env, expect=1)
         say("       duplicate concepts rejected (A and B were the same idea)")
         (d / "proposals.json").write_text(json.dumps(PROPOSALS))
         step(ED + ["propose", SLUG, "--file", str(d / "proposals.json")], env)
-        (pdir / "concepts.ts").write_text(CONCEPTS)
-        step([py, str(HERE / "edit_render.py"), "concept-frames", SLUG, "--moment", "M03", "--app", str(app)], env)
-        sheet = work / SLUG / "previews" / "M03_r1_concepts.png"
+        step([py, str(HERE / "edit_render.py"), "concept-frames", SLUG, "--moment", "S03", "--app", str(app)], env)
+        sheet = work / SLUG / "previews" / "S03_r1_concepts.png"
         from PIL import Image
         assert sheet.exists() and Image.open(sheet).size[0] > 3 * 540, "concept sheet must show A, B and C side by side"
         say(f"       concept preview frames: {sheet.name} {Image.open(sheet).size}")
         step(ED + ["storyboard", SLUG], env)
         step(ED + ["propose", SLUG, "--file", str(d / "proposals.json")], env)      # "three new concepts" -> round 2
-        lg = json.loads((pdir / "creative-log.json").read_text())
-        m3 = next(m for m in lg["moments"] if m["id"] == "M03")
+        lg = json.loads((pdir / "edit.json").read_text())
+        m3 = next(m for m in lg["segments"] if m["id"] == "S03")
         assert m3["round"] == 2 and len(m3["history"]) == 1, "a new round must archive the previous concepts"
         say("       new round of concepts archived round 1")
         step(ED + ["approve", SLUG, "--gate", "final", "--quote", "looks good"], env, expect=1)
         step(ED + ["approve", SLUG, "--gate", "direction", "--quote", "go"], env, expect=1)
         say("       out-of-order approvals refused (final before direction; direction with open moments)")
-        step(ED + ["decide", SLUG, "--moments", "M01,M03", "--choice", "A", "--quote", "M01 and M03 A"], env)
-        step(ED + ["decide", SLUG, "--moments", "M02", "--choice", "D", "--custom", "option B's stat card with a green accent",
-                   "--combine", "B", "--quote", "M02: B but green"], env)
+        step(ED + ["decide", SLUG, "--moments", "S01,S03", "--choice", "A", "--quote", "S01 and S03 A"], env)
+        step(ED + ["decide", SLUG, "--moments", "S02", "--choice", "D", "--custom", "option B's stat card with a green accent",
+                   "--combine", "B", "--quote", "S02: B but green"], env)
         step(ED + ["approve", SLUG, "--gate", "direction", "--quote", "Approved, go ahead with these (selftest)"], env)
 
         say("4. approved beats -> timeline + measured sound intents -> draft cue sheet")
-        (pdir / "beats.ts").write_text(BEATS.replace('header: "Last 30 days"', 'accent: "#22E37A", glow: "rgba(34,227,122,.5)", header: "Last 30 days"'))
+        doc = json.loads((pdir / "edit.json").read_text())
+        doc.update(beats=BEATS, focus=FOCUS, hookEnd=HOOK_END)
+        (pdir / "edit.json").write_text(json.dumps(doc, indent=1))
         step([py, str(HERE / "edit_render.py"), "sfx", SLUG, "--app", str(app)], env)
         lib = d / "SYNTHETIC_TEST_LIBRARY"
         SST.fixtures(lib)
@@ -263,7 +233,7 @@ def main():
         say(f"       motion preview {pv.name}: {pinfo['width']}x{pinfo['height']}, {pinfo['duration']:.2f}s, with dialogue + draft sound")
         step([py, str(HERE / "edit_render.py"), "picture", SLUG, "--app", str(app)], env, expect=1)
         say("       final render REFUSED without the Creative Director's final approval")
-        step(ED + ["feedback", SLUG, "--quote", "card a bit greener", "--change", "M02: greener accent (already applied)"], env)
+        step(ED + ["feedback", SLUG, "--quote", "card a bit greener", "--change", "S02: greener accent (already applied)"], env)
         step(ED + ["approve", SLUG, "--gate", "preview", "--quote", "previews look right (selftest)"], env)
         step(ED + ["approve", SLUG, "--gate", "final", "--quote", "Approved, render the final (selftest)"], env)
         step(ED + ["status", SLUG, "--require", "final"], env)

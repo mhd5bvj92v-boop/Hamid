@@ -9,9 +9,12 @@
     "@fontsource/instrument-serif": "^5.3.0",
     "@fontsource/montserrat": "^5.3.0",
     "@fontsource/playfair-display": "^5.3.0",
+    "@remotion/bundler": "4.0.535",
     "@remotion/cli": "4.0.535",
     "@remotion/fonts": "4.0.535",
     "@remotion/media": "4.0.535",
+    "@remotion/player": "4.0.535",
+    "@remotion/renderer": "4.0.535",
     "mediabunny": "1.61.3",
     "react": "19.2.3",
     "react-dom": "19.2.3",
@@ -20,22 +23,28 @@
   "devDependencies": {
     "@remotion/eslint-config-flat": "4.0.535",
     "@types/react": "19.2.7",
+    "@types/react-dom": "19.2.3",
     "@types/web": "0.0.166",
+    "@vitejs/plugin-react": "4.5.2",
     "eslint": "9.39.5",
+    "globals": "^14.0.0",
     "prettier": "3.8.1",
     "tsx": "4.20.6",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "vite": "6.3.5"
   },
   "scripts": {
     "dev": "remotion studio",
     "build": "remotion bundle",
     "upgrade": "remotion upgrade",
-    "lint": "eslint src && tsc",
+    "lint": "eslint src studio && tsc",
     "test-media": "bash scripts/make-test-media.sh",
     "render:test": "remotion render TestComposition out/test-composition.mp4 --codec=h264 --pixel-format=yuv420p --image-format=jpeg --crf=18 --color-space=bt709 --audio-codec=aac --log=verbose",
     "render:footage": "remotion render FootageComposite out/footage-composite.mp4 --codec=h264 --pixel-format=yuv420p --image-format=jpeg --crf=18 --color-space=bt709 --audio-codec=aac --log=verbose",
     "render:overlay": "remotion render Overlay out/overlay-alpha.mov --codec=prores --prores-profile=4444 --pixel-format=yuva444p10le --image-format=png --log=verbose",
     "verify": "node scripts/verify-render.mjs",
-    "test:render": "npm run test-media && npm run render:test && npm run render:footage && npm run render:overlay && npm run verify"
+    "test:render": "npm run test-media && npm run render:test && npm run render:footage && npm run render:overlay && npm run verify",
+    "studio": "vite --config vite.config.ts",
+    "studio:test": "node studio/tests/e2e.mjs"
   }
 }

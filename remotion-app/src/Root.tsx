@@ -4,6 +4,7 @@ import "./fonts";
 import { Overlay } from "./Overlay";
 import { FootageComposite, footageMetadata, TestComposition } from "./Scenes";
 import { Projects } from "./projects";
+import { StudioEdit, studioMetadata } from "./kit/StudioEdit";
 
 // Talking-head edits (one composition per project, src/projects/<slug>/)
 // come first. The three test compositions below are the setup check from
@@ -11,6 +12,17 @@ import { Projects } from "./projects";
 export const RemotionRoot: React.FC = () => {
   return (
     <>
+      {/* Creative Director Studio: any project's edit.json as inputProps */}
+      <Composition
+        id="StudioEdit"
+        component={StudioEdit}
+        durationInFrames={1}
+        fps={30}
+        width={1080}
+        height={1920}
+        defaultProps={{ doc: null, layers: "all" as const, concept: null, audio: null }}
+        calculateMetadata={studioMetadata}
+      />
       <Projects />
       <Composition
         id="TestComposition"

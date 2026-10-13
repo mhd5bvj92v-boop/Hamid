@@ -1,35 +1,33 @@
 #!/usr/bin/env python3
-"""Creative decision log for the Creative Director workflow (references/creative-director.md).
+"""Creative decisions in the project file (Creative Director workflow, references/creative-director.md).
 
-The user is the Creative Director. Claude proposes, the user decides, and every decision and
-approval is recorded here, per project, next to the editable Remotion source (committed to git):
-  remotion-app/src/projects/<slug>/creative-log.json   (source of truth)
-  remotion-app/src/projects/<slug>/CREATIVE-LOG.md     (generated, readable)
+Everything lives in ONE document, the same one the Remotion Player, the Studio and the final renderer
+use: remotion-app/src/projects/<slug>/edit.json (segments, concepts, decisions, approvals, feedback).
+CREATIVE-LOG.md next to it is generated from it for reading.
 
-  edit_decisions.py init <slug>                            # done by edit_init.py
-  edit_decisions.py analyze <slug> --file analysis.json    # Phase 1: transcript, moments, keep-visible
-  edit_decisions.py propose <slug> --file proposals.json   # Phase 2: A/B/C per moment (a repeat = new round)
-  edit_decisions.py decide <slug> --moments M01,M03 --choice A [--quote "..."]
-  edit_decisions.py decide <slug> --moments M02 --choice D --custom "..." [--combine A,C] [--quote "..."]
-  edit_decisions.py decide <slug> --moments M04 --choice none --quote "keep me on camera there"
+  edit_decisions.py analyze <slug> --file analysis.json    # Phase 1: segments (moments) + keep-visible
+  edit_decisions.py propose <slug> --file proposals.json   # Phase 2: A/B/C per segment (a repeat = new round)
+  edit_decisions.py decide <slug> --moments S01,S03 --choice A [--quote "..."]
+  edit_decisions.py decide <slug> --moments S02 --choice D --custom "..." [--combine A,C] [--quote "..."]
+  edit_decisions.py decide <slug> --moments S04 --choice none --quote "keep me on camera there"
   edit_decisions.py approve <slug> --gate direction|preview|final --quote "<the user's own words>"
-  edit_decisions.py feedback <slug> --quote "..." --change "M03: slower entrance" [--change ...]
-  edit_decisions.py status <slug>                          # phase, open decisions, gates (exit 1 if a gate is open)
+  edit_decisions.py feedback <slug> --quote "..." --change "S03: slower entrance" [--change ...]
+  edit_decisions.py status <slug> [--require final]
   edit_decisions.py storyboard <slug>                      # concise grouped storyboard -> work/<slug>/plan/storyboard.md
 
-analysis.json:  {"transcript": "work/<slug>/plan/transcript.md", "notes": "...",
-                 "moments": [{"id": "M01", "in": 0.4, "out": 2.9, "words": "...", "section": "Hook", "why": "...",
-                              "major": true, "recommend": "visual" | "keep-visible"}],
+analysis.json:  {"moments": [{"id": "S01", "start": 0.4, "end": 2.9, "text": "<exact words from the user's script>",
+                              "type": "text|onscreen|fullscreen|sound", "section": "Hook", "why": "...", "major": true,
+                              "recommend": "visual" | "keep-visible"}],
                  "keep_visible": [{"in": 18.0, "out": 24.5, "why": "personal story: the face carries it"}]}
-proposals.json: {"moments": {"M01": {"recommend": "B", "options": {
-                    "A": {"title": "...", "system": "C", "kind": "HorizonTitle", "refs": ["FUL-002"], "family": "HORIZON-ARC",
-                          "description": "...", "motion": "...", "sound": "...", "preview": "work/<slug>/previews/M01.png"},
+proposals.json: {"moments": {"S01": {"recommend": "B", "options": {
+                    "A": {"title": "...", "system": "C", "kind": "HorizonTitle", "props": {...}, "refs": ["FUL-002"],
+                          "family": "HORIZON-ARC", "description": "...", "motion": "...", "sound": "..."},
                     "B": {...}, "C": {...}}}}}
 
 Approvals are recorded ONLY when the user has explicitly said so; --quote must hold their words.
-Gates: 'direction' needs every major moment decided; 'preview' needs 'direction'; 'final' needs
-'direction' and at least one 'preview' approval. edit_render.py picture refuses to render the final
-full-resolution picture, and edit_qc.py fails the export, without the 'final' approval.
+Gates: 'direction' needs every major segment decided; 'preview' needs 'direction'; 'final' needs
+'direction' and at least one 'preview' approval. edit_render.py picture and the Studio's final export
+refuse to render, and edit_qc.py fails the export, without the 'final' approval.
 """
 import argparse
 import datetime
@@ -59,14 +57,16 @@ def log_paths(app, slug):
     d = app / "src" / "projects" / slug
     if not d.exists():
         raise SystemExit(f"Remotion project {d} not found - run edit_init.py first")
-    return d / "creative-log.json", d / "CREATIVE-LOG.md"
+    return d / "edit.json", d / "CREATIVE-LOG.md"
 
 
 def load(app, slug):
     jp, _ = log_paths(app, slug)
     if not jp.exists():
-        raise SystemExit(f"{jp} missing - run: edit_decisions.py init {slug}")
-    return json.loads(jp.read_text())
+        raise SystemExit(f"{jp} missing - run edit_init.py first")
+    doc = json.loads(jp.read_text())
+    doc.setdefault("segments", []); doc.setdefault("approvals", []); doc.setdefault("feedback", []); doc.setdefault("keepVisible", [])
+    return doc
 
 
 def library_ids():
@@ -81,13 +81,11 @@ def approved(log, gate):
 def phase_of(log):
     if approved(log, "final"):
         return "5-final-approved"
-    if approved(log, "preview") or log["feedback"]:
+    if approved(log, "preview") or log["feedback"] or approved(log, "direction"):
         return "4-animation-preview"
-    if approved(log, "direction"):
-        return "4-animation-preview"
-    if any(m.get("options") for m in log["moments"]):
+    if any(m.get("concepts") for m in log["segments"]):
         return "2/3-options-and-approval"
-    if log["moments"]:
+    if log["segments"]:
         return "1-analyzed"
     return "0-intake"
 
@@ -101,38 +99,40 @@ def save(app, slug, log):
 
 
 def render_md(log):
+    src = log["source"]
     L = [f"# Creative decision log: {log['slug']}", "",
-         f"Creative Director: the user. Source: `{Path(log['source']['path']).name}` "
-         f"({log['source']['duration']:.2f} s, {log['source']['fps']} fps; timeline preserved, never cut).",
+         f"Creative Director: the user. Generated from `edit.json` (the project file the Studio, the Remotion Player and the renderer use).",
+         f"Source: `{Path(src.get('src', '')).name}` ({src['sourceDurationSeconds']:.2f} s, {src['fps']} fps; timeline preserved, never cut).",
          f"Phase: **{log['phase']}**. Updated {log['updated']}.", ""]
     L += ["## Approvals", ""]
-    if log["approvals"]:
-        L += [f"- **{a['gate']}** ({a['at']}): \"{a['quote']}\"" for a in log["approvals"]]
-    else:
-        L += ["- none yet"]
-    L += ["", "## Moments", "", "| Moment | Time | Words | Decision | Notes |", "|---|---|---|---|---|"]
-    for m in log["moments"]:
+    L += [f"- **{a['gate']}** ({a['at']}): \"{a['quote']}\"" for a in log["approvals"]] or ["- none yet"]
+    L += ["", "## Segments", "", "| Segment | Time | Spoken text | Type | Decision | User |", "|---|---|---|---|---|---|"]
+    for m in log["segments"]:
         d = m.get("decision") or {}
         choice = d.get("choice", "open")
-        if choice in OPTIONS and m.get("options"):
-            o = m["options"][choice]
+        if choice in OPTIONS and m.get("concepts", {}).get(choice):
+            o = m["concepts"][choice]
             choice = f"{choice}: {o['title']} ({', '.join(o['refs'])})"
         elif choice == "D":
             choice = f"D (own idea): {d.get('custom', '')}" + (f" [combines {'+'.join(d['combine'])}]" if d.get("combine") else "")
         elif choice == "none":
             choice = "keep visible (no visual)"
-        said = 'user: "' + d["quote"] + '"' if d.get("quote") else ""
-        words = m.get("words", "")[:60]
-        L.append(f'| {m["id"]} | {tc(m.get("in"))}-{tc(m.get("out"))} | "{words}" | {choice} | {said} {d.get("note", "")} |')
-    if log.get("keep_visible"):
-        L += ["", "## Deliberately kept on camera", ""] + [f"- {tc(k['in'])}-{tc(k['out'])}: {k['why']}" for k in log["keep_visible"]]
+        said = '"' + d["quote"] + '"' if d.get("quote") else ""
+        text = m.get("text", "")[:60]
+        L.append(f'| {m["id"]} | {tc(m.get("start"))}-{tc(m.get("end"))} | "{text}" | {m.get("type", "")} | {choice} | {said} |')
+    if log.get("keepVisible"):
+        L += ["", "## Deliberately kept on camera", ""] + [f"- {tc(k['in'])}-{tc(k['out'])}: {k['why']}" for k in log["keepVisible"]]
     L += ["", "## Proposed concepts (all rounds)", ""]
-    for m in log["moments"]:
-        for rnd in m.get("history", []) + ([{"round": m["round"], "options": m["options"]}] if m.get("options") else []):
+    for m in log["segments"]:
+        rounds = [{"round": h["round"], "concepts": h["concepts"]} for h in m.get("history", [])]
+        if m.get("concepts"):
+            rounds.append({"round": m.get("round", 1), "concepts": m["concepts"]})
+        for rnd in rounds:
             L.append(f"**{m['id']} round {rnd['round']}**")
             for k in OPTIONS:
-                o = rnd["options"][k]
-                L.append(f"- {k} — {o['title']} [{o['system']} · {o.get('kind', '?')} · {', '.join(o['refs'])}]: {o['description']}")
+                o = rnd["concepts"].get(k)
+                if o:
+                    L.append(f"- {k} — {o['title']} [{o['system']} · {o.get('kind', 'sound')} · {', '.join(o['refs'])} · {o.get('author', 'claude')}]: {o['description']}")
             L.append("")
     if log["feedback"]:
         L += ["## Feedback rounds", ""]
@@ -144,39 +144,34 @@ def render_md(log):
 
 def cmd_init(app, slug, a):
     jp, _ = log_paths(app, slug)
-    pj = V.load_project(app, slug, a.work)
-    if jp.exists():
-        print(f"creative log exists: {jp}")
-        return
-    log = {"slug": slug, "created": now(), "creative_director": "user",
-           "source": {"path": pj["source"]["path"], "sha256": pj["source"]["sha256"], "duration": pj["source"]["probe"]["duration"],
-                      "fps": pj["approved"]["fps"]},
-           "transcript": None, "notes": "", "moments": [], "keep_visible": [], "approvals": [], "feedback": []}
-    save(app, slug, log)
-    print(f"creative log created: {jp}")
+    if not jp.exists():
+        raise SystemExit(f"{jp} missing - run edit_init.py")
+    save(app, slug, load(app, slug))
+    print(f"creative decisions live in {jp} (CREATIVE-LOG.md generated)")
 
 
 def cmd_analyze(app, slug, a):
     log = load(app, slug)
     data = json.loads(Path(a.file).read_text())
-    dur = log["source"]["duration"]
-    known = {m["id"]: m for m in log["moments"]}
+    dur = log["source"]["sourceDurationSeconds"]
+    known = {m["id"]: m for m in log["segments"]}
     for m in data.get("moments", []):
-        for k in ("id", "in", "out", "words", "why"):
-            if m.get(k) in (None, ""):
-                raise SystemExit(f"moment {m.get('id')}: missing {k}")
-        if not (0 <= m["in"] < m["out"] <= dur + 1e-6):
-            raise SystemExit(f"moment {m['id']}: {m['in']}-{m['out']} is outside the source (0-{dur:.2f} s)")
-        keep = known.get(m["id"], {})
-        merged = {**keep, **m, "major": bool(m.get("major", True)), "recommend": m.get("recommend", "visual")}
-        known[m["id"]] = merged
-    log["moments"] = sorted(known.values(), key=lambda m: m["in"])
-    log["keep_visible"] = data.get("keep_visible", log["keep_visible"])
-    log["transcript"] = data.get("transcript", log["transcript"])
-    log["notes"] = data.get("notes", log["notes"])
+        start, end = m.get("start", m.get("in")), m.get("end", m.get("out"))
+        text = m.get("text", m.get("words"))
+        if None in (m.get("id"), start, end) or not text or not m.get("why"):
+            raise SystemExit(f"moment {m.get('id')}: needs id, start, end, text (the user's exact words) and why")
+        if not (0 <= start < end <= dur + 1e-6):
+            raise SystemExit(f"moment {m['id']}: {start}-{end} is outside the source (0-{dur:.2f} s)")
+        keep = known.get(m["id"], {"concepts": {}, "history": [], "round": 0, "decision": None, "beatId": None, "requests": [], "transcriptIds": []})
+        keep.update({"id": m["id"], "start": start, "end": end, "text": text, "type": m.get("type", keep.get("type", "text")),
+                     "major": bool(m.get("major", True)), "recommendVisual": m.get("recommend", "visual"), "why": m["why"],
+                     "section": m.get("section", keep.get("section"))})
+        known[m["id"]] = keep
+    log["segments"] = sorted(known.values(), key=lambda m: m["start"])
+    log["keepVisible"] = data.get("keep_visible", log["keepVisible"])
     save(app, slug, log)
-    print(f"analysis recorded: {len(log['moments'])} moments ({sum(m['major'] for m in log['moments'])} major), "
-          f"{len(log['keep_visible'])} keep-visible stretches")
+    print(f"analysis recorded: {len(log['segments'])} segments ({sum(m['major'] for m in log['segments'])} major), "
+          f"{len(log['keepVisible'])} keep-visible stretches")
 
 
 def check_options(mid, opts, lib):
@@ -186,26 +181,29 @@ def check_options(mid, opts, lib):
         if not o:
             errs.append(f"{mid}: option {k} missing (always present A, B and C; D is the user's own idea)")
             continue
-        for f in ("title", "system", "refs", "description"):
+        for f in ("title", "system", "description"):
             if not o.get(f):
                 errs.append(f"{mid}:{k} missing {f}")
+        if o.get("system") != "D" and not o.get("refs"):
+            errs.append(f"{mid}:{k} lists no reference IDs (visual concepts must be grounded in the library)")
         bad = [r for r in o.get("refs", []) if r not in lib]
         if bad:
             errs.append(f"{mid}:{k} unknown reference IDs {bad} (concepts must be grounded in the library)")
-        if o.get("system") not in ("A", "B", "C"):
-            errs.append(f"{mid}:{k} system must be A (on-screen), B (text) or C (full-screen)")
+        if o.get("system") not in ("A", "B", "C", "D"):
+            errs.append(f"{mid}:{k} system must be A (on-screen), B (text), C (full-screen) or D (sound)")
     if errs:
         return errs, warns
     # genuinely different: no two options may share system + kind + primary reference,
     # and the three should not all come from one style family
-    sig = {k: (opts[k]["system"], opts[k].get("kind"), opts[k]["refs"][0]) for k in OPTIONS}
+    sig = {k: (opts[k]["system"], opts[k].get("kind"), (opts[k].get("refs") or [None])[0],
+               json.dumps(opts[k].get("props") or opts[k].get("sfx"), sort_keys=True)) for k in OPTIONS}
     for i, x in enumerate(OPTIONS):
         for y in OPTIONS[i + 1:]:
             if sig[x] == sig[y]:
                 errs.append(f"{mid}: options {x} and {y} are the same idea (same system, kind and primary reference)")
             if opts[x]["description"].strip().lower() == opts[y]["description"].strip().lower():
                 errs.append(f"{mid}: options {x} and {y} have the same description")
-    fams = {opts[k].get("family") or lib[opts[k]["refs"][0]]["family"] for k in OPTIONS}
+    fams = {opts[k].get("family") or (lib[opts[k]["refs"][0]]["family"] if opts[k].get("refs") else "SOUND") for k in OPTIONS}
     systems = {opts[k]["system"] for k in OPTIONS}
     if len(fams) == 1 and len(systems) == 1:
         warns.append(f"{mid}: all three options share one system and one style family - make them more distinct")
@@ -216,11 +214,11 @@ def cmd_propose(app, slug, a):
     log = load(app, slug)
     lib = library_ids()
     data = json.loads(Path(a.file).read_text())
-    by_id = {m["id"]: m for m in log["moments"]}
+    by_id = {m["id"]: m for m in log["segments"]}
     errs, warns = [], []
     for mid, p in data["moments"].items():
         if mid not in by_id:
-            errs.append(f"{mid}: not in the analysis (run analyze first)")
+            errs.append(f"{mid}: not a segment (run analyze or select it in the Studio first)")
             continue
         e, w = check_options(mid, p.get("options", {}), lib)
         errs += e
@@ -231,20 +229,20 @@ def cmd_propose(app, slug, a):
         for e in errs:
             print("ERROR", e)
         raise SystemExit(1)
+    replaced = False
     for mid, p in data["moments"].items():
         m = by_id[mid]
-        if m.get("options"):
-            m.setdefault("history", []).append({"round": m["round"], "options": m["options"], "recommend": m.get("recommend_option"),
-                                                "replaced": now()})
-            m["round"] += 1
-            m.pop("decision", None)
+        if m.get("concepts"):
+            m.setdefault("history", []).append({"round": m.get("round", 1), "concepts": m["concepts"], "replaced": now()})
+            m["round"] = m.get("round", 1) + 1
+            m["decision"] = None
+            replaced = True
         else:
             m["round"] = 1
-        m["options"] = {k: p["options"][k] for k in OPTIONS}
-        m["recommend_option"] = p.get("recommend")
-        m["proposed"] = now()
-    # a new round invalidates an earlier direction approval
-    if any(m.get("history") for m in log["moments"] if m["id"] in data["moments"]) and approved(log, "direction"):
+        m["concepts"] = {k: {"author": "claude", **p["options"][k]} for k in OPTIONS}
+        m["recommend"] = p.get("recommend")
+        m["requests"] = []
+    if replaced and approved(log, "direction"):
         log["approvals"] = [x for x in log["approvals"] if x["gate"] not in ("direction", "preview", "final")]
         print("NOTE  new concepts replace earlier ones: the direction approval was withdrawn and must be given again")
     save(app, slug, log)
@@ -254,7 +252,7 @@ def cmd_propose(app, slug, a):
 def cmd_decide(app, slug, a):
     log = load(app, slug)
     ids = [x.strip() for x in a.moments.split(",") if x.strip()]
-    by_id = {m["id"]: m for m in log["moments"]}
+    by_id = {m["id"]: m for m in log["segments"]}
     choice = a.choice.upper() if a.choice.lower() != "none" else "none"
     if choice not in ("A", "B", "C", "D", "none"):
         raise SystemExit("--choice must be A, B, C, D or none")
@@ -264,7 +262,7 @@ def cmd_decide(app, slug, a):
         if mid not in by_id:
             raise SystemExit(f"unknown moment {mid}")
         m = by_id[mid]
-        if choice in OPTIONS and not m.get("options"):
+        if choice in OPTIONS and not m.get("concepts", {}).get(choice):
             raise SystemExit(f"{mid}: no concepts proposed yet")
         m["decision"] = {"choice": choice, "round": m.get("round"), "decided": now(), "quote": a.quote, "note": a.note or "",
                          **({"custom": a.custom} if a.custom else {}),
@@ -278,7 +276,7 @@ def cmd_approve(app, slug, a):
     log = load(app, slug)
     if not a.quote or len(a.quote.strip()) < 2:
         raise SystemExit("--quote must contain the user's own words of approval")
-    open_major = [m["id"] for m in log["moments"] if m.get("major") and not m.get("decision")]
+    open_major = [m["id"] for m in log["segments"] if m.get("major") and not m.get("decision")]
     if a.gate == "direction" and open_major:
         raise SystemExit(f"cannot approve the direction: undecided major moments {open_major}")
     if a.gate in ("preview", "final") and not approved(log, "direction"):
@@ -304,9 +302,19 @@ def cmd_feedback(app, slug, a):
 def cmd_status(app, slug, a):
     log = load(app, slug)
     print(f"{slug}: phase {log['phase']}")
-    undecided = [m["id"] for m in log["moments"] if m.get("major") and not m.get("decision")]
-    unproposed = [m["id"] for m in log["moments"] if m.get("major") and m.get("recommend") != "keep-visible" and not m.get("options")]
-    print(f"  moments: {len(log['moments'])}  without concepts: {unproposed or '-'}  undecided: {undecided or '-'}")
+    undecided = [m["id"] for m in log["segments"] if m.get("major") and not m.get("decision")]
+    unproposed = [m["id"] for m in log["segments"] if m.get("major") and m.get("recommendVisual") != "keep-visible" and not m.get("concepts")]
+    print(f"  segments: {len(log['segments'])}  without concepts: {unproposed or '-'}  undecided: {undecided or '-'}  beats: {len(log.get('beats', []))}")
+    # work the Studio leaves for Claude (written there by the user)
+    for m in log["segments"]:
+        for r in m.get("requests") or []:
+            print(f"  REQUEST  {m['id']} {tc(m['start'])}-{tc(m['end'])} ({r['at']}): {r['note']}  -> author three new concepts (propose)")
+        cs = m.get("concepts") or {}
+        if cs and all(c.get("author") == "draft" for c in cs.values()):
+            print(f"  DRAFTS   {m['id']}: only the Studio's library drafts so far -> Claude's own A/B/C still to propose")
+        d = m.get("decision") or {}
+        if d.get("choice") == "D" and not m.get("beatId"):
+            print(f"  BUILD D  {m['id']}: the user's own idea is not on the timeline yet: \"{d.get('custom', '')}\"")
     for g in GATES:
         hit = [x for x in log["approvals"] if x["gate"] == g]
         state = f'APPROVED {hit[-1]["at"]} "{hit[-1]["quote"]}"' if hit else "open"
@@ -321,26 +329,25 @@ def cmd_storyboard(app, slug, a):
     pj = V.load_project(app, slug, a.work)
     out = Path(pj["work"]) / "plan" / "storyboard.md"
     out.parent.mkdir(parents=True, exist_ok=True)
-    L = [f"## Storyboard: {slug} ({tc(0)}-{tc(log['source']['duration'])}, timeline unchanged)", ""]
+    L = [f"## Storyboard: {slug} ({tc(0)}-{tc(log['source']['sourceDurationSeconds'])}, timeline unchanged)", ""]
     sections = {}
-    for m in log["moments"]:
+    for m in log["segments"]:
         sections.setdefault(m.get("section") or "Main", []).append(m)
     for name, ms in sections.items():
         L.append(f"### {name}")
         for m in ms:
             d = m.get("decision")
-            rec = m.get("recommend_option")
-            if m.get("recommend") == "keep-visible" and not m.get("options"):
-                L.append(f"- **{m['id']} {tc(m['in'])}-{tc(m['out'])}** \"{m['words'][:70]}\": keep you on camera ({m['why']})")
+            head = f"- **{m['id']} {tc(m['start'])}-{tc(m['end'])}** \"{m['text'][:70]}\" · {m.get('type', '')}"
+            if m.get("recommendVisual") == "keep-visible" and not m.get("concepts"):
+                L.append(f"{head}: keep you on camera ({m.get('why', '')})")
                 continue
-            head = f"- **{m['id']} {tc(m['in'])}-{tc(m['out'])}** \"{m['words'][:70]}\""
             if d:
                 L.append(f"{head}: decided **{d['choice']}**" + (f" ({d.get('custom')})" if d.get("custom") else ""))
                 continue
-            L.append(head + (f"  (recommended: **{rec}**)" if rec else ""))
+            L.append(head + (f"  (recommended: **{m['recommend']}**)" if m.get("recommend") else ""))
             previews = []
             for k in OPTIONS:
-                o = (m.get("options") or {}).get(k)
+                o = (m.get("concepts") or {}).get(k)
                 if o:
                     L.append(f"  - **{k}** {o['title']}: {o['description']} [{', '.join(o['refs'])}]")
                     if o.get("preview") and o["preview"] not in previews:
@@ -349,11 +356,11 @@ def cmd_storyboard(app, slug, a):
             if previews:
                 L.append("  - preview: " + ", ".join(f"`{Path(x).name}`" for x in previews))
         L.append("")
-    if log.get("keep_visible"):
+    if log.get("keepVisible"):
         L.append("### Kept on camera (no visuals)")
-        L += [f"- {tc(k['in'])}-{tc(k['out'])}: {k['why']}" for k in log["keep_visible"]]
+        L += [f"- {tc(k['in'])}-{tc(k['out'])}: {k['why']}" for k in log["keepVisible"]]
         L.append("")
-    L.append("Reply per group, e.g. \"all recommended\", \"M01 B, M02-M04 A\", \"M05 D: ...\", or \"new concepts for M03\".")
+    L.append("Reply per group, e.g. \"all recommended\", \"S01 B, S02-S04 A\", \"S05 D: ...\", or \"new concepts for S03\".")
     out.write_text("\n".join(L) + "\n")
     print("\n".join(L))
     print(f"\n(saved: {out})")

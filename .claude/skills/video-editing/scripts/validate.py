@@ -170,6 +170,13 @@ def main():
                    "different voice", "automatic zooms", "solely for retention", "keeps running underneath", "never modified"):
         if phrase not in skill:
             err(f"SKILL.md is missing the non-destructive rule about '{phrase}'")
+    fm = re.match(r"---\n(.*?)\n---\n", skill, re.S)
+    desc = re.search(r"^description: (.*)$", fm.group(1), re.M).group(1) if fm else ""
+    if not desc or len(desc) > 1024:
+        err(f"SKILL.md description missing or longer than 1024 characters ({len(desc)})")
+    for phrase in ("The user's script is theirs", "never rewrite the words", "Never present generated timestamps as verified", "edit.json"):
+        if phrase not in skill:
+            err(f"SKILL.md is missing the user-script rule '{phrase}'")
     for doc in ("remotion.md", "workflow.md"):
         if doc not in skill:
             err(f"SKILL.md does not route to references/{doc}")
@@ -215,6 +222,27 @@ def main():
                   "concepts.ts", "beats/CaptionAccent.tsx", "beats/StatCard.tsx", "beats/HorizonTitle.tsx"):
             if not (kit / f).exists():
                 err(f"Remotion kit file missing: remotion-app/src/kit/{f}")
+        # Creative Director Studio (edit.json is the one project file for Player, previews and renders)
+        for f in ("project.ts", "studio.ts", "StudioEdit.tsx", "beats/UiCard.tsx", "beats/StatementScene.tsx"):
+            if not (kit / f).exists():
+                err(f"Studio kit file missing: remotion-app/src/kit/{f}")
+        for f in ("App.tsx", "server/api.ts", "server/render.ts", "server/drafts.ts", "components/TranscriptPanel.tsx",
+                  "components/Timeline.tsx", "components/CreativePanel.tsx", "tests/e2e.mjs"):
+            if not (app / "studio" / f).exists():
+                err(f"Studio file missing: remotion-app/studio/{f}")
+        apis = app / "studio" / "server" / "api.ts"
+        if apis.exists():
+            a_src = apis.read_text(encoding="utf-8")
+            if not re.search(r'const finalExport = async[^\n]*\n[^\n]*\n\s*if \(!doc\.approvals\.some\(\(a\) => a\.gate === "final"\)\) throw', a_src):
+                err("studio/server/api.ts: the final export no longer refuses to run without the final approval")
+            if "doc.approvals = disk.approvals" not in a_src:
+                err("studio/server/api.ts: saving from the UI may overwrite approvals (they must only change via edit_decisions.py)")
+            if "!b.replace" not in a_src:
+                err("studio/server/api.ts: importing a script may silently replace the user's timestamped script")
+        pj = json.loads((app / "package.json").read_text(encoding="utf-8"))
+        for sc in ("studio", "studio:test"):
+            if sc not in pj.get("scripts", {}):
+                err(f"remotion-app/package.json lost the '{sc}' script")
         if not (app / "scripts" / "export-sfx.ts").exists():
             err("remotion-app/scripts/export-sfx.ts missing (sound intents export)")
         sf = kit / "SourceFootage.tsx"

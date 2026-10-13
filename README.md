@@ -11,7 +11,7 @@ This repository turns an **already-cut** talking-head video into a premium verti
 | Part | Where |
 |---|---|
 | The editing skill (rules, workflow, reference library, sound system, scripts) | [`.claude/skills/video-editing/`](.claude/skills/video-editing/SKILL.md) |
-| The Remotion app (edit kit + one project per video) | [`remotion-app/`](remotion-app/README.md) |
+| The Remotion app (edit kit, one project per video, the Creative Director Studio) | [`remotion-app/`](remotion-app/README.md) |
 | Official Remotion Agent Skill (API knowledge) | [`.claude/skills/remotion-best-practices/`](.claude/skills/remotion-best-practices/SKILL.md), pinned in `skills-lock.json` |
 | Project rules for Claude Code | [`CLAUDE.md`](CLAUDE.md) |
 
@@ -21,13 +21,23 @@ Claude Code discovers both skills automatically in any session started in this r
 
 Every video goes through five phases (`.claude/skills/video-editing/references/creative-director.md`):
 
-1. **Analyze:** Claude studies the footage and dialogue, writes a timecoded transcript, finds the moments that could use visuals and the ones where staying on camera is stronger.
+1. **Analyze:** you provide your timestamped script (pasted, SRT, VTT or JSON; imported exactly as written, problems flagged for you to fix). Claude studies the footage and dialogue and finds the moments that could use visuals and the ones where staying on camera is stronger.
 2. **Options:** for every major moment, Claude offers **A, B, C** (three genuinely different concepts from your reference library, with real preview frames) and **D, your own idea**. You can always ask for three new concepts.
 3. **Approval:** a concise, grouped, timecoded storyboard. You approve the creative direction.
 4. **Animation preview:** Claude builds it in Remotion and sends short motion previews with draft sound. You request changes.
 5. **Final render:** only after you explicitly approve the edit.
 
-All choices, concept rounds, feedback and approvals are saved per project in `remotion-app/src/projects/<slug>/CREATIVE-LOG.md`. The final render refuses to run without your recorded approval.
+All choices, concept rounds, feedback and approvals are saved per project in one file, `remotion-app/src/projects/<slug>/edit.json` (readable as `CREATIVE-LOG.md`). The Remotion Player, the previews and the final render all read it. The final render refuses to run without your recorded approval.
+
+## The Creative Director Studio
+
+```bash
+cd remotion-app && npm i && npm run studio      # http://127.0.0.1:3010
+```
+
+Import your cut and your timestamped script, click or drag over your words, pick **Text Animation / On-Screen Visual / Full-Screen Animation / Sound Design**, compare A/B/C (real Remotion preview stills) or write D, choose, fine-tune in the inspector or on the timeline (the Remotion Player updates live), adjust the SFX track, approve, render a motion preview, and export the final MP4 (Remotion picture + sound mix from your original dialogue + QC). Details: `.claude/skills/video-editing/references/remotion.md` §8. `npm run studio:test` runs the end-to-end test.
+
+The instant A/B/C you see for a new segment are library drafts; ask Claude in the chat for its own concepts (the Studio's "Ask Claude" button leaves the request in `edit.json`).
 
 ## The workflow in short
 
@@ -35,7 +45,7 @@ All choices, concept rounds, feedback and approvals are saved per project in `re
 cd remotion-app && npm i && cd ..                                         # once
 S=.claude/skills/video-editing/scripts
 python3 $S/edit_init.py /path/to/my-cut.mp4 --slug my-video                # probe + hash + link the original (never copied or modified)
-# plan the beats with Claude (story -> beats -> references -> plan), then build them in remotion-app/src/projects/my-video/beats.ts
+(cd remotion-app && npx tsx scripts/import-transcript.ts my-video /path/to/script.srt)   # your script, as written
 # phases 1-3 with Claude: analysis, A/B/C/D options + preview frames, storyboard, your approval (edit_decisions.py, edit_render.py concept-frames)
 python3 $S/edit_render.py sfx my-video                                     # measured sound intents -> plan.json
 python3 $S/sfx_plan.py work/my-video/sound/plan.json --out work/my-video/sound/cues.json
@@ -55,7 +65,8 @@ python3 $S/edit_qc.py my-video --final work/my-video/sound/final_v1/final.mp4   
 python3 .claude/skills/video-editing/scripts/validate.py        # library, docs, gain presets, Remotion kit, timeline contract
 python3 .claude/skills/video-editing/scripts/edit_selftest.py   # end-to-end on synthetic footage, incl. tampered exports that must fail
 python3 .claude/skills/video-editing/scripts/sound_selftest.py  # sound toolchain on synthetic fixtures
-cd remotion-app && npm run lint && npm run test:render          # type-check; Step 2 render checks
+cd remotion-app && npm run lint && npm run test:render          # lint + type-check; Step 2 render checks
+cd remotion-app && npm run studio:test                          # Creative Director Studio end-to-end (Chromium)
 ```
 
 ## What's inside the skill

@@ -29,7 +29,7 @@ Use System A when the speaker says something that a viewer would understand fast
    1. the footage's own dark lower area (most of ONS-001..005);
    2. the element's own shadow and hairline border;
    3. a bottom vignette or local darkening;
-   4. a full-frame dim and blur (`FOCUS` in `beats.ts`, e.g. `{start, end, brightness: 0.6, blur: 6}`), only when the graphic is large or busy. It changes the look, never the timing.
+   4. a full-frame dim and blur (`focus` in `edit.json`, e.g. `{start, end, brightness: 0.6, blur: 6}`), only when the graphic is large or busy. It changes the look, never the timing.
 6. **Pair with a caption only when it helps.** The live references pair every UI beat with a 2-3 word caption above it ("to posting" plus a calendar). The caption names the idea and the UI proves it. See System B.
 7. **One accent, one focal point.** Exactly one element is "active" (glowing border, blue fill or highlighted card). Everything else stays neutral.
 
@@ -53,7 +53,7 @@ For 16:9 talking heads with the speaker off-centre, put the UI on the empty side
 
 ## Implementation (Remotion)
 
-Every overlay is a beat in `remotion-app/src/projects/<slug>/beats.ts`, rendered above `SourceFootage` (`remotion.md`).
+Every overlay is a beat in `remotion-app/src/projects/<slug>/edit.json` (`beats`), rendered above `SourceFootage` (`remotion.md`).
 
 | Need | Remotion kind | Reference template to port from |
 |---|---|---|

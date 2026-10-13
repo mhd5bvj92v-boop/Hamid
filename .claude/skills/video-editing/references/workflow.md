@@ -8,7 +8,7 @@ Every step writes a concrete artifact to `work/<slug>/` (git-ignored), so progre
 
 | Phase | Steps here |
 |---|---|
-| 1 Analyze | 0 Intake, 1 Story (timecoded transcript), 2 Moments (+ keep-visible) |
+| 1 Analyze | 0 Intake, 1 Story (the user's timestamped script), 2 Moments (+ keep-visible) |
 | 2 Options | 3 Treatments, 4 References → three concepts A/B/C per major moment + D, preview frames |
 | 3 Approval | 5 Storyboard → the user approves the direction (gate) |
 | 4 Animation preview | 6 Build, 8 Sound (draft), motion previews, feedback rounds (gate) |
@@ -21,7 +21,7 @@ Every step writes a concrete artifact to `work/<slug>/` (git-ignored), so progre
 | remove footage, add cuts, rearrange or re-order clips | layering graphics over the footage |
 | change speed; shorten or lengthen pauses | covering the footage with a full-screen scene while it keeps running underneath |
 | replace the dialogue or generate a different voice | adding effects and music *under* the untouched dialogue |
-| automatic zooms or reframing nobody asked for | a dim/blur of the footage behind a busy overlay (look only, `FOCUS` in `beats.ts`) |
+| automatic zooms or reframing nobody asked for | a dim/blur of the footage behind a busy overlay (look only, `focus` in `edit.json`) |
 | animations that exist only for retention | a centre crop to 9:16 when the source is not vertical, **only with the user's approval** (`--fit cover`) |
 
 How it is enforced:
@@ -44,7 +44,7 @@ python3 scripts/edit_init.py /path/to/my-cut.mp4 --slug my-video
 
 ## 1. Understand the story
 
-Watch/listen to the whole cut and read the transcript before designing anything. Get word timestamps (a user-supplied transcript/SRT, or a local ASR such as whisper if installed; check before promising). Write `work/<slug>/plan/story.md`:
+Watch/listen to the whole cut and read the transcript before designing anything. Timing comes from the user's own timestamped script, imported into `edit.json` exactly as written (`import-transcript.ts` or the Studio); flagged times are corrected by the user, never by Claude. Automatic transcription is optional and not installed: only if the user has no script and asks for one, use a locally installed ASR and label its times unverified. Write `work/<slug>/plan/story.md`:
 - the one-sentence point of the video;
 - the structure: hook, setup, main points, payoff/CTA (with timestamps);
 - the emotional arc: where trust and face matter most, where energy peaks;
@@ -92,12 +92,12 @@ Approved frame rate: 30 fps (source)   Palette: warm amber accents (warm grade) 
 | 3 | 12.0-14.8 | "we've helped over 300..." | C | horizon rises, 300 counts up | FUL-002 | HorizonTitle | riser + hit, classy airy |
 ```
 
-State what is *not* touched (the cut, the dialogue, the pacing) and any approximation. Nothing goes into `beats.ts` before the direction is approved.
+State what is *not* touched (the cut, the dialogue, the pacing) and any approximation. Nothing goes into the edit's `beats` (in `edit.json`) before the direction is approved.
 
 ## 6. Build in Remotion (Phase 4)
 
-- Concepts for previews live in `concepts.ts` (`moment`, `option`, `round`, `beat`). After the direction approval, copy the chosen concepts (and D, implemented as the user described) into `beats.ts`.
-- Write the beats in `remotion-app/src/projects/<slug>/beats.ts`: `id`, `kind`, `at` (seconds on the source timeline), `props` (times inside are seconds from the beat start), `reason`, `refs`. Use word timestamps for `at` and line/word times. Set `HOOK_END` (seconds) for the first riser.
+- Concepts live on their segment in `edit.json` (`concepts.ts` is the renderable view used for preview frames). Choosing a concept in the Studio builds its beat on the segment's exact times; from the CLI, add the chosen concepts (and D, implemented as the user described) to `beats` in `edit.json` after the direction approval.
+- Beats live in `remotion-app/src/projects/<slug>/edit.json` (`beats`; `beats.ts` is a typed view): `id`, `kind`, `at` (seconds on the source timeline), `props` (times inside are seconds from the beat start), `reason`, `refs`, `segmentId`. Take `at` and line times from the user's script. Set `hookEnd` (seconds) for the first riser.
 - Kit kinds: `CaptionAccent` (B, TXT-001..009), `StatCard` (A; C with `fullscreen: true`; ONS-024/050), `HorizonTitle` (C, FUL-002). For anything else, port the closest template or build from the chosen references as a new component with a pure `*.timing.ts` (see `remotion.md` §4).
 - Preview stills over the real footage at key moments (entering, landed, before exit): `python3 scripts/edit_render.py still <slug> --t <s>`. Open them with Read. Use Remotion Studio (`cd remotion-app && npm run dev`) for live review.
 - **Motion previews for the user:** `edit_render.py preview <slug> --beat <id>` (half resolution, ±0.6 s handles, dialogue + draft sound) or `--all` for the whole edit. Send them, ask for feedback, record it (`edit_decisions.py feedback`), apply it, repeat. Record `approve --gate preview` when the user is happy with the previews.

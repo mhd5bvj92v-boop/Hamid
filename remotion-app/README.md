@@ -19,11 +19,15 @@ The editing rules, reference library and sound design live in the `video-editing
 Every talking-head project is a composition `Edit-<slug>` in `src/projects/<slug>/`, created by the `video-editing` skill (`python3 ../.claude/skills/video-editing/scripts/edit_init.py <footage> --slug <slug>`):
 
 - `source.ts` is generated: the original's size, frame rate and duration. The composition is exactly as long as the source, at the approved frame rate, 1080x1920.
-- `beats.ts` is the editable list of designed beats (text, overlays, full-screen scenes) on the source timeline.
+- `edit.json` is the project: the user's script, segments with their A/B/C/D concepts and decisions, the beats (text, overlays, full-screen scenes) on the source timeline, the SFX track, feedback and approvals. `beats.ts` and `concepts.ts` are typed views of it.
 - `Edit.tsx` renders `TalkingHeadEdit`: the untouched footage (`SourceFootage`: full length, original speed, no trim) with one `<Sequence>` per beat on top, plus an optional Studio sound preview.
 - The footage is reached through `public/projects/<slug>/footage/`, a link to the original's folder (git-ignored, never copied).
 
-The edit kit is in `src/kit/` (`SourceFootage`, `TalkingHeadEdit`, `CaptionAccent`, `StatCard`, `HorizonTitle`, `SoundPreview`, house motion and tokens). `scripts/export-sfx.ts` exports each beat's measured sound intents for the skill's sound pipeline (`npx tsx scripts/export-sfx.ts <slug> <outDir>`). Rendering, mixing and QC go through the skill's scripts; see `.claude/skills/video-editing/references/remotion.md`.
+The edit kit is in `src/kit/` (`SourceFootage`, `TalkingHeadEdit`, `StudioEdit`, `CaptionAccent`, `StatCard`, `HorizonTitle`, `UiCard`, `StatementScene`, `SoundPreview`, the `edit.json` schema and script import in `project.ts`, house motion and tokens). `scripts/import-transcript.ts` imports the user's timestamped script into `edit.json` as written (`npx tsx scripts/import-transcript.ts <slug> <file> [--replace]`, `--check` lists timing problems). `scripts/export-sfx.ts` exports each beat's measured sound intents for the skill's sound pipeline (`npx tsx scripts/export-sfx.ts <slug> <outDir>`). Rendering, mixing and QC go through the skill's scripts; see `.claude/skills/video-editing/references/remotion.md`.
+
+## Creative Director Studio (`studio/`)
+
+`npm run studio` opens the editor at http://127.0.0.1:3010: the Remotion Player (composition `StudioEdit`), the user's script, a multi-track timeline, the A/B/C/D panel with `renderStill` previews, the inspector, the reference browser, the SFX track and the export (gated by the final approval; Remotion `renderMedia` + the skill's mix and QC). Everything reads and writes the project's `edit.json`. In browsers without H.264 (open-source Chromium) it offers a VP9 preview proxy used by the Player only. `npm run studio:test` drives it end to end in Chromium. See `../.claude/skills/video-editing/references/remotion.md` §8.
 
 ## Setup-check compositions (`src/Root.tsx`)
 
@@ -43,7 +47,9 @@ npx remotion render FootageComposite out/my-edit.mp4 --props='{"footageSrc":"foo
 
 ```bash
 npm i                    # install dependencies
-npm run dev              # Remotion Studio (preview)
+npm run dev              # Remotion Studio (Remotion's own preview tool)
+npm run studio           # Creative Director Studio (the editor)
+npm run studio:test      # its end-to-end test (Chromium, synthetic footage)
 npm run test-media       # generate the synthetic test footage and marker sound (public/test-media/)
 npm run render:test      # -> out/test-composition.mp4
 npm run render:footage   # -> out/footage-composite.mp4

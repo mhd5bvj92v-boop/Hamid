@@ -2,11 +2,11 @@
 """Render and export steps of the Remotion talking-head workflow (Creative Director phases 3-5).
 
   python3 scripts/edit_render.py sfx <slug>                    # beat + concept timeline, sound intents -> work/<slug>/sound/
-  python3 scripts/edit_render.py still <slug> --t 3.2 [--graphics] [--concept M03:A]
-  python3 scripts/edit_render.py concept-frames <slug> --moment M03 [--options A,B,C] [--sequence]
+  python3 scripts/edit_render.py still <slug> --t 3.2 [--graphics] [--concept S03:A]
+  python3 scripts/edit_render.py concept-frames <slug> --moment S03 [--options A,B,C] [--sequence]
                                                                # Phase 3: real preview frames of the proposed concepts
   python3 scripts/edit_render.py draft-sound <slug>            # Phase 4: draft mix of cues.json (original as picture) + Studio preview
-  python3 scripts/edit_render.py preview <slug> --beat b03 | --concept M03:B | --all [--scale 0.5] [--handles 0.6]
+  python3 scripts/edit_render.py preview <slug> --beat b03 | --concept S03:B | --all [--scale 0.5] [--handles 0.6]
                                                                # Phase 4: short half-resolution motion previews (with draft sound)
   python3 scripts/edit_render.py picture <slug> [--scale 2]    # Phase 5 ONLY: final full-resolution picture
   python3 scripts/edit_render.py picture <slug> --graphics     # beats over black (review / motion measurement)
@@ -37,13 +37,13 @@ def npx(app, args, log, env=None):
 
 
 def creative_log(app, slug):
-    p = app / "src" / "projects" / slug / "creative-log.json"
+    p = app / "src" / "projects" / slug / "edit.json"      # the single project file (decisions + approvals)
     return json.loads(p.read_text()) if p.exists() else None
 
 
 def require_final_approval(app, pj):
     log = creative_log(app, pj["slug"])
-    if not log or not any(x["gate"] == "final" for x in log["approvals"]):
+    if not log or not any(x["gate"] == "final" for x in log.get("approvals", [])):
         sys.exit("PHASE 5 GATE: the final full-resolution render needs the Creative Director's explicit final approval.\n"
                  "Show the motion previews (edit_render.py preview), collect feedback, and only after the user approves the edit run:\n"
                  f"  python3 scripts/edit_decisions.py approve {pj['slug']} --gate final --quote \"<the user's words>\"")
@@ -150,11 +150,11 @@ def cmd_concept_frames(app, pj, a):
     outdir = wd / "previews" / f"{a.moment}_r{rnd}"
     outdir.mkdir(parents=True, exist_ok=True)
     serve = bundle(app, pj)
-    log = creative_log(app, pj["slug"]) or {"moments": []}
+    log = creative_log(app, pj["slug"]) or {"segments": []}
     titles = {}
-    for m in log["moments"]:
+    for m in log.get("segments", []):
         if m["id"] == a.moment:
-            titles = {k: v.get("title", "") for k, v in (m.get("options") or {}).items()}
+            titles = {k: v.get("title", "") for k, v in (m.get("concepts") or {}).items()}
     tiles = []
     for c in sorted(rows, key=lambda c: c["option"]):
         n = c["endFrame"] - c["startFrame"]
@@ -191,14 +191,14 @@ def cmd_concept_frames(app, pj, a):
     out = wd / "previews" / f"{a.moment}_r{rnd}_concepts.png"
     sheet.save(out)
     # remember the preview in the creative log
-    lp = app / "src" / "projects" / pj["slug"] / "creative-log.json"
+    lp = app / "src" / "projects" / pj["slug"] / "edit.json"
     if lp.exists():
         lg = json.loads(lp.read_text())
-        for m in lg["moments"]:
-            if m["id"] == a.moment and m.get("options"):
+        for m in lg.get("segments", []):
+            if m["id"] == a.moment and m.get("concepts"):
                 for c, _, _ in tiles:
-                    if c["option"] in m["options"]:
-                        m["options"][c["option"]]["preview"] = str(out)
+                    if c["option"] in m["concepts"]:
+                        m["concepts"][c["option"]]["preview"] = str(out)
         lp.write_text(json.dumps(lg, indent=1, ensure_ascii=False) + "\n")
     print(f"concepts {a.moment} round {rnd}: {', '.join(c['option'] for c, _, _ in tiles)} -> {out}")
 

@@ -37,7 +37,7 @@ Never place a single sound before this breakdown exists.
    ```
    - `layers/<beat>.json`: each beat kind's declared sound intents (`recommended` / `optional` / `silence-ok`), with times measured from the same pose functions the component renders: the fastest frame for movements, the first visible frame (opacity ≥ 0.5) for events. Times are beat-relative; the plan's `offset` is the beat's `at`.
    - `timeline.json`: every beat window on the source timeline, the full-screen windows (music is gated off there) and lint warnings.
-   - `plan.json`: the draft plan for `sfx_plan.py` (video = the picture, dialogue = the original, `hook_end` from `beats.ts`).
+   - `plan.json`: the draft plan for `sfx_plan.py` (video = the picture, dialogue = the original, `hook_end` from `hookEnd` in `edit.json`).
    - For beats built from HTML templates instead, `render_html.js --analyze-only --motion --cues` does the same measurement.
 2. **The footage and the picture** (candidates, to be confirmed visually):
    ```bash
@@ -45,7 +45,7 @@ Never place a single sound before this breakdown exists.
    ```
    The user's own cuts are part of the edit: a cut that already exists in their footage can take a camera click or sci-fi hit, but never move or remove it.
    This finds cuts (transition frames), motion segments with their fastest frame, and speech regions. Open the strip with Read and keep only real edit events. Gestures and head turns don't get sound.
-3. **Story and voice:** take the hook end, segment changes, chapters, reveals and conclusions from the edit plan (`work/<slug>/plan/edit-plan.md`) and the transcript.
+3. **Story and voice:** take the hook end, segment changes, chapters, reveals and conclusions from the edit plan (`work/<slug>/plan/edit-plan.md`) and the user's timestamped script.
 4. **Draft the cue sheet:**
    ```bash
    python3 scripts/sfx_plan.py work/<slug>/sound/plan.json --out work/<slug>/sound/cues.json

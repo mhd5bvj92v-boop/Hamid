@@ -16,6 +16,11 @@ export type SourceInfo = {
   readonly durationInFrames: number;
   readonly width: 1080;
   readonly height: 1920;
+  /**
+   * Optional browser-friendly proxy of the same footage (same fps and duration),
+   * used ONLY by the Remotion Player for interactive preview. Renders always use `src`.
+   */
+  readonly previewSrc?: string;
 };
 
 /** Sound intent, in the format scripts/sfx_plan.py reads (times are beat-relative seconds). */

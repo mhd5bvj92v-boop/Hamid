@@ -3,22 +3,30 @@
 import { captionAccentTiming } from "./beats/captionAccent.timing";
 import { horizonTitleTiming } from "./beats/horizonTitle.timing";
 import { statCardTiming } from "./beats/statCard.timing";
+import { statementSceneTiming } from "./beats/statementScene.timing";
+import { uiCardTiming } from "./beats/uiCard.timing";
 import type { CaptionAccentProps } from "./beats/captionAccent.timing";
 import type { HorizonTitleProps } from "./beats/horizonTitle.timing";
 import type { StatCardProps } from "./beats/statCard.timing";
+import type { StatementSceneProps } from "./beats/statementScene.timing";
+import type { UiCardProps } from "./beats/uiCard.timing";
 import type { Beat, BeatTiming } from "./types";
 
 export const kitTiming = {
   CaptionAccent: captionAccentTiming,
   StatCard: statCardTiming,
   HorizonTitle: horizonTitleTiming,
+  UiCard: uiCardTiming,
+  StatementScene: statementSceneTiming,
 } satisfies Record<string, BeatTiming<never>>;
 
 /** A beat that uses one of the kit's kinds. Projects may add their own kinds. */
 export type KitBeat =
   | Beat<"CaptionAccent", CaptionAccentProps>
   | Beat<"StatCard", StatCardProps>
-  | Beat<"HorizonTitle", HorizonTitleProps>;
+  | Beat<"HorizonTitle", HorizonTitleProps>
+  | Beat<"UiCard", UiCardProps>
+  | Beat<"StatementScene", StatementSceneProps>;
 
 export type TimingRegistry = Record<string, BeatTiming<never>>;
 

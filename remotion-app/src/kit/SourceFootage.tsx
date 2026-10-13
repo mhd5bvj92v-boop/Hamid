@@ -2,6 +2,7 @@ import React from "react";
 import { Video } from "@remotion/media";
 import {
   AbsoluteFill,
+  getRemotionEnvironment,
   interpolate,
   staticFile,
   useCurrentFrame,
@@ -35,6 +36,8 @@ type Props = {
  * - its own audio (the dialogue) is kept at unity;
  * - full-screen scenes are layered ABOVE it, so it keeps running underneath.
  * These props are deliberately not exposed. Do not add them.
+ * In the Remotion Player only, a proxy of the same footage (source.previewSrc)
+ * may be shown for smooth interactive preview; every render uses the original.
  */
 export const SourceFootage: React.FC<Props> = ({ source, focus = [] }) => {
   const frame = useCurrentFrame();
@@ -62,7 +65,7 @@ export const SourceFootage: React.FC<Props> = ({ source, focus = [] }) => {
     <AbsoluteFill style={{ backgroundColor: "black" }}>
       <Video
         name="Source footage (untouched, full length)"
-        src={staticFile(source.src)}
+        src={staticFile(getRemotionEnvironment().isPlayer && source.previewSrc ? source.previewSrc : source.src)}
         objectFit="cover"
         volume={1}
         style={{

@@ -3,6 +3,8 @@ import { AbsoluteFill, Sequence, useVideoConfig } from "remotion";
 import { CaptionAccent } from "./beats/CaptionAccent";
 import { HorizonTitle } from "./beats/HorizonTitle";
 import { StatCard } from "./beats/StatCard";
+import { StatementScene } from "./beats/StatementScene";
+import { UiCard } from "./beats/UiCard";
 import { SoundPreview, SoundPreviewData } from "./SoundPreview";
 import { FocusWindow, SourceFootage } from "./SourceFootage";
 import { TimingRegistry, beatWindow, kitTiming } from "./timing";
@@ -15,6 +17,8 @@ export const kitComponents: ComponentRegistry = {
   CaptionAccent,
   StatCard,
   HorizonTitle,
+  UiCard,
+  StatementScene,
 };
 
 export type EditLayers = "all" | "graphics";

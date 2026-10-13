@@ -78,7 +78,7 @@ Notes:
 
 | Need | Tool | Notes |
 |---|---|---|
-| Word timestamps | `whisper`/`faster-whisper` with `--word_timestamps True`, or a user-supplied SRT/transcript | Verify alignment on 3 random words |
+| Word timestamps | the user's own timestamped script (default); `whisper`/`faster-whisper` only if installed and the user asks (label the times unverified) | Verify alignment on 3 random words |
 | Subject matte (text behind subject, TXT-005) | `rembg` per frame, RobustVideoMatting, or the NLE's magic mask | Check hair edges at 200% |
 | 3D objects / numerals / glass | Blender (Eevee + bloom, emission rims) → PNG sequence | `blender -b scene.blend -a` |
 | Hero still for 3D-METAPHOR scenes | an image-generation or stock tool the user has | Record its source and licence. Animate with parallax layers |

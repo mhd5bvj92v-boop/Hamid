@@ -18,7 +18,7 @@ Run this after every render round. QC means **looking at the frames**, not assum
 - [ ] Every major moment had three genuinely different, library-grounded concepts (A, B, C) plus D, and the offer of three new concepts (`edit_decisions.py propose` accepted them).
 - [ ] Keep-visible recommendations were shown to the user, not silently applied.
 - [ ] Concept preview frames were shown for the major scenes (or the reason why not was stated).
-- [ ] The direction approval, preview approval and final approval are in `CREATIVE-LOG.md` with the user's own words, in that order. Nothing in `beats.ts` predates the direction approval; the final picture postdates the final approval (`edit_qc.py` checks it).
+- [ ] The direction approval, preview approval and final approval are in `edit.json` (readable in `CREATIVE-LOG.md`) with the user's own words, in that order. No beat predates the direction approval; the final picture postdates the final approval (`edit_qc.py` checks it).
 - [ ] Every feedback round is recorded with what changed.
 
 ## Timeline checklist (non-destructive editing, every project)
