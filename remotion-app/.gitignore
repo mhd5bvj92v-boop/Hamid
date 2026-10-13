@@ -1,0 +1,13 @@
+node_modules
+dist
+.DS_Store
+.env
+
+# Ignore the output video from Git but not videos you import into src/.
+out
+
+# Generated test media (npm run test-media). Real footage goes in public/footage/
+# and is ignored too: keep large media out of Git.
+public/test-media/
+public/footage/*
+!public/footage/.gitkeep

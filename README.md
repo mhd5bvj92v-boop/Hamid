@@ -7,7 +7,17 @@ A reusable Claude Skill for premium short-form video editing. It has four coordi
 - **C:** full-screen animations, built from a curated reference library
 - **D:** professional sound design, adapting Joseph's (Ultimate Editors) system to this toolchain
 
-Remotion is never used.
+The skill itself does not use Remotion: its own pipeline is HTML templates, Playwright and ffmpeg.
+
+## Remotion app (composition engine)
+
+[`remotion-app/`](remotion-app/README.md) is a Remotion 4 project (React and TypeScript). It renders vertical 1080 × 1920, 60 fps H.264 MP4s and supports footage as a background layer, transparent overlays and frame-accurate audio. The official Remotion Agent Skill is installed at project level in [`.claude/skills/remotion-best-practices/`](.claude/skills/remotion-best-practices/SKILL.md) and pinned in `skills-lock.json`.
+
+```bash
+cd remotion-app && npm i && npm run test:render   # render the test compositions and verify them
+```
+
+Note: the `video-editing` skill still contains the rule "No Remotion, ever" (non-negotiable 8 and its validator). It has deliberately not been changed yet. Decide how the two should work together before using both in one edit.
 
 - **Skill source:** [`.claude/skills/video-editing/`](.claude/skills/video-editing/SKILL.md) (skill name `video-editing`)
 - **Installable package:** [`dist/video-visual-editing.skill`](dist/video-visual-editing.skill) (zip archive, about 21 MB). It was built before the move and still uses the old folder and skill name `video-visual-editing`. Apart from the name and the packaging note in `SKILL.md`, its content matches the current source byte for byte.
