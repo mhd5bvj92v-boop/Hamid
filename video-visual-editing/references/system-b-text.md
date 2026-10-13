@@ -80,6 +80,16 @@ Avoid: bouncing letters, rotating words, per-letter random pops, typewriter on l
 
 Text behind the subject (TXT-005) needs a per-frame subject matte. Check for `rembg`, `backgroundremover` or RobustVideoMatting, or ask the user for a matte or roto pass. Composite in this order: plate, then text, then the matted subject, then any foreground caption.
 
+## Sound design (System D)
+
+Captions are mostly quiet: the voice already says the words. Full rules are in `sound-design.md` §10.
+
+- **Key phrase landing** (serif, script or bold accent): one pop, or a sci-fi click for techier edits, with its transient on the key word's first visible frame (from `--cues`, `measure: visible`), at -7 dB. Skip it on emotional lines.
+- **Connector words, exits and micro-drifts:** silence.
+- **Letter-by-letter or typewriter reveals:** gears, one emphasis per element. **Large slides from off-frame:** a whoosh on the fastest frame.
+- **Name super:** an optional UI click. **A big conclusion phrase:** success reward, sparingly.
+- **Never mask the word** the text decorates. The QC dialogue check must pass.
+
 ## Quality bar
 
 - [ ] No more than two type voices in the beat, and one accent colour.

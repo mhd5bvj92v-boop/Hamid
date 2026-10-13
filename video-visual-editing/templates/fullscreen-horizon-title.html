@@ -61,4 +61,17 @@ window.renderFrame = (t, c) => {
   S.sc.style.opacity = out;
   S.sc.style.transform = `scale(${1 + c.camPush * prog(t, 0, c.outAt + c.outDur, 'linear')})`;
 };
+
+/* ---- System D: declared sound intents ---- */
+window.SFX_TRACK = '.planet,.kicker,.big,.body';
+window.sfxCues = (c) => [
+  { id: 'entry', label: 'cut into full-screen scene (frame 0 of this layer)', kind: 'transition', t: 0, category: 'SCI', roles: ['activate-energy', 'sci-fi-impact', 'camera-click'], priority: 'recommended',
+    note: 'Transition into a brand-new animation -> activate-protection-energy style entry, on the cut frame. Pass 3: a riser can end on this frame with a hit beneath. No music under this scene.' },
+  { id: 'planet', label: 'planet horizon rises', kind: 'movement', select: '.planet', index: 0, measure: 'fastest', t: c.riseAt,
+    category: 'WSH', roles: ['classy-airy-whoosh', 'generic-long-whoosh', 'organic-wind-whoosh'], priority: 'recommended',
+    note: 'Big, weighty, slow movement -> classy airy (rare, for big moves) or organic wind; up to -10 dB because the move is large. outQuart means the fastest frame is at the very start.' },
+  { id: 'number', label: 'numerals count up', kind: 'continuous', t: c.numAt, t_end: c.numAt + c.numDur, category: 'MEC', roles: ['gears', 'video-scan'], priority: 'optional' },
+  { id: 'body', label: 'body line appears', kind: 'event', select: '.body', index: 0, measure: 'visible', t: c.bodyAt, category: 'POP', roles: ['pop'], priority: 'silence-ok' },
+  { id: 'push', label: 'slow camera push', kind: 'movement', t: 0, category: 'WSH', roles: ['organic-wind-whoosh'], priority: 'silence-ok', note: 'A 3-5% drift is too slow to need a whoosh.' },
+];
 </script></body></html>

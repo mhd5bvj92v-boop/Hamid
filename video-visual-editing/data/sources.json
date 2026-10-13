@@ -1,0 +1,14 @@
+{
+  "note": "Unmodified source documents. validate.py verifies these checksums; never edit the files - adapt them in the skill docs instead.",
+  "sources": [
+    {
+      "file": "references/sources/UE-Sound-Design-Claude-Training-COMPLETE.md",
+      "title": "Ultimate Editors - Sound Design Training for Claude (Joseph's system)",
+      "received": "2026-10-13",
+      "original_upload_names": ["9349cd50-UE-Sound-Design-Claude-Training-COMPLETE.md", "9b0abb31-UE-Sound-Design-Claude-Training-COMPLETE.md"],
+      "note": "Both uploads were byte-identical; one copy is kept.",
+      "sha256": "8b120b3d05beeb30d8fccd1cfcd7bacf969e7b2952abcd156b9d0513c7b74746",
+      "adapted_in": ["references/sound-design.md", "references/sound-design-workflow.md"]
+    }
+  ]
+}

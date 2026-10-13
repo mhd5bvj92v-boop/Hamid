@@ -60,4 +60,17 @@ window.renderFrame = (t, c) => {
   const press = prog(t, sendAt, 0.12) * (1 - prog(t, sendAt + 0.12, 0.2));
   S.send.style.transform = `scale(${1 - 0.1 * press})`; S.send.style.boxShadow = `0 0 ${2.4 * press}rem rgba(139,92,246,${.8 * press})`;
 };
+
+/* ---- System D: declared sound intents ---- */
+window.SFX_TRACK = '.wrap';
+window.sfxCues = (c) => {
+  const typeEnd = c.typeAt + c.prompt.length / c.charsPerSec;
+  const sendAt = c.sendAt ?? (typeEnd + 0.35);
+  return [
+    { id: 'bar', label: 'prompt bar appears', kind: 'event', select: '.wrap', index: 0, measure: 'visible', t: c.inAt, category: 'UI', roles: ['ui-click', 'sci-fi-impact'], priority: 'recommended' },
+    { id: 'typing', label: 'prompt types out', kind: 'continuous', t: c.typeAt, t_end: typeEnd, category: 'POP', roles: ['keyboard-writing'], priority: 'recommended',
+      note: 'Typing on screen -> keyboard writing (Joseph). Trim/fade the clip to the typing window.' },
+    { id: 'send', label: 'send button pressed', kind: 'event', t: sendAt, category: 'UI', roles: ['ui-click', 'sci-fi-click'], priority: 'recommended' },
+  ];
+};
 </script></body></html>

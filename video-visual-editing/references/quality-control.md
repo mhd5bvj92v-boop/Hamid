@@ -53,6 +53,21 @@ Should:
 - [ ] One camera move; a clear reveal, then message, then exit.
 - [ ] Duration 1.5-4s; cut in and out on speech beats.
 
+## System D (sound) checklist
+
+Run `python3 scripts/sound_qc.py <render folder> --events <video_events.json>`. It must exit 0. Then confirm:
+
+- [ ] Sync: every whoosh's loudest point is on the fastest frame and every texture or hit transient is on its event frame (±1 frame). QC measures this from the rendered stems.
+- [ ] Gains follow the presets: whoosh -12 (max -10), texture -6 to -7, riser -5, music -19. Every deviation carries a `gain_override_reason`.
+- [ ] Risers resolve on transitions with a hit beneath. There is a riser after the hook. The 2 sharp bass + 2 metallic target is met, or the reason it isn't is stated.
+- [ ] Music is silent in full-screen and graphic windows.
+- [ ] No clipping (sample peak and true peak). The loudest stack is reported.
+- [ ] The voice stem is bit-identical to the source, the voice is at unity in the mix, and nothing is louder than the voice during speech.
+- [ ] The source audio and library files are unchanged, and `final.mp4` exists with its picture bit-identical to the edited picture.
+- [ ] Every placed sound records the variations it was compared against (`auditioned`).
+- [ ] Silence decisions are explicit (`status: silence/rejected` with a reason).
+- [ ] Tell the user that Claude verified the mix by measurement and cannot listen, and ask them to listen.
+
 ## Common defects and fixes
 
 | Symptom | Likely cause | Fix |
@@ -80,3 +95,18 @@ These tests were run while building the skill. No real talking-head footage was 
 | compose.py | n/a | ProRes 4444 (yuva444p12le) and VP9-alpha encodes; overlay + focus + full-screen composite with audio on a 10s clip verified by extracted frames | not yet tested on real footage, 16:9 or variable frame rate sources |
 
 Next time real footage is available, re-run the System A and B comparisons on it and update this log.
+
+### System D test log (2026-10-13)
+
+The sound toolchain was tested with `scripts/sound_selftest.py`. **The user's library was empty, so the test used synthetic fixtures** (filtered noise, sweeps and sines in a temp folder) and a 12 s test clip with TTS dialogue (ffmpeg `flite`):
+
+- **Indexing:** all 9 fixture files were categorised correctly by name (WSH, RIS×2, HIT, POP, UI, SCI, MEC, ENV), with Joseph's role tags recognised.
+- **Audition sheet:** the three whoosh variations were ranked for a 0.5 s movement.
+- **Footage analysis:** `video_events.py` found the full-screen cut at exactly 7.500 s and three speech regions.
+- **Correct render:** QC passed with 0 errors. Every anchor was within 0.0 ms of its target frame, and every stem rebuilt independently from the sources matched the render (max diff ~1e-7). The voice stem was bit-identical, the picture stream bit-identical, music was silent (-240 dBFS) inside the full-screen window, true peak was -1.10 dBTP, and all source hashes were unchanged.
+- **Negative render** (whoosh at -4 dB, pop over the voice, a cue 3 frames off its event): QC failed with `levels`, `sync` and `dialogue` errors, as intended.
+- **Clip stress test** (hit H01 at +12 dB): the mixer pulled only hits (H01 by 13.2 dB in total, plus H02 by 1.95 dB where the riser/hit stack at 7.5 s also exceeded the ceiling). The voice was untouched, and QC then passed with warnings that report the pulls.
+- **Two bugs found and fixed during the test:** the overlap-sensitive placement check was replaced with exact stem reconstruction, and the 100 ms dialogue windows were replaced with speech-gated 400 ms windows.
+- **The test also caught a real mixing mistake:** a riser swelled over the speaker's last words. It was fixed by trimming the riser's head, which is documented as the standard fix.
+
+**Not yet tested:** a real sound library, real talking-head footage, and listening (Claude cannot hear; the user must listen to the final mix).

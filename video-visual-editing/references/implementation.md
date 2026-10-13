@@ -82,6 +82,21 @@ Notes:
 | Light streaks / particles | Canvas in a template, or Blender particles | Keep them behind the text |
 | Finishing in an NLE | ProRes 4444 layers + beat sheet | Premiere / Resolve / Final Cut import alpha directly |
 
+## 4b. Audio / sound design toolchain (System D, no Remotion)
+
+| Need | Tool (in `scripts/`) |
+|---|---|
+| Index the user's SFX library in place (category, Joseph role, duration, loudness, transient, loudest point, shape) | `sfx_index.py scan|search|show|set|build-doc` → `data/sounds.json` + `references/sound-library-index.md` |
+| Audition variations by measurement (waveform/envelope sheet with anchors, fit to the movement length) | `sfx_audition.py` |
+| Measure animation motion (fastest frames, visible frames) and the templates' declared sound intents | `render_html.js --analyze-only --motion X.json --cues Y.json` |
+| Find cuts, motion peaks and speech in footage | `video_events.py` |
+| Draft the cue sheet from layers + events | `sfx_plan.py` |
+| Render stems + mix + final export (anchor-accurate placement, presets, music gating, hit-first clip protection) | `sound_mix.py` |
+| Validate sync, levels, clipping, dialogue, assets and export | `sound_qc.py` |
+| Prove the toolchain works in this environment | `sound_selftest.py` |
+
+**Dependencies:** ffmpeg/ffprobe (decode, encode, loudness via `ebur128`, mux), Python 3 with numpy and Pillow. No scipy, librosa, sox or DAW is required. Audio is processed at 48 kHz in float32, and stems are written as 24-bit WAV. Memory is about 23 MB per stem per minute, which is fine for short-form; split very long videos into sections.
+
 ## 5. Performance
 
 - Frame capture runs at roughly real time to a few times slower for 1080x1920, depending on effects (backdrop-filter and big blurs are the slowest). For long videos, render only each beat's time window, not the whole video.

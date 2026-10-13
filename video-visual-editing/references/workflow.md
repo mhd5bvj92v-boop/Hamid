@@ -1,12 +1,12 @@
-# Editing Workflow (talking-head video or script → finished visuals)
+# Editing Workflow (talking-head video or script → finished visuals and sound)
 
-Follow these ten steps in order. Each step produces a concrete artifact in the project's `work/` folder, so progress is inspectable and resumable.
+Follow these steps in order. Steps 0-10 cover the visuals (Systems A-C), and step 7b covers the sound (System D, detailed in `sound-design-workflow.md`). Each step produces a concrete artifact in the project's `work/` folder, so progress is inspectable and resumable.
 
 ## 0. Intake
 
 - Gather what you have: video file(s), script/transcript, aspect ratio, platform, brand colours/fonts, deadline, and the final destination (finished MP4, or overlay layers for an NLE).
 - Probe the footage: `python3 scripts/compose.py probe input.mp4`. Extract review frames: `python3 scripts/compose.py frames input.mp4 --every 1 --out work/frames`.
-- Check the tools: `ffmpeg`, `node` + Playwright/Chromium (`node scripts/render_html.js` errors clearly if they are missing), plus optionally Blender, an ASR (whisper), and a matting tool. Write down what is available in `work/notes.md`. Plan only with tools that exist.
+- Check the tools: `ffmpeg`, `node` + Playwright/Chromium (`node scripts/render_html.js` errors clearly if they are missing), plus optionally Blender, an ASR (whisper), and a matting tool. For sound, run `python3 scripts/sound_selftest.py` and check the sound library (`python3 scripts/sfx_index.py search`). If it's empty, ask the user for an authorised SFX folder. Write down what is available in `work/notes.md`. Plan only with tools that exist.
 - If only a script exists (no video), design for the script and mark all timings as provisional.
 
 ## 1. Understand the story
@@ -52,7 +52,7 @@ Create `work/edit-plan.md`, a beat sheet the user can approve:
 | 3 | 12.0-14.8 | "we've helped over 300..." | C | horizon rises, 300 counts up | FUL-002 | HORIZON-ARC | fullscreen-horizon-title |
 ```
 
-Also state the section palette and family choices, chosen from the footage's grade (see `design-language.md` §5). **Share the plan with the user before heavy rendering** when a review loop is possible.
+Add a **Sound** column with each beat's sound intent: whoosh, texture, riser/hit, or **silence**, following `sound-design.md` §10. Also state the section palette and family choices, chosen from the footage's grade (see `design-language.md` §5). **Share the plan with the user before heavy rendering** when a review loop is possible.
 
 ## 6. Develop each animation
 
@@ -64,6 +64,16 @@ For every beat, write a config JSON (`work/beats/02-calendar.json`) with exact t
 - Full-screen scenes: the same, with an opaque template (or Blender / generated-image paths, see `system-c-full-screen.md`).
 - Composite: `python3 scripts/compose.py overlay --base input.mp4 --out work/edit_v1.mp4 --layer work/seq/01@0.40 --layer work/seq/02@5.10 --focus 5.0:8.6:0.62:6 --fullscreen work/seq/03@12.0`.
 - For NLE handoff: `python3 scripts/compose.py encode --frames work/seq/NN --out work/layers/NN.mov` (ProRes 4444 with alpha), plus the beat sheet as the timing sheet.
+
+## 7b. Sound design (System D)
+
+Do this after the picture is locked (or at least the beat timings). The full procedure is in `sound-design-workflow.md`.
+
+1. **Measure:** run `render_html.js --analyze-only --motion --cues` for every beat, and `video_events.py` on the composite.
+2. **Draft:** run `sfx_plan.py` to produce `cues.json`, then write the breakdown (MOVEMENT / EVENT / BUILD / SILENCE) and report it.
+3. **Pass 1 (whooshes), pass 2 (textures), pass 3 (risers and hits):** audition the variations, fill in `sound` and `auditioned`, then render with `sound_mix.py --passes ... --no-music` and report after each pass.
+4. **Validate:** `sound_qc.py` must exit 0. Hand off for review.
+5. **Pass 4 (music):** only after approval, -19 dB under the talking head, silent in `fullscreen_windows`. Then re-run QC.
 
 ## 8. Preview
 
@@ -83,7 +93,8 @@ Fix the gaps (scale, colour, timing, legibility, clutter), re-render, and re-com
 ## Delivering
 
 Tell the user exactly what exists:
-- files produced (paths, durations, resolution, codec);
+- files produced (paths, durations, resolution, codec), including `final.mp4`, the sound stems, `cuesheet.csv`, `cues.json` and `qc_report.md`;
+- the sound QC numbers: errors and warnings, true peak, loudest stack, sync errors, and the cues deliberately left silent. Say that the mix was verified by measurement and ask the user to listen;
 - what was rendered and checked (which frames you inspected);
 - what was *not* done or is approximate (for example: "3D hourglass replaced by a 2.5D still", "no ASR available, timings by hand", "fonts substituted").
 

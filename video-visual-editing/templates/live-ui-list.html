@@ -104,4 +104,21 @@ function buildDash(visible, L, u) {           // dots of length ~0 every 3u up t
   parts.push(0.01, L + 10);
   return parts.join(' ');
 }
+
+/* ---- System D: declared sound intents ---- */
+window.SFX_TRACK = '.head,.row,.node,#link circle';
+window.sfxCues = (c) => {
+  const out = [];
+  if (c.header) out.push({ id: 'header', label: 'header appears', kind: 'event', select: '.head', index: 0, measure: 'visible', t: c.items[0].at - 0.12, category: 'UI', roles: ['ui-click'], priority: 'optional' });
+  c.items.forEach((it, i) => out.push({ id: 'row-' + i, label: 'row ' + (i + 1) + ' appears: ' + it.title, kind: 'event', select: '.row', index: i, measure: 'visible', t: it.at,
+    category: 'UI', roles: c.items.length > 2 ? ['mechanism-gizmo', 'ui-click'] : ['ui-click'], priority: 'recommended',
+    note: 'Multiple assets popping in sequence -> one emphasis per element (Joseph: complex mechanism gizmo / UI click). Keep -7 dB; vary or alternate variations so repeats do not sound robotic.' }));
+  if (c.node) {
+    out.push({ id: 'node', label: '"' + c.node.label + '" node appears', kind: 'event', select: '.node', index: 0, measure: 'visible', t: c.node.at, category: 'UI', roles: ['ui-click'], priority: 'optional' });
+    out.push({ id: 'connector', label: 'connector dot travels to target', kind: 'movement', select: '#link circle', index: 0, measure: 'fastest', t: c.node.linkAt + 0.3,
+      category: 'WSH', roles: ['short-whoosh', 'futuristic-whoosh'], priority: 'optional', note: 'Small movement: short whoosh at -12 dB, or leave silent if the rows already carry sound.' });
+  }
+  if (c.activeIndex >= 0) out.push({ id: 'active', label: 'row becomes active (state change)', kind: 'event', t: c.activeAt, category: 'SCI', roles: ['sci-fi-click'], priority: 'recommended', note: 'Something changes inside the UI -> sci-fi click.' });
+  return out;
+};
 </script></body></html>

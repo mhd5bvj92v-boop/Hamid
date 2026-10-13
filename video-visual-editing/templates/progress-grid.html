@@ -45,4 +45,20 @@ window.renderFrame = (t, c) => {
   S.cnt.textContent = `${n}/${c.total}`;
   S.bar.style.width = (100 * n / c.total) + '%';
 };
+
+/* ---- System D: declared sound intents ---- */
+window.SFX_TRACK = '.pg';
+window.sfxCues = (c) => {
+  const times = [];
+  for (let i = 0; i < c.filled; i++) {          // exact frame each cell turns on (inverse of inOutSine fill)
+    const y = (i + 0.5) / c.filled;
+    times.push(+(c.fillAt + c.fillDur * Math.acos(1 - 2 * y) / Math.PI).toFixed(4));
+  }
+  return [
+    { id: 'card', label: 'calendar card revealed', kind: 'event', select: '.pg', index: 0, measure: 'visible', t: c.inAt, category: 'SCI', roles: ['sci-fi-impact', 'ui-click'], priority: 'recommended',
+      note: 'A new UI enters the scene -> sci-fi impact (Joseph). -6 to -7 dB.' },
+    { id: 'cells', label: 'cells fill one by one (' + c.filled + ')', kind: 'sequence', t: times[0], times, category: 'MEC', roles: ['mechanism-gizmo', 'gears', 'analog-button'], priority: 'recommended',
+      note: 'One emphasis per element. If ticks are closer than ~70 ms, use one continuous gears/mechanism sound spanning the fill instead (t..t_end).', t_end: c.fillAt + c.fillDur },
+  ];
+};
 </script></body></html>

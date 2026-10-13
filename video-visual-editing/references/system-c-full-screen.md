@@ -61,6 +61,16 @@ Never claim a 3D render or a generated image exists until it does. If a path is 
 - Mixing light editorial and dark neon in one scene.
 - Copying brand names, logos or watermarks from the references (FUL-076 carries a third-party watermark). Replace all copy with the user's message.
 
+## Sound design (System D)
+
+Full-screen scenes are where sound design is most visible. Full rules are in `sound-design.md` §10.
+
+- **No music inside the scene.** Set the scene's window in the cue sheet's `fullscreen_windows`; the mixer gates the music out, and QC verifies it.
+- **Cut in:** an entry texture (activate-energy / sci-fi entry, camera click or sci-fi hit) on the cut frame. For section changes, add a **riser that resolves on the cut with a hit beneath** (pass 3). Trim the riser's head so it doesn't swell over the speaker's last words.
+- **The hero move** (planet rise, object reveal, camera move): a whoosh sized to the move, with its loudest point on the measured fastest frame. Big and slow → classy airy or organic wind; standard → deep voice or hollow. Up to -10 dB for big moves.
+- **One impact per scene.** The reveal gets the loudest moment (sci-fi impact, or heavenly choir for a "big deal"). Counters and body text stay quiet or silent.
+- **Sound scale matches shot scale.** These are the widest, roomiest sounds in the edit.
+
 ## Quality bar
 
 - [ ] The idea reads in under 1 second with the sound off.

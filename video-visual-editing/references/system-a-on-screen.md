@@ -73,6 +73,15 @@ Render a transparent sequence with `node scripts/render_html.js`, then composite
 - A new colour per overlay. Keep one accent per section.
 - Overlays on every sentence. In the live references the graphics are frequent, but each one maps to a concrete noun the speaker says.
 
+## Sound design (System D)
+
+Every System A overlay gets a sound plan. Full rules are in `sound-design.md` §10.
+
+- **Measure, don't guess.** Run `render_html.js --analyze-only --motion --cues` on the beat. Rows, cards and widgets that fade in with a small rise are **events**: their sound is a texture (UI click, or sci-fi impact if the element is *revealed*), placed on the first visible frame at -6 to -7 dB. Only real slides or zooms (≥6% of frame travel) get a whoosh, with its loudest point on the measured fastest frame at -12 dB.
+- **Sequences get one emphasis per element** (rows, chips, grid cells), using varied variations. If the ticks are under ~70 ms apart, use one continuous gears or mechanism clip instead.
+- **State changes and button presses** get a sci-fi click or UI click. Typing gets keyboard writing, trimmed to the typing window. Exits stay silent.
+- **These sounds play over speech.** Keep them intimate, put transients between words where possible, and let `sound_qc.py` confirm that nothing is louder than the voice. There is no music change for overlays: the talking-head music bed (-19 dB) continues under them.
+
 ## Quality bar
 
 Pass all of these, then run `quality-control.md` → System A checklist:

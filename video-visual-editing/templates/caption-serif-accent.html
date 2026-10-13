@@ -115,4 +115,21 @@ window.renderFrame = (t, c) => {
     const rule = s.querySelector('.rule'); if (rule) rule.style.transform = `scaleX(${prog(t, (n.at ?? .2), .4)})`;
   }
 };
+
+/* ---- System D: declared sound intents (see references/sound-design.md) ---- */
+window.SFX_TRACK = '.w,.super';
+window.sfxCues = (c) => {
+  const out = [];
+  els.forEach((it, i) => {
+    const heavy = it.style === 'serif' || it.style === 'script' || it.style === 'bold';
+    if (heavy) out.push({ id: 'key-' + i, label: 'key phrase lands: "' + it.el.textContent + '"', kind: 'event', select: '.w', index: i, measure: 'visible', t: it.at,
+      category: 'POP', roles: ['pop', 'sci-fi-click', 'ui-click'], priority: 'recommended',
+      note: 'Text pops as a whole element -> Pop (Joseph). Place on the first visible frame; -6 to -7 dB. Skip if the line is emotional/quiet - silence is allowed.' });
+  });
+  if (!out.length) out.push({ id: 'connectors', label: 'connector words only', kind: 'event', t: c.lines[0].at, category: 'POP', roles: [], priority: 'silence-ok', note: 'Small fade-rise words: no sound by default.' });
+  if (c.nameSuper) out.push({ id: 'name-super', label: 'name super appears', kind: 'event', select: '.super', index: 0, measure: 'visible', t: c.nameSuper.at ?? 0.2,
+    category: 'UI', roles: ['ui-click'], priority: 'optional', note: '14px slide = pop, not a slide: texture, never a whoosh.' });
+  out.push({ id: 'exit', label: 'caption exits', kind: 'event', t: c.outAt, category: null, roles: [], priority: 'silence-ok', note: 'Exits stay silent unless they slide far.' });
+  return out;
+};
 </script></body></html>

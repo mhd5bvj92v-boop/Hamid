@@ -74,4 +74,16 @@ window.renderFrame = (t, c) => {
   S.halo.setAttribute('cx', pt.x); S.halo.setAttribute('cy', pt.y); S.halo.setAttribute('r', 22 + 18 * flash); S.halo.style.opacity = (p > 0 ? .35 : 0) + .4 * flash;
   S.v.textContent = fmtNumber(lerp(0, c.value, prog(t, c.countAt, c.countDur, 'outExpo')), c);
 };
+
+/* ---- System D: declared sound intents ---- */
+window.SFX_TRACK = '.sc,#dot';
+window.sfxCues = (c) => [
+  { id: 'card', label: 'stat card revealed', kind: 'event', select: '.sc', index: 0, measure: 'visible', t: c.inAt, category: 'SCI', roles: ['sci-fi-impact'], priority: 'recommended',
+    note: c.fullscreen ? 'Full-screen: this is the entry into a new animation -> activate-energy / sci-fi entry; consider a riser ending on the cut (pass 3).' : 'New UI enters -> sci-fi impact.' },
+  { id: 'curve', label: 'curve draws to the peak (dot travels)', kind: 'movement', select: '#dot', index: 0, measure: 'fastest', t: c.drawAt + c.drawDur * 0.5,
+    category: 'WSH', roles: ['futuristic-whoosh', 'deep-voice-whoosh', 'hollow-whoosh'], priority: 'recommended', note: 'Movement inside the animation -> whoosh, loudest point on the dot\'s fastest frame, -12 dB.' },
+  { id: 'peak', label: 'peak node flashes', kind: 'event', t: c.drawAt + c.drawDur * 0.5, category: 'SCI', roles: ['sci-fi-click', 'video-scan'], priority: 'recommended' },
+  { id: 'count', label: 'number counts up', kind: 'continuous', t: c.countAt, t_end: c.countAt + c.countDur, category: 'MEC', roles: ['gears', 'video-scan'], priority: 'optional',
+    note: 'Usually silent: the peak flash already carries the moment. One impact per scene.' },
+];
 </script></body></html>

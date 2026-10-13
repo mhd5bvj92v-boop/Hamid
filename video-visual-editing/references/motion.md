@@ -56,6 +56,13 @@ Rules: transitions last ≤10 frames unless they are a section opener. The cut h
 - Depth: 2-4 parallax layers moving at different rates sell 2.5D (background slowest).
 - Rack focus: to point at the "different" object (FUL-017 blue king, FUL-043 clay figure).
 
+## Syncing sound to motion (System D)
+
+- **Whooshes:** the sound's **loudest point** sits on the movement's **fastest frame**. With this skill's easings, out-curves (`outCubic`/`outQuart`/`outExpo`) are fastest at the start of the move and in-out curves at the midpoint. Prefer the value measured by `render_html.js --motion`.
+- **Textures:** the sound's **transient** sits on the **first visible frame** of the pop or reveal, or on the frame the state changes.
+- **Risers:** they **resolve on the transition frame**, with a hit's transient on the same frame. Lead cut-transition sounds by 2-3 frames only when they're not peak- or event-locked.
+- **Motion and sound are one design.** When an animation is re-timed, re-run `--motion/--cues` and re-render the sound. QC flags anything more than 1 frame off.
+
 ## Syncing motion to speech
 
 1. Mark the stressed words and the sentence boundaries in the transcript.

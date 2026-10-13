@@ -9,6 +9,7 @@ no undetected near-duplicates among primary references.
 
   python3 scripts/validate.py [--quiet]
 """
+import json
 import re
 import sys
 from itertools import combinations
@@ -107,6 +108,57 @@ def main():
             if m not in ids:
                 err(f"{md.relative_to(root)}: unknown reference {m}")
 
+    # ---------------- System D (sound design)
+    for doc in ("sound-design.md", "sound-design-workflow.md", "sound-library-index.md"):
+        if not (root / "references" / doc).exists():
+            err(f"missing System D doc references/{doc}")
+    if "sound-design.md" not in (root / "SKILL.md").read_text(encoding="utf-8"):
+        err("SKILL.md does not route to references/sound-design.md")
+    src = root / "data" / "sources.json"
+    if src.exists():
+        for d in json.loads(src.read_text(encoding="utf-8"))["sources"]:
+            f = root / d["file"]
+            if not f.exists():
+                err(f"source document missing: {d['file']}")
+            elif V.sha256(f) != d["sha256"]:
+                err(f"source document modified (must stay unmodified): {d['file']}")
+    else:
+        err("data/sources.json missing")
+    snd = root / "data" / "sounds.json"
+    if snd.exists():
+        lib = json.loads(snd.read_text(encoding="utf-8"))
+        ids_s = [x["id"] for x in lib["sounds"]]
+        for i in {i for i in ids_s if ids_s.count(i) > 1}:
+            err(f"duplicate sound id {i}")
+        idx_doc = (root / "references" / "sound-library-index.md").read_text(encoding="utf-8")
+        if f"**{len(ids_s)} sound files indexed**" not in idx_doc or any(f"| {i} |" not in idx_doc for i in ids_s):
+            err("sound-library-index.md out of date - run: python3 scripts/sfx_index.py build-doc")
+        for x in lib["sounds"]:
+            for k in ("id", "path", "sha256", "category", "metrics"):
+                if not x.get(k):
+                    err(f"sound {x.get('id')}: missing {k}")
+            if not x["id"].startswith(x["category"] + "-"):
+                err(f"sound {x['id']}: id does not match category {x['category']}")
+            pth = Path(x["path"])
+            if not pth.exists():
+                warn(f"sound {x['id']}: file not reachable now ({x['path']}) - external drive unmounted?")
+            elif V.sha256(pth) != x["sha256"]:
+                warn(f"sound {x['id']}: file content changed since indexing - run sfx_index.py rescan")
+    else:
+        err("data/sounds.json missing (run: python3 scripts/sfx_index.py build-doc)")
+    # no Remotion dependency anywhere in executable code
+    rx = re.compile(r"""(require\(\s*['"]@?remotion|from\s+['"]@?remotion|import\s+.*['"]@?remotion|@remotion/)""")
+    for f in list((root / "scripts").rglob("*")) + list((root / "templates").rglob("*")):
+        if f.is_file() and f.name != "validate.py" and f.suffix in (".js", ".mjs", ".ts", ".tsx", ".py", ".html", ".json") and rx.search(f.read_text(encoding="utf-8", errors="ignore")):
+            err(f"Remotion dependency found in {f.relative_to(root)} (not allowed)")
+    for pj in root.rglob("package.json"):
+        if "remotion" in pj.read_text(encoding="utf-8", errors="ignore").lower():
+            err(f"Remotion listed in {pj.relative_to(root)} (not allowed)")
+    # every template declares its sound intents
+    for t in (root / "templates").glob("*.html"):
+        if "window.sfxCues" not in t.read_text(encoding="utf-8"):
+            err(f"template {t.name} has no window.sfxCues sound intents")
+
     # undetected near-duplicates among primaries
     for a, b in combinations(refs, 2):
         if abs(V.aspect(a["size"]) - V.aspect(b["size"])) / max(V.aspect(a["size"]), V.aspect(b["size"])) > 0.15:
@@ -121,8 +173,9 @@ def main():
         print("ERROR", e)
     n_alt = sum(len(r.get("alternates", [])) for r in refs)
     per_cat = ", ".join("%s %d" % (c, sum(1 for r in refs if r["category"] == c)) for c in V.CATEGORIES)
-    print("%d references (%s), %d alternates, %d image files. %d errors, %d warnings."
-          % (len(refs), per_cat, n_alt, total_files, len(errors), len(warnings)))
+    nsnd = len(json.loads((root / "data" / "sounds.json").read_text())["sounds"]) if (root / "data" / "sounds.json").exists() else 0
+    print("%d references (%s), %d alternates, %d image files; System D: %d indexed sounds, source doc checksum verified, no Remotion. %d errors, %d warnings."
+          % (len(refs), per_cat, n_alt, total_files, nsnd, len(errors), len(warnings)))
     sys.exit(1 if errors else 0)
 
 
