@@ -1,0 +1,64 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Full-screen horizon stat title (System C)</title>
+<!-- Recreates the HORIZON-ARC family (FUL-002 "300 on planet horizon", FUL-028,
+     FUL-067): opaque black scene, glowing planet rim rises like a sunrise, thin
+     outline numerals count up and sit on the atmosphere, tracked kicker + body. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_ui.css">
+<style>
+  .scene { position: absolute; inset: 0; background: #000; overflow: hidden; }
+  .stars { position: absolute; inset: 0; }
+  .planet { position: absolute; left: 50%; border-radius: 50%; transform: translateX(-50%);
+            background: radial-gradient(closest-side, #01040C 96%, transparent 100%);
+            box-shadow: 0 -.4rem .8rem -.1rem rgba(210,235,255,1), 0 -1.6rem 3.2rem 0 var(--rim), 0 -5rem 9rem 0 var(--rim), 0 -14rem 26rem 4rem var(--haze); }
+  .kicker { position: absolute; left: 0; right: 0; text-align: center; font: 400 3rem/1 var(--sans); letter-spacing: .3em; color: rgba(255,255,255,.82); text-transform: uppercase; }
+  .big { position: absolute; left: 0; right: 0; text-align: center; font: 100 44rem/0.8 var(--sans); letter-spacing: -0.02em; color: rgba(255,255,255,.95); text-shadow: 0 0 2.4rem rgba(120,170,255,.35); font-variant-numeric: tabular-nums; }
+  .body { position: absolute; left: 18%; right: 18%; text-align: center; font: 300 3.4rem/1.45 var(--sans); color: rgba(255,255,255,.72); }
+  .tick { position: absolute; left: 50%; width: 5rem; height: .3rem; background: var(--rimSolid); transform: translateX(-50%); border-radius: 1rem; }
+</style>
+<script src="_runtime.js"></script></head>
+<body><div id="stage"><div class="scene" id="scene"><canvas class="stars" id="stars"></canvas></div></div>
+<script>
+window.DEFAULT_CONFIG = {
+  width: 1080, height: 1920,
+  rim: 'rgba(40,120,255,.85)', rimSolid: '#2F7BFF', haze: 'rgba(20,80,255,.25)',
+  kicker: 'Contributed over', value: 300, prefix: '', suffix: '', decimals: 0,
+  body: "Units to the city's residential and commercial growth trajectory",
+  horizonY: 0.47,                 // top of planet as frame fraction (after rise)
+  riseAt: 0.0, riseDur: 1.6, numAt: 0.6, numDur: 1.6, kickerAt: 0.35, bodyAt: 1.5,
+  camPush: 0.04,                  // slow push-in over the whole shot
+  outAt: 4.6, outDur: 0.4
+};
+const S = {};
+window.setup = (c) => {
+  document.documentElement.style.fontSize = (10 * c.width / 1080) + 'px';
+  const r = document.documentElement.style; r.setProperty('--rim', c.rim); r.setProperty('--haze', c.haze); r.setProperty('--rimSolid', c.rimSolid);
+  const sc = document.getElementById('scene'), W = c.width, H = c.height;
+  const cv = document.getElementById('stars'); cv.width = W; cv.height = H; const g = cv.getContext('2d');
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;   // deterministic stars
+  for (let i = 0; i < 160; i++) { g.fillStyle = `rgba(255,255,255,${0.15 + rnd() * 0.5})`; g.beginPath(); g.arc(rnd() * W, rnd() * H * 0.55, rnd() * 1.4, 0, 7); g.fill(); }
+  // order matters: numerals first so the planet's limb occludes their base (depth cue seen in FUL-002)
+  const b = document.createElement('div'); b.className = 'big'; sc.appendChild(b); S.big = b;
+  const pl = document.createElement('div'); pl.className = 'planet'; pl.style.width = pl.style.height = (W * 3.4) + 'px'; sc.appendChild(pl); S.pl = pl;
+  const k = document.createElement('div'); k.className = 'kicker'; k.textContent = c.kicker; sc.appendChild(k); S.k = k;
+  const tk = document.createElement('div'); tk.className = 'tick'; sc.appendChild(tk); S.tick = tk;
+  const bd = document.createElement('div'); bd.className = 'body'; bd.textContent = c.body; sc.appendChild(bd); S.body = bd;
+  S.sc = sc;
+};
+window.duration = (c) => c.outAt + c.outDur + 0.1;
+window.renderFrame = (t, c) => {
+  const { prog, lerp, enter, envelope, fmtNumber } = VV; const H = c.height;
+  const rise = prog(t, c.riseAt, c.riseDur, 'outQuart');
+  const top = lerp(c.horizonY + 0.12, c.horizonY, rise) * H;
+  S.pl.style.top = top + 'px'; S.pl.style.opacity = rise;
+  S.k.style.top = (top - H * 0.205) + 'px'; enter(S.k, prog(t, c.kickerAt, 0.6));
+  S.big.style.top = (top - H * 0.135) + 'px';   // base dips ~4% of height behind the limb S.big.style.opacity = prog(t, c.numAt, 0.5);
+  S.big.textContent = fmtNumber(lerp(0, c.value, prog(t, c.numAt, c.numDur, 'outExpo')), c);
+  S.tick.style.top = (top + H * 0.075) + 'px'; S.tick.style.transform = `translateX(-50%) scaleX(${prog(t, c.bodyAt - 0.2, 0.5)})`;
+  S.body.style.top = (top + H * 0.095) + 'px'; enter(S.body, prog(t, c.bodyAt, 0.6));
+  const out = envelope(t, -1, .01, c.outAt, c.outDur);
+  S.sc.style.opacity = out;
+  S.sc.style.transform = `scale(${1 + c.camPush * prog(t, 0, c.outAt + c.outDur, 'linear')})`;
+};
+</script></body></html>

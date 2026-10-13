@@ -1,0 +1,77 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Stat card with glowing curve (System A / C)</title>
+<!-- Recreates ONS-024 (blue, 400%) and ONS-050 (green, 300%): tall glass card, neon
+     rim on the lower edge, bell curve that draws to a glowing peak, big count-up.
+     Set fullscreen:true to render it centred on an opaque dark background (System C). -->
+<link rel="stylesheet" href="_ui.css">
+<style>
+  .bg { position: absolute; inset: 0; background: radial-gradient(80% 50% at 50% 60%, var(--bgGlow), transparent 70%), #05070D; }
+  .sc { position: absolute; transform: translate(-50%, -50%); aspect-ratio: 0.8; border-radius: 7rem; overflow: hidden;
+        background: linear-gradient(180deg, rgba(14,18,32,.92), rgba(8,12,26,.95));
+        border: .15rem solid color-mix(in srgb, var(--accent) 40%, transparent);
+        box-shadow: inset 0 -3.2rem 5rem -2.4rem var(--accent),            /* light pooling on the lower glass */
+                    inset 0 -.5rem .6rem -.3rem rgba(255,255,255,.75),     /* hot rim on the bottom edge */
+                    inset 0 .1rem 0 rgba(255,255,255,.08),
+                    0 3rem 8rem rgba(0,0,0,.6), 0 2.6rem 7rem -1.6rem var(--glow); }
+  .pool { position: absolute; left: 0; right: 0; bottom: 0; height: 46%; pointer-events: none;
+          background: linear-gradient(0deg, color-mix(in srgb, var(--accent) 80%, white 20%) 0%, color-mix(in srgb, var(--accent) 55%, transparent) 9%, color-mix(in srgb, var(--accent) 12%, transparent) 30%, transparent 70%); opacity: .95; }
+  .grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,.035) .1rem, transparent .1rem), linear-gradient(90deg, rgba(255,255,255,.035) .1rem, transparent .1rem);
+          background-size: 4.8rem 4.8rem; mask-image: linear-gradient(180deg, transparent, #000 30%, #000 70%, transparent); }
+  .hdr { position: absolute; left: 4.6rem; right: 4.6rem; top: 4.4rem; display: flex; justify-content: space-between; align-items: center; }
+  .pill { font: 500 2.4rem/1 var(--sans); color: var(--ink-2); padding: .8rem 1.4rem; border-radius: 99rem; border: .1rem solid var(--hairline-strong); background: rgba(255,255,255,.04); }
+  svg { position: absolute; left: 0; top: 14%; width: 100%; height: 46%; overflow: visible; }
+  .num { position: absolute; left: 0; right: 0; bottom: 15%; text-align: center; }
+  .num .k { font: 400 2.6rem/1 var(--sans); color: var(--ink-2); margin-bottom: 1.2rem; }
+  .num .v { font: 500 12rem/1 var(--sans); letter-spacing: -0.04em; font-variant-numeric: tabular-nums; text-shadow: 0 0 3rem rgba(255,255,255,.18); }
+  .num .s { font: 400 1.8rem/1 var(--sans); color: var(--ink-3); margin-top: 1rem; }
+</style>
+<script src="_runtime.js"></script></head>
+<body><div id="stage"></div>
+<script>
+window.DEFAULT_CONFIG = {
+  width: 1080, height: 1920, uiScale: 1.0, fullscreen: false,
+  center: { x: 0.5, y: 0.62 }, cardWidth: 0.62,   // cardWidth is a frame fraction
+  accent: '#2F6BFF', glow: 'rgba(47,107,255,.55)',
+  header: 'Data updated 2h ago', pill: 'Monthly',
+  label: 'Conversion rate', value: 400, decimals: 0, prefix: '', suffix: '%', footnote: 'Increase vs last month',
+  inAt: 0.15, drawAt: 0.45, drawDur: 1.1, countAt: 0.9, countDur: 1.1,
+  outAt: 3.6, outDur: 0.35
+};
+const S = {};
+window.setup = (c) => {
+  document.documentElement.style.fontSize = (10 * c.width / 1080 * (c.uiScale || 1)) + 'px';
+  const r = document.documentElement.style; r.setProperty('--accent', c.accent); r.setProperty('--glow', c.glow); r.setProperty('--bgGlow', c.glow.replace(/[\d.]+\)$/, '.18)'));
+  const st = document.getElementById('stage');
+  if (c.fullscreen) { const b = document.createElement('div'); b.className = 'bg'; st.appendChild(b); }
+  const card = document.createElement('div'); card.className = 'sc anim';
+  Object.assign(card.style, { left: c.center.x * 100 + '%', top: c.center.y * 100 + '%', width: c.cardWidth * 100 + '%' });
+  card.innerHTML = `<div class="pool"></div><div class="grid"></div><div class="hdr"><span class="meta" style="font-size:2.6rem">${c.header}</span><span class="pill">${c.pill} &#8964;</span></div>
+    <svg viewBox="0 0 600 300" preserveAspectRatio="none"><defs>
+      <linearGradient id="lg" x1="0" x2="1"><stop offset="0" stop-color="${c.accent}" stop-opacity=".15"/><stop offset=".5" stop-color="${c.accent}"/><stop offset="1" stop-color="${c.accent}" stop-opacity=".15"/></linearGradient>
+      <filter id="gl" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="6"/></filter></defs>
+      <path id="glow" d="" fill="none" stroke="${c.accent}" stroke-width="10" filter="url(#gl)" opacity=".7"/>
+      <path id="ln" d="" fill="none" stroke="url(#lg)" stroke-width="4" stroke-linecap="round"/>
+      <circle id="halo" r="22" fill="${c.accent}" opacity=".35" filter="url(#gl)"/><circle id="dot" r="9" fill="#fff"/></svg>
+    <div class="num"><div class="k">${c.label}</div><div class="v" id="v"></div><div class="s">${c.footnote}</div></div>`;
+  st.appendChild(card); S.card = card;
+  const pts = []; for (let i = 0; i <= 120; i++) { const x = i / 120; pts.push([x * 600, 260 - 220 * Math.exp(-Math.pow((x - 0.5) / 0.12, 2)) - 18 * Math.sin(x * 9)]); }
+  const d = 'M' + pts.map(p => p.map(v => v.toFixed(1)).join(',')).join(' L');
+  ['ln', 'glow'].forEach(id => card.querySelector('#' + id).setAttribute('d', d));
+  S.ln = card.querySelector('#ln'); S.glow = card.querySelector('#glow'); S.dot = card.querySelector('#dot'); S.halo = card.querySelector('#halo'); S.v = card.querySelector('#v');
+  S.L = S.ln.getTotalLength(); S.peak = S.ln.getPointAtLength(S.L * 0.5);
+};
+window.duration = (c) => c.outAt + c.outDur + 0.1;
+window.renderFrame = (t, c) => {
+  const { prog, enter, envelope, fmtNumber, lerp } = VV;
+  const e = envelope(t, c.inAt, 0.45, c.outAt, c.outDur);
+  enter(S.card, e, { rise: 30, blur: 10, scale: 0.94 });
+  S.card.style.transform = `translate(-50%, -50%) ` + S.card.style.transform;
+  const p = prog(t, c.drawAt, c.drawDur, 'inOutCubic');
+  [S.ln, S.glow].forEach(el => { el.style.strokeDasharray = S.L; el.style.strokeDashoffset = S.L * (1 - p); });
+  const pt = S.ln.getPointAtLength(S.L * Math.min(p, 0.5));
+  const flash = prog(t, c.drawAt + c.drawDur * 0.5, 0.25) * (1 - prog(t, c.drawAt + c.drawDur * 0.5 + 0.25, 0.6));
+  S.dot.setAttribute('cx', pt.x); S.dot.setAttribute('cy', pt.y); S.dot.style.opacity = p > 0 ? 1 : 0;
+  S.halo.setAttribute('cx', pt.x); S.halo.setAttribute('cy', pt.y); S.halo.setAttribute('r', 22 + 18 * flash); S.halo.style.opacity = (p > 0 ? .35 : 0) + .4 * flash;
+  S.v.textContent = fmtNumber(lerp(0, c.value, prog(t, c.countAt, c.countDur, 'outExpo')), c);
+};
+</script></body></html>

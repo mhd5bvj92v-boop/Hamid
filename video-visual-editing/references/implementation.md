@@ -1,0 +1,98 @@
+# Implementation Guide
+
+Remotion is **not** required. The default toolchain is **HTML/CSS/SVG templates → Playwright/Chromium frame capture → ffmpeg**, because it runs headless, gives frame-exact output with alpha, and was tested in this skill's build environment. Swap in other tools when the user's environment has them.
+
+## 0. Check the environment first
+
+```bash
+ffmpeg -version | head -1                     # required for compositing/encoding
+node -e "console.log(process.version)"        # required for render_html.js
+node scripts/render_html.js --html templates/stat-card.html --still 1 --out /tmp/vv_check.png   # proves Playwright + Chromium
+python3 -c "import PIL; print(PIL.__version__)"   # required for library scripts
+which blender whisper rembg 2>/dev/null       # optional: 3D, word timestamps, subject matting
+```
+
+If Playwright is missing: `npm i -D playwright && npx playwright install chromium`. On a machine with a preinstalled Chromium, set `CHROMIUM_PATH=/path/to/chromium`.
+Fonts: the templates load Inter and Playfair Display from Google Fonts. Offline, install the fonts locally or change `fonts` in the config. Always check a still to confirm the intended font actually rendered.
+
+## 1. Template contract
+
+Every template in `templates/` follows this contract:
+- includes `_runtime.js` (and `_ui.css` for UI templates);
+- defines `window.DEFAULT_CONFIG`, `setup(cfg)`, `renderFrame(t, cfg)` and `duration(cfg)`;
+- poses everything from `t` alone (no CSS keyframes, no timers), so every frame is reproducible;
+- uses a transparent body, so the output PNGs carry alpha. Full-screen templates paint their own background;
+- sizes in `rem`, where `1rem = 10px` at 1080px width (scaled by `setup`). Configs use frame-fraction coordinates;
+- opened directly in a browser, it auto-plays as a live preview.
+
+| Template | System | Recreates |
+|---|---|---|
+| `templates/caption-serif-accent.html` | B | TXT-001..TXT-009 caption stacks + name supers |
+| `templates/live-ui-list.html` | A | ONS-001 chips + node + connector, ONS-003 message cards |
+| `templates/progress-grid.html` | A | ONS-004 calendar / progress grid |
+| `templates/stat-card.html` | A / C | ONS-024, ONS-050 stat cards (`fullscreen: true` for System C) |
+| `templates/ai-input-bar.html` | A | ONS-034, ONS-044 prompt bars |
+| `templates/fullscreen-horizon-title.html` | C | FUL-002 horizon numeral title (HORIZON-ARC family) |
+
+To build a new design, copy the closest template, keep the contract, and put the new design tokens in CSS variables. If the design should be reusable, add it to `templates/` and to the table above.
+
+## 2. Render
+
+```bash
+# preview one frame over a real frame of the footage (opaque output)
+node scripts/render_html.js --html templates/progress-grid.html --config work/beats/02.json \
+     --still 1.8 --bg work/frames/t_0006.png --out work/preview/02.png
+
+# full transparent sequence (match the footage fps and resolution)
+node scripts/render_html.js --html templates/progress-grid.html --config work/beats/02.json \
+     --out work/seq/02 --fps 30 --width 1080 --height 1920
+```
+
+## 3. Composite & encode (ffmpeg via `scripts/compose.py`)
+
+```bash
+# --layer: PNG sequence or alpha video placed at <seconds>
+# --focus start:end:brightness:blur  -> here: dim to 62% + blur sigma 6 under beat 2
+# --fullscreen: opaque full-screen scene placed at <seconds>
+python3 scripts/compose.py overlay --base input.mp4 --out work/edit_v1.mp4 \
+   --layer work/seq/01@0.40 \
+   --layer work/seq/02@5.10 --focus 5.0:8.6:0.62:6 \
+   --fullscreen work/seq/03@12.0
+python3 scripts/compose.py encode --frames work/seq/02 --fps 30 --out work/layers/02.mov   # ProRes 4444 + alpha
+python3 scripts/compose.py encode --frames work/seq/02 --fps 30 --out work/layers/02.webm  # VP9 + alpha
+python3 scripts/compose.py frame work/edit_v1.mp4 --t 6.2 --out work/qc/6.2.png
+```
+
+Notes:
+- Layers are scaled to the base resolution. Render them at the base resolution to avoid resampling.
+- Audio from the base is copied untouched.
+- `--focus` ramps in and out over ≤0.3s. Use it only when an overlay needs separation (see System A).
+- Talking-head footage at 23.976/29.97 fps: pass `--fps 29.97` to the renderer and the encoder.
+
+## 4. Other building blocks (use when available)
+
+| Need | Tool | Notes |
+|---|---|---|
+| Word timestamps | `whisper`/`faster-whisper` with `--word_timestamps True`, or a user-supplied SRT/transcript | Verify alignment on 3 random words |
+| Subject matte (text behind subject, TXT-005) | `rembg` per frame, RobustVideoMatting, or the NLE's magic mask | Check hair edges at 200% |
+| 3D objects / numerals / glass | Blender (Eevee + bloom, emission rims) → PNG sequence | `blender -b scene.blend -a` |
+| Hero still for 3D-METAPHOR scenes | an image-generation or stock tool the user has | Record its source and licence. Animate with parallax layers |
+| Halftone (EDITORIAL-PRINT) | ImageMagick `-ordered-dither h6x6a` or PIL on a grayscale cut-out | Keep the dot size consistent across scenes |
+| Background blur / darken | `compose.py --focus` (gblur + colorchannelmixer) | |
+| Light streaks / particles | Canvas in a template, or Blender particles | Keep them behind the text |
+| Finishing in an NLE | ProRes 4444 layers + beat sheet | Premiere / Resolve / Final Cut import alpha directly |
+
+## 5. Performance
+
+- Frame capture runs at roughly real time to a few times slower for 1080x1920, depending on effects (backdrop-filter and big blurs are the slowest). For long videos, render only each beat's time window, not the whole video.
+- Use `--still` previews for design iteration and render sequences only once the design is approved.
+- Work in a `work/` folder. PNG sequences are large: delete them after encoding, or keep only the `.mov` layers.
+
+## 6. Verified in this skill's build (2026-10-13)
+
+These commands were actually run during construction, on a synthetic 1080x1920 test plate (no real footage was available):
+- all six templates rendered stills; QC comparisons were made against TXT-001, TXT-003, ONS-001, ONS-003, ONS-004, ONS-024, ONS-050, ONS-034 and FUL-002;
+- `render_html.js` rendered transparent PNG sequences for the caption, progress-grid and horizon templates;
+- `compose.py encode` produced ProRes 4444 (`yuva444p12le`) and VP9 alpha WebM files;
+- `compose.py overlay` composited a caption (`.mov`), a grid (PNG sequence) with `--focus`, and a full-screen scene onto a 10s test clip with audio, and QC frames were extracted and inspected.
+Results and known gaps are listed in `quality-control.md` → "Build-time test log".

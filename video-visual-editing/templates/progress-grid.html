@@ -1,0 +1,48 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Progress grid / calendar (System A)</title>
+<!-- Recreates ONS-004: "Next 30 days 15/30" card, cells fill sequentially with a
+     synced counter and progress bar. Use for consistency, streaks, schedules. -->
+<link rel="stylesheet" href="_ui.css">
+<style>
+  .pg { position: absolute; padding: 1.8rem; box-sizing: border-box; }
+  .top { display: flex; justify-content: space-between; align-items: baseline; }
+  .bar { height: .5rem; border-radius: 1rem; background: rgba(255,255,255,.08); margin: 1.1rem 0 1.6rem; overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), #5B8CFF); border-radius: inherit; }
+  .grid { display: grid; gap: .9rem; }
+  .cell { aspect-ratio: 1; border-radius: .9rem; background: rgba(255,255,255,.06); border: .1rem solid var(--hairline);
+          display: grid; place-items: center; font: 600 1.6rem/1 var(--sans); color: var(--ink-3); }
+  .cell.on { background: linear-gradient(180deg, #3D7BFF, #2563EB); border-color: rgba(255,255,255,.18); color: #fff;
+             box-shadow: inset 0 .1rem 0 rgba(255,255,255,.25), 0 .4rem 1.4rem rgba(37,99,235,.35); }
+</style>
+<script src="_runtime.js"></script></head>
+<body><div id="stage"></div>
+<script>
+window.DEFAULT_CONFIG = {
+  width: 1080, height: 1920, uiScale: 1.5,
+  box: { x: 0.30, y: 0.60, width: 0.44 },
+  title: 'Next 30 days', total: 30, filled: 15, columns: 6,
+  inAt: 0.2, fillAt: 0.6, fillDur: 1.2,
+  outAt: 3.4, outDur: 0.3
+};
+const S = {};
+window.setup = (c) => {
+  document.documentElement.style.fontSize = (10 * c.width / 1080 * (c.uiScale || 1)) + 'px';
+  const b = document.createElement('div'); b.className = 'card pg anim';
+  Object.assign(b.style, { left: c.box.x * 100 + '%', top: c.box.y * 100 + '%', width: c.box.width * 100 + '%' });
+  b.innerHTML = `<div class="top"><span class="label">${c.title}</span><span class="meta" id="cnt"></span></div><div class="bar"><i id="bar"></i></div><div class="grid" id="g"></div>`;
+  document.getElementById('stage').appendChild(b); S.box = b;
+  const g = b.querySelector('#g'); g.style.gridTemplateColumns = `repeat(${c.columns}, 1fr)`;
+  S.cells = Array.from({ length: c.total }, (_, i) => { const d = document.createElement('div'); d.className = 'cell'; d.textContent = i + 1; g.appendChild(d); return d; });
+  S.cnt = b.querySelector('#cnt'); S.bar = b.querySelector('#bar');
+};
+window.duration = (c) => c.outAt + c.outDur + 0.1;
+window.renderFrame = (t, c) => {
+  const { prog, enter, envelope } = VV;
+  enter(S.box, envelope(t, c.inAt, 0.35, c.outAt, c.outDur), { rise: 22, blur: 8, scale: 0.96 });
+  const p = prog(t, c.fillAt, c.fillDur, 'inOutSine');
+  const n = Math.round(p * c.filled);
+  S.cells.forEach((d, i) => d.classList.toggle('on', i < n));
+  S.cnt.textContent = `${n}/${c.total}`;
+  S.bar.style.width = (100 * n / c.total) + '%';
+};
+</script></body></html>
