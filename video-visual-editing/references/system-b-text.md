@@ -30,7 +30,7 @@ None of the references show word-for-word subtitles. They show **selected phrase
 
 ## Design rules (from the references)
 
-1. **Two voices, maximum.** One quiet sans (Inter or SF, 500-600) plus one expressive voice: italic serif, script, gradient bold or extended caps. Never two expressive voices in one beat.
+1. **Two voices, maximum.** One quiet sans (always Montserrat, 500-600) plus one expressive voice: italic serif, script, gradient bold or extended caps. Never two expressive voices in one beat.
 2. **Size contrast of 2-3x** between connector words and the key word. Micro caps can go down to 0.4x.
 3. **Interlock the lines.** Tight leading (0.84-0.95). Lines nest into each other, and small words can tuck under or over the big word (TXT-001 "view on", TXT-009 "I WANT YOU TO").
 4. **Colour from the footage.** Warm grade means amber `#F2A14A` or gold `#E7A93B` (TXT-001..004, TXT-009). Cool grade means white, mint or cream (TXT-007, TXT-008, ONS-005). Bright daylight means lime `#A6E35A` or dark ink (TXT-005). One accent colour per video section.

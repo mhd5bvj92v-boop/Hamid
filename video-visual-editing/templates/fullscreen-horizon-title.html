@@ -4,16 +4,21 @@
      FUL-067): opaque black scene, glowing planet rim rises like a sunrise, thin
      outline numerals count up and sit on the atmosphere, tracked kicker + body. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@100;200;300;400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="_ui.css">
 <style>
   .scene { position: absolute; inset: 0; background: #000; overflow: hidden; }
   .stars { position: absolute; inset: 0; }
   .planet { position: absolute; left: 50%; border-radius: 50%; transform: translateX(-50%);
-            background: radial-gradient(closest-side, #01040C 96%, transparent 100%);
-            box-shadow: 0 -.4rem .8rem -.1rem rgba(210,235,255,1), 0 -1.6rem 3.2rem 0 var(--rim), 0 -5rem 9rem 0 var(--rim), 0 -14rem 26rem 4rem var(--haze); }
+            background: #000;      /* pure black and opaque to the very edge: the limb hides the numerals' base (FUL-002) */
+            /* small blurs only: Chromium clips very large shadow blurs into hard bands, so the wide haze is its own gradient layer */
+            box-shadow: inset 0 1rem 1.6rem -.8rem var(--rim),                                    /* thin bleed, then straight to black */
+                        0 -.25rem .5rem 0 rgba(240,248,255,1), 0 -.9rem 2rem .3rem rgba(150,205,255,.95),    /* white-hot core line */
+                        0 -3.2rem 6rem 1rem var(--rim), 0 -6rem 10rem 1.6rem rgba(30,105,255,.85); }        /* atmosphere band */
+  .haze { position: absolute; left: 50%; transform: translateX(-50%); pointer-events: none;
+          background: radial-gradient(ellipse 50% 50% at 50% 78%, var(--haze) 0%, rgba(20,80,255,.16) 45%, rgba(10,40,160,0) 100%); }
   .kicker { position: absolute; left: 0; right: 0; text-align: center; font: 400 3rem/1 var(--sans); letter-spacing: .3em; color: rgba(255,255,255,.82); text-transform: uppercase; }
-  .big { position: absolute; left: 0; right: 0; text-align: center; font: 100 44rem/0.8 var(--sans); letter-spacing: -0.02em; color: rgba(255,255,255,.95); text-shadow: 0 0 2.4rem rgba(120,170,255,.35); font-variant-numeric: tabular-nums; }
+  .big { position: absolute; left: 0; right: 0; text-align: center; font-weight: 100; line-height: 0.8; font-family: var(--sans); letter-spacing: -0.02em; color: rgba(255,255,255,.95); text-shadow: 0 0 .8rem rgba(190,215,255,.55), 0 0 3rem rgba(90,150,255,.5); font-variant-numeric: tabular-nums; }
   .body { position: absolute; left: 18%; right: 18%; text-align: center; font: 300 3.4rem/1.45 var(--sans); color: rgba(255,255,255,.72); }
   .tick { position: absolute; left: 50%; width: 5rem; height: .3rem; background: var(--rimSolid); transform: translateX(-50%); border-radius: 1rem; }
 </style>
@@ -22,10 +27,11 @@
 <script>
 window.DEFAULT_CONFIG = {
   width: 1080, height: 1920,
-  rim: 'rgba(40,120,255,.85)', rimSolid: '#2F7BFF', haze: 'rgba(20,80,255,.25)',
+  rim: 'rgba(45,125,255,1)', rimSolid: '#2F7BFF', haze: 'rgba(35,105,255,.75)',
   kicker: 'Contributed over', value: 300, prefix: '', suffix: '', decimals: 0,
   body: "Units to the city's residential and commercial growth trajectory",
   horizonY: 0.47,                 // top of planet as frame fraction (after rise)
+  numSize: 35,                    // numeral size in rem (Montserrat is wide: 35 spans ~63% of the width like FUL-002)
   riseAt: 0.0, riseDur: 1.6, numAt: 0.6, numDur: 1.6, kickerAt: 0.35, bodyAt: 1.5,
   camPush: 0.04,                  // slow push-in over the whole shot
   outAt: 4.6, outDur: 0.4
@@ -39,6 +45,7 @@ window.setup = (c) => {
   let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;   // deterministic stars
   for (let i = 0; i < 160; i++) { g.fillStyle = `rgba(255,255,255,${0.15 + rnd() * 0.5})`; g.beginPath(); g.arc(rnd() * W, rnd() * H * 0.55, rnd() * 1.4, 0, 7); g.fill(); }
   // order matters: numerals first so the planet's limb occludes their base (depth cue seen in FUL-002)
+  const hz = document.createElement('div'); hz.className = 'haze'; hz.style.width = (W * 1.9) + 'px'; hz.style.height = (H * 0.5) + 'px'; sc.appendChild(hz); S.hz = hz;   // behind the numerals
   const b = document.createElement('div'); b.className = 'big'; sc.appendChild(b); S.big = b;
   const pl = document.createElement('div'); pl.className = 'planet'; pl.style.width = pl.style.height = (W * 3.4) + 'px'; sc.appendChild(pl); S.pl = pl;
   const k = document.createElement('div'); k.className = 'kicker'; k.textContent = c.kicker; sc.appendChild(k); S.k = k;
@@ -52,8 +59,11 @@ window.renderFrame = (t, c) => {
   const rise = prog(t, c.riseAt, c.riseDur, 'outQuart');
   const top = lerp(c.horizonY + 0.12, c.horizonY, rise) * H;
   S.pl.style.top = top + 'px'; S.pl.style.opacity = rise;
-  S.k.style.top = (top - H * 0.205) + 'px'; enter(S.k, prog(t, c.kickerAt, 0.6));
-  S.big.style.top = (top - H * 0.135) + 'px';   // base dips ~4% of height behind the limb S.big.style.opacity = prog(t, c.numAt, 0.5);
+  S.hz.style.top = (top - H * 0.5 * 0.78) + 'px'; S.hz.style.opacity = rise;
+  const rem = c.width / 108, bigTop = top - 0.8 * c.numSize * rem + 0.21 * c.numSize * rem;   // base dips ~21% of the size behind the limb
+  S.big.style.fontSize = c.numSize + 'rem'; S.big.style.top = bigTop + 'px';
+  S.k.style.top = (bigTop - H * 0.07) + 'px'; enter(S.k, prog(t, c.kickerAt, 0.6));
+  S.big.style.opacity = prog(t, c.numAt, 0.5);
   S.big.textContent = fmtNumber(lerp(0, c.value, prog(t, c.numAt, c.numDur, 'outExpo')), c);
   S.tick.style.top = (top + H * 0.075) + 'px'; S.tick.style.transform = `translateX(-50%) scaleX(${prog(t, c.bodyAt - 0.2, 0.5)})`;
   S.body.style.top = (top + H * 0.095) + 'px'; enter(S.body, prog(t, c.bodyAt, 0.6));

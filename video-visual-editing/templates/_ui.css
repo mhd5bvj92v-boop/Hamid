@@ -1,6 +1,6 @@
 /* Shared design tokens for overlay templates (see references/design-language.md).
    1rem = 10px at 1080px frame width (rescaled by each template's setup()). */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@1,500;1,600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Playfair+Display:ital,wght@1,500;1,600&display=swap');
 :root {
   --ink: #FFFFFF; --ink-2: rgba(255,255,255,.62); --ink-3: rgba(255,255,255,.38);
   --surface: rgba(22,23,28,.86); --surface-2: rgba(36,37,44,.9);
@@ -8,7 +8,7 @@
   --accent: #2F6BFF; --accent-2: #3B82F6; --accent-glow: rgba(47,107,255,.55);
   --radius-s: 1rem; --radius-m: 1.4rem; --radius-l: 2.6rem;
   --shadow: 0 1.2rem 3.6rem rgba(0,0,0,.5), 0 .2rem .6rem rgba(0,0,0,.35);
-  --sans: 'Inter', 'SF Pro Display', system-ui, sans-serif;
+  --sans: 'Montserrat', system-ui, sans-serif;   /* house sans: always Montserrat */
 }
 html { font-size: 10px; }
 html, body { margin: 0; background: transparent; -webkit-font-smoothing: antialiased; }

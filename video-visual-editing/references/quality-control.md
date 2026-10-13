@@ -91,8 +91,10 @@ These tests were run while building the skill. No real talking-head footage was 
 | progress-grid | ONS-004 | close match (card, counter, progress bar, blue cells) | none significant |
 | stat-card | ONS-024, ONS-050 | card shape, rim glow and light pool, bell curve with glowing peak, count-up match in spirit | the reference's lower-edge glow is more intense and its curve stroke thinner; the reference is 4:5 while the test was 9:16 |
 | ai-input-bar | ONS-034 | warm/cool orbiting edge glow, chips and send button | the reference's dotted glyph texture around the bar is not implemented |
-| fullscreen-horizon-title | FUL-002 | planet rim, numerals sinking into the atmosphere, kicker/body layout match | the reference's atmosphere band is slightly thicker and bluer |
+| fullscreen-horizon-title | FUL-002 | planet rim, numerals sinking into the atmosphere, kicker/body layout match. **Revised after user review:** the planet is now pure black and opaque to its edge, so the limb really hides the numerals' base (before, a semi-transparent edge let them show through). The glow is stronger: a white-hot core line, a thicker blue band, and haze as its own gradient layer, because large shadow blurs were clipped into a hard band. Numerals are sized by `numSize` (63% of the width, as in the reference), and they now fade in (the fade was commented out by mistake) | none significant at still level |
 | compose.py | n/a | ProRes 4444 (yuva444p12le) and VP9-alpha encodes; overlay + focus + full-screen composite with audio on a 10s clip verified by extracted frames | not yet tested on real footage, 16:9 or variable frame rate sources |
+
+**Font change (2026-10-13, user rule):** all sans text now uses Montserrat (SKILL.md rule 10). It was verified in Chromium for all 6 templates (`document.fonts.check` true, Montserrat loaded from Google Fonts), and every template was re-rendered and inspected. Offline rendering needs Montserrat installed locally.
 
 Next time real footage is available, re-run the System A and B comparisons on it and update this log.
 

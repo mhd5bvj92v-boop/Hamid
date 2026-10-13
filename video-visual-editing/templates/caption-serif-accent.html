@@ -4,7 +4,7 @@
 <!-- Recreates the TXT-001..TXT-009 pattern: small sans connector words + one large
      italic-serif key phrase (+ optional tracked line, micro caps, name super). -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Instrument+Serif:ital@0;1&family=Playfair+Display:ital,wght@1,500;1,600;1,700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,300..900;1,300..900&family=Instrument+Serif:ital@0;1&family=Playfair+Display:ital,wght@1,500;1,600;1,700&display=swap" rel="stylesheet">
 <style>
   html { font-size: 10px; }               /* 1rem = 10px @1080w, rescaled in setup() */
   html, body { margin: 0; background: transparent; }
@@ -40,7 +40,7 @@
 window.DEFAULT_CONFIG = {
   width: 1080, height: 1920,
   anchor: { x: 0.5, y: 0.58 }, align: 'center',
-  fonts: { sans: 'Inter', serif: 'Playfair Display', serifWeight: 600, script: 'Playfair Display', condense: 0.9 },
+  fonts: { sans: 'Montserrat', serif: 'Playfair Display', serifWeight: 600, script: 'Playfair Display', condense: 0.9 },
   colors: { text: '#FFFFFF', accent: '#F2A14A', glow: 'rgba(242,161,74,.38)', script: '#F3E6C4',
             boldFill: 'linear-gradient(180deg,#FFF6D8,#F7D774)' },
   // style: sans | sans-sm | serif | script | bold | tracked | micro
@@ -58,7 +58,7 @@ let els = [];
 window.setup = (c) => {
   document.documentElement.style.fontSize = (10 * c.width / 1080) + 'px';
   const r = document.documentElement.style;
-  r.setProperty('--sans', `'${c.fonts.sans}', 'Inter', system-ui, sans-serif`);
+  r.setProperty('--sans', `'${c.fonts.sans}', 'Montserrat', system-ui, sans-serif`);
   r.setProperty('--serif', `'${c.fonts.serif}', 'Playfair Display', Georgia, serif`);
   r.setProperty('--script', `'${c.fonts.script}', 'Instrument Serif', Georgia, serif`);
   r.setProperty('--serifWeight', c.fonts.serifWeight || 600); r.setProperty('--condense', c.fonts.condense || 1);

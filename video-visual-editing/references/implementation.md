@@ -13,7 +13,7 @@ which blender whisper rembg 2>/dev/null       # optional: 3D, word timestamps, s
 ```
 
 If Playwright is missing: `npm i -D playwright && npx playwright install chromium`. On a machine with a preinstalled Chromium, set `CHROMIUM_PATH=/path/to/chromium`.
-Fonts: the templates load Inter and Playfair Display from Google Fonts. Offline, install the fonts locally or change `fonts` in the config. Always check a still to confirm the intended font actually rendered.
+Fonts: the templates load Montserrat (the house sans, always used for sans text) and Playfair Display from Google Fonts. Offline, install the fonts locally or change `fonts` in the config. Always check a still to confirm the intended font actually rendered.
 
 ## 1. Template contract
 

@@ -49,12 +49,12 @@ Rules:
 
 | Voice | Recommended (free) | Fallback | Use |
 |---|---|---|---|
-| UI / connector sans | Inter (installed), SF Pro, Satoshi, General Sans | system-ui | captions, labels, UI |
+| UI / connector sans | **Montserrat, always** (house rule; weights 100-900) | system-ui | captions, labels, UI, kickers, body, numerals |
 | Expressive italic serif | Playfair Display Italic 600 (lining figures), Instrument Serif Italic, Bodoni Moda Italic | Georgia italic | key words, numbers on warm footage |
 | Script accent | Playfair Display Italic 500, or a calligraphic serif such as "Pinyon Script" used sparingly | - | one emotional word ("clients", "don't give up") |
-| Display condensed | Anton, Bebas Neue, Oswald 700, Druk (paid) | Inter 900 with scaleX(.8) | FUL headline stacks (FUL-010, FUL-087) |
-| Extended caps | Unbounded, Syne, Monument Extended (paid) | Inter 800 + tracking .06em + scaleX(1.15) | single keyword (TXT-007) |
-| Thin numerals | Inter 100-200 outline (`-webkit-text-stroke`) | - | big stats on horizon scenes (FUL-002) |
+| Display condensed | Anton, Bebas Neue, Oswald 700, Druk (paid) | Montserrat 800-900 with scaleX(.8) | FUL headline stacks (FUL-010, FUL-087) |
+| Extended caps | Unbounded, Syne, Monument Extended (paid) | Montserrat 800 + tracking .06em + scaleX(1.15) | single keyword (TXT-007) |
+| Thin numerals | Montserrat 100-200 outline (`-webkit-text-stroke`) | - | big stats on horizon scenes (FUL-002) |
 
 Scale for a 1080x1920 frame (multiply by width/1080 for other sizes):
 - Caption connector sans: 44-56px, weight 500-600.

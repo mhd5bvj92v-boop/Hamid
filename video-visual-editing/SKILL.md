@@ -20,6 +20,7 @@ The library is the source of truth. **Always look at the actual reference images
 7. **The voice is king.** Dialogue is never altered (0 dB, bit-identical), and no effect or music is louder than the voice while the speaker talks.
 8. **No Remotion**, ever: no install, no compositions, no Remotion APIs. Use the cue-sheet, numpy and ffmpeg pipeline in this skill.
 9. **Only authorised sound assets.** Index the user's own SFX folders in place. Never delete, overwrite or re-encode them, never ship synthetic test sounds, and never claim you *listened* to audio. You measure it; the user listens.
+10. **Montserrat is the only sans-serif.** Every sans text (captions, UI, labels, kickers, numerals, body) uses Montserrat. The single expressive accent voice (italic serif, script) may differ.
 
 ## Folder map
 
