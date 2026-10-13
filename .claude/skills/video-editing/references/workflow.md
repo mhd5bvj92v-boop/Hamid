@@ -2,7 +2,17 @@
 
 This is the **default workflow for every talking-head project**. The user supplies a video that is already cut: its cuts, pauses, reactions, dialogue and pacing are intentional. Claude adds text, on-screen visuals, full-screen animations and sound design, then composites and exports. Claude never edits the cut itself.
 
-Every step writes a concrete artifact to `work/<slug>/` (git-ignored), so progress is inspectable and resumable. Editable sources live in `remotion-app/src/projects/<slug>/` (Remotion) and `work/<slug>/sound/cues.json` (sound).
+Every step writes a concrete artifact to `work/<slug>/` (git-ignored), so progress is inspectable and resumable. Editable sources live in `remotion-app/src/projects/<slug>/` (Remotion, plus the committed creative decision log) and `work/<slug>/sound/cues.json` (sound).
+
+**The user is the Creative Director.** These craft steps run inside the five mandatory phases of `creative-director.md`:
+
+| Phase | Steps here |
+|---|---|
+| 1 Analyze | 0 Intake, 1 Story (timecoded transcript), 2 Moments (+ keep-visible) |
+| 2 Options | 3 Treatments, 4 References → three concepts A/B/C per major moment + D, preview frames |
+| 3 Approval | 5 Storyboard → the user approves the direction (gate) |
+| 4 Animation preview | 6 Build, 8 Sound (draft), motion previews, feedback rounds (gate) |
+| 5 Final render | only after the explicit final approval: 7 Picture, 8 Sound (final mix), 9 Final QC, Delivering |
 
 ## The timeline contract (read before every project)
 
@@ -51,9 +61,9 @@ Mark candidate beats in the transcript. A beat qualifies if at least one is true
 
 Then **remove** candidates that are emotional or personal, that come less than ~4s after another beat with no new idea, where the speaker is already showing something with their hands, or whose only purpose would be "keeping attention". Aim for clarity, not coverage.
 
-## 3. Decide the treatment for each beat
+## 3. Decide the treatment for each beat (feeds the A/B/C concepts)
 
-For each beat, in this order:
+For each beat, in this order (the result is your *recommendation*; the user still sees three concepts for every major moment):
 1. **Nothing.** Is the face alone strongest here? Keep it.
 2. **Text (System B).** Is the *phrase itself* the point? (hooks, rules, key words)
 3. **On-screen (System A).** Would a familiar object (card, list, chart, label, diagram) make it concrete while the speaker stays visible?
@@ -65,9 +75,11 @@ Budget guideline for a 60s talking head: about 6-10 text beats, 3-6 on-screen be
 
 For each beat, run `python3 scripts/search.py <keywords> --cat ONS|TXT|FUL`. Shortlist 1-3 IDs, then **open the images with Read**. Read each entry's Observed vs Inferred notes (`--show ID`). The library is the primary design inspiration: if a reference fits better than a kit component, build a new component from the reference rather than reusing a generic one.
 
-## 5. Write the plan and get approval
+## 5. Options, storyboard and approval (Phases 2-3)
 
-Create `work/<slug>/plan/edit-plan.md`:
+Present A, B, C (+ D, + "three new concepts") per major moment in chat, with concept preview frames (`edit_render.py concept-frames`), record them (`edit_decisions.py propose`), then give the grouped storyboard (`edit_decisions.py storyboard`). The exact format and rules are in `creative-director.md`. Record the user's choices (`decide`) and wait for their approval of the direction (`approve --gate direction`).
+
+The technical plan behind it goes in `work/<slug>/plan/edit-plan.md`:
 
 ```
 Source: my-cut.mp4, 1080x1920, 30 fps, 58.4 s (timeline preserved: 1752 frames, no cuts/speed changes)
@@ -80,29 +92,32 @@ Approved frame rate: 30 fps (source)   Palette: warm amber accents (warm grade) 
 | 3 | 12.0-14.8 | "we've helped over 300..." | C | horizon rises, 300 counts up | FUL-002 | HorizonTitle | riser + hit, classy airy |
 ```
 
-State what is *not* touched (the cut, the dialogue, the pacing) and any approximation. **Share the plan before heavy rendering** whenever the user can review.
+State what is *not* touched (the cut, the dialogue, the pacing) and any approximation. Nothing goes into `beats.ts` before the direction is approved.
 
-## 6. Build in Remotion
+## 6. Build in Remotion (Phase 4)
 
+- Concepts for previews live in `concepts.ts` (`moment`, `option`, `round`, `beat`). After the direction approval, copy the chosen concepts (and D, implemented as the user described) into `beats.ts`.
 - Write the beats in `remotion-app/src/projects/<slug>/beats.ts`: `id`, `kind`, `at` (seconds on the source timeline), `props` (times inside are seconds from the beat start), `reason`, `refs`. Use word timestamps for `at` and line/word times. Set `HOOK_END` (seconds) for the first riser.
 - Kit kinds: `CaptionAccent` (B, TXT-001..009), `StatCard` (A; C with `fullscreen: true`; ONS-024/050), `HorizonTitle` (C, FUL-002). For anything else, port the closest template or build from the chosen references as a new component with a pure `*.timing.ts` (see `remotion.md` §4).
 - Preview stills over the real footage at key moments (entering, landed, before exit): `python3 scripts/edit_render.py still <slug> --t <s>`. Open them with Read. Use Remotion Studio (`cd remotion-app && npm run dev`) for live review.
+- **Motion previews for the user:** `edit_render.py preview <slug> --beat <id>` (half resolution, ±0.6 s handles, dialogue + draft sound) or `--all` for the whole edit. Send them, ask for feedback, record it (`edit_decisions.py feedback`), apply it, repeat. Record `approve --gate preview` when the user is happy with the previews.
 
-## 7. Picture
+## 7. Picture (Phase 5: only after the explicit final approval)
 
 ```bash
-python3 scripts/edit_render.py picture <slug>        # work/<slug>/renders/picture.mp4 (+ render log)
+python3 scripts/edit_decisions.py approve <slug> --gate final --quote "<the user's words>"
+python3 scripts/edit_render.py picture <slug>        # work/<slug>/renders/picture.mp4 (+ render log); refuses without the final approval
 ```
 
 Extract QC frames from it (`compose.py frame`), compare them with the references (`compare.py`), and fix (steps 9-10).
 
 ## 8. Sound design (System D)
 
-After the picture timings are locked. Full procedure: `sound-design-workflow.md`.
+Draft in Phase 4, once the beat timings are approved; the final mix in Phase 5. Full procedure: `sound-design-workflow.md`.
 
 1. **Measure:** `python3 scripts/edit_render.py sfx <slug>` writes `timeline.json`, per-beat sound intents measured from the same pose functions the components render (fastest frame, first visible frame), and `plan.json` (video = the picture, dialogue = the original). Optionally `video_events.py` on the picture for cuts and motion in the footage.
 2. **Draft:** `python3 scripts/sfx_plan.py work/<slug>/sound/plan.json --out work/<slug>/sound/cues.json`, then write the breakdown (MOVEMENT / EVENT / BUILD / SILENCE) and report it.
-3. **Passes 1-3:** audition, fill in `sound` and `auditioned`, render with `sound_mix.py --passes ... --no-music`, report after each pass.
+3. **Passes 1-3:** audition, fill in `sound` and `auditioned`. In Phase 4, `edit_render.py draft-sound <slug>` mixes the current cue sheet as a draft (no export) and feeds the motion previews and Studio; report what was placed after each pass. In Phase 5, render the final with `sound_mix.py --passes 1,2,3` against the approved picture.
 4. **Validate:** `sound_qc.py` must exit 0.
 5. **Studio preview:** `python3 scripts/edit_render.py sound-preview <slug> --session work/<slug>/sound/final_vN/session.json` lets the user hear the placements in Remotion Studio.
 6. **Pass 4 (music):** only after approval, -19 dB under the talking head, silent in full-screen windows. Re-run QC.

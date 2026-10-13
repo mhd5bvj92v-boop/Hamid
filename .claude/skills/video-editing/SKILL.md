@@ -1,6 +1,6 @@
 ---
 name: video-editing
-description: Default workflow for finishing the user's ALREADY-CUT talking-head videos into premium vertical edits with Remotion. Claude never cuts, trims, re-times, re-orders or re-voices the footage. It adds designed text and text animation, on-screen overlays beside the visible speaker, full-screen animated scenes that cover the footage while the original timeline keeps running underneath, professional sound design (Joseph's system, Ultimate Editors), and the final non-destructive composite and 1080x1920 MP4 export. Designs come from the user's 182-reference library. Use it whenever the user provides a talking-head video, script or transcript to edit; asks for captions, kinetic type, overlays, full-screen scenes or transitions; asks for sound design, SFX, whooshes, risers, music levels or a mix; wants a visual or sound plan or cue sheet; or adds references or sound effects. Includes reference and sound indexes, a Remotion edit kit, and intake, render, mix and QC scripts that prove the timeline is preserved.
+description: Default workflow for finishing the user's ALREADY-CUT talking-head videos into premium vertical edits with Remotion. Claude never cuts, trims, re-times, re-orders or re-voices the footage. It adds designed text and text animation, on-screen overlays beside the visible speaker, full-screen animated scenes that cover the footage while the original timeline keeps running underneath, professional sound design (Joseph's system, Ultimate Editors), and the final non-destructive composite and 1080x1920 MP4 export. Designs come from the user's 182-reference library. Use it whenever the user provides a talking-head video, script or transcript to edit; asks for captions, kinetic type, overlays, full-screen scenes or transitions; asks for sound design, SFX, whooshes, risers, music levels or a mix; wants a visual or sound plan or cue sheet; or adds references or sound effects. The user is the Creative Director; Claude proposes A/B/C concepts, shows previews, and renders the final only after explicit approval.
 compatibility: Needs the repository's Remotion app (remotion-app/, Remotion 4, React + TypeScript, Node) and ffmpeg/ffprobe. Library and sound scripts need Python 3 with Pillow and numpy. Optional - whisper (word timestamps), rembg (mattes). Rendering is local; no cloud or paid render service.
 ---
 
@@ -15,6 +15,8 @@ The user delivers an **already cut and edited** talking-head video. Its cuts, pa
 4. **Sound design** (System D, Joseph's system)
 5. **Final compositing and export** (Remotion picture + System D mix, 1080x1920 MP4)
 
+**The user is the Creative Director of every video.** Claude is responsible for visual proposals, animation implementation, sound design and technical quality; the user decides the creative direction. Every project follows the five-phase Creative Director workflow (below and `references/creative-director.md`).
+
 The reference library is the design source of truth. **Always open the actual reference images (Read the file) before designing from them.** Never rely on memory or on the text descriptions alone. Do not use a generic animation preset when the library offers a more suitable design.
 
 ## Non-negotiables
@@ -28,6 +30,14 @@ The reference library is the design source of truth. **Always open the actual re
 
 Preserve the full original timeline, duration and synchronised dialogue. A full-screen animation may **cover** the video for a moment, but the original timeline keeps running underneath without interruption, and the face comes back exactly where the cut would have it. The original file is never modified, re-encoded in place, moved or deleted. Every render is checked against it (`scripts/edit_qc.py`).
 
+**The Creative Director decides.** Never:
+- build the final edit before the user has approved the creative direction (Phase 3);
+- produce the final full-resolution export before the user has explicitly approved the edit (Phase 5);
+- present fewer than three genuinely different, library-grounded concepts (A, B, C) for a major visual moment, or omit option D (the user's own idea) and the offer of three new concepts;
+- record an approval the user did not give in their own words.
+
+Options are presented by Claude directly in the conversation; Remotion only renders the preview frames and motion previews. Every decision is saved in the project's creative decision log (`scripts/edit_decisions.py`). Don't overwhelm the user: group related decisions, and decide technical details (easing, frames, dB, render settings) yourself.
+
 **Design and honesty:**
 1. **Every visual needs a reason.** Keeping the speaker on screen with nothing added is often the strongest choice.
 2. **The speaker's face is never covered** by on-screen graphics or captions.
@@ -40,35 +50,46 @@ Preserve the full original timeline, duration and synchronised dialogue. A full-
 9. **Only authorised, accessible sound assets.** Index the user's own SFX folders in place. Never delete, overwrite or re-encode them. Never invent a sound asset, never claim a sound was added when it isn't available, never ship synthetic test sounds, and never claim you *listened* to audio. You measure it; the user listens.
 10. **Montserrat is the only sans-serif.** Every sans text (captions, UI, labels, kickers, numerals, body) uses Montserrat. The single expressive accent voice (italic serif, script) may differ.
 
-## The default workflow (every talking-head project)
+## The default workflow: five Creative Director phases (every talking-head project)
 
-Full procedure: `references/workflow.md`. Remotion details: `references/remotion.md`.
+Full procedure: `references/creative-director.md` (phases, A/B/C/D format, gates, decision log), `references/workflow.md` (craft steps), `references/remotion.md` (engine).
+
+| Phase | Claude | The user | Recorded with |
+|---|---|---|---|
+| 1 Analyze | intake, footage + dialogue analysis, timecoded transcript, candidate moments, keep-visible stretches | – | `edit_init.py`, `edit_decisions.py analyze` |
+| 2 Options | A, B, C per major moment from the library + D, real preview frames | chooses, writes D, or asks for three new concepts | `edit_decisions.py propose / decide`, `edit_render.py concept-frames` |
+| 3 Approval | concise, grouped, timecoded storyboard | approves the creative direction | `edit_decisions.py storyboard`, `approve --gate direction` |
+| 4 Animation preview | builds in Remotion, short motion previews with draft sound, applies changes | feedback, change requests | `edit_render.py draft-sound / preview`, `edit_decisions.py feedback`, `approve --gate preview` |
+| 5 Final render | full-resolution picture, mix, QC, export | **explicitly approves the edit** first | `approve --gate final`, `edit_render.py picture`, `sound_mix.py`, `sound_qc.py`, `edit_qc.py` |
 
 ```bash
-# 0. intake: probe, hash, link the original (never copied or touched), create the Remotion project
-python3 scripts/edit_init.py /path/to/my-cut.mp4 --slug my-video          # add --fps N only if the user approves another rate
-# 1-5. story -> beats -> references (search.py + open images) -> work/my-video/plan/edit-plan.md -> user approval
-# 6. build: edit remotion-app/src/projects/my-video/beats.ts (kit kinds or new components); preview
-python3 scripts/edit_render.py still my-video --t 3.2                       # check a frame over the real footage
-cd remotion-app && npm run dev                                              # Remotion Studio: composition Edit-my-video
-# 7. picture
-python3 scripts/edit_render.py picture my-video                             # work/my-video/renders/picture.mp4
-# 8. sound (System D): measured intents -> cue sheet -> passes -> mix -> QC
-python3 scripts/edit_render.py sfx my-video
-python3 scripts/sfx_plan.py work/my-video/sound/plan.json --out work/my-video/sound/cues.json
-python3 scripts/sound_mix.py work/my-video/sound/cues.json --out work/my-video/sound/final_v1 --passes 1,2,3 --no-music
+python3 scripts/edit_init.py /path/to/my-cut.mp4 --slug my-video          # Phase 1 intake (+ creative log); --fps N only if approved
+python3 scripts/edit_decisions.py analyze my-video --file work/my-video/plan/analysis.json
+python3 scripts/edit_decisions.py propose my-video --file work/my-video/plan/proposals.json   # A/B/C per moment
+python3 scripts/edit_render.py concept-frames my-video --moment M03         # preview frames of A | B | C over the footage
+python3 scripts/edit_decisions.py storyboard my-video                       # Phase 3: grouped storyboard for the chat
+python3 scripts/edit_decisions.py decide my-video --moments M01,M03 --choice A --quote "<user's words>"
+python3 scripts/edit_decisions.py approve my-video --gate direction --quote "<user's words>"
+# Phase 4: beats.ts from the chosen concepts; sound passes; motion previews
+python3 scripts/edit_render.py sfx my-video && python3 scripts/sfx_plan.py work/my-video/sound/plan.json --out work/my-video/sound/cues.json
+python3 scripts/edit_render.py draft-sound my-video
+python3 scripts/edit_render.py preview my-video --beat b03-horizon         # half-resolution clip with dialogue + draft sound
+# Phase 5, only after the user's explicit final approval:
+python3 scripts/edit_decisions.py approve my-video --gate final --quote "<user's words>"
+python3 scripts/edit_render.py picture my-video                             # refuses without the final approval
+python3 scripts/sound_mix.py work/my-video/sound/cues.json --out work/my-video/sound/final_v1 --passes 1,2,3
 python3 scripts/sound_qc.py work/my-video/sound/final_v1
-# 9. prove the timeline is preserved, then deliver final_v1/final.mp4
 python3 scripts/edit_qc.py my-video --final work/my-video/sound/final_v1/final.mp4
 ```
 
-The final export is `sound_mix.py`'s `final.mp4`: the Remotion picture stream copied untouched plus the System D mix, which is built from the **original** dialogue. Both `sound_qc.py` and `edit_qc.py` must exit 0 before delivery.
+The final export is `sound_mix.py`'s `final.mp4`: the Remotion picture stream copied untouched plus the System D mix, which is built from the **original** dialogue. `sound_qc.py` and `edit_qc.py` (which also checks the recorded final approval) must exit 0 before delivery.
 
 ## Folder map
 
 ```
 SKILL.md                          you are here (scope, non-negotiables, routing)
-references/workflow.md            the default process: intake -> story -> beats -> refs -> plan -> build -> picture -> sound -> QC -> deliver
+references/creative-director.md   MANDATORY five phases: analyze -> A/B/C/D options -> storyboard approval -> animation preview -> final render; decision log
+references/workflow.md            the craft steps inside the phases: intake -> story -> beats -> refs -> plan -> build -> picture -> sound -> QC -> deliver
 references/remotion.md            Remotion engine: project layout, edit kit, timeline contract, render settings, frame rate and resolution policy
 references/design-language.md     extracted principles, tokens, 13 style-family recipes (evidence-linked)
 references/system-a-on-screen.md  System A: overlays while the speaker stays visible
@@ -91,7 +112,7 @@ assets/references/_alternates/    preserved duplicate/resized copies, linked to 
 assets/contact-sheets/            labelled thumbnail sheets per category (fast visual browsing)
 data/references.json              single source of truth for the visual library
 data/sounds.json                  single source of truth for the sound library index
-scripts/                          edit workflow: edit_init, edit_render, edit_qc, edit_selftest (vedit helpers)
+scripts/                          edit workflow: edit_init, edit_decisions (creative log), edit_render, edit_qc, edit_selftest (vedit helpers)
                                   library: search, build_library, ingest, validate, compare
                                   sound: sfx_index, sfx_audition, video_events, sfx_plan, sound_mix, sound_qc, sound_selftest (audiolib)
                                   HTML toolchain: render_html.js, compose.py
@@ -104,7 +125,8 @@ The Remotion side lives in the repository's `remotion-app/`: the edit kit in `sr
 
 | Task | Read |
 |---|---|
-| Edit a video (full job) | `workflow.md` first, then `remotion.md`, then the system docs for the beats you plan |
+| Edit a video (full job) | `creative-director.md` first (the phases and gates), then `workflow.md`, `remotion.md`, and the system docs for the beats you plan |
+| Presenting options, storyboard, approvals, feedback | `creative-director.md` |
 | Any design decision | `design-language.md` (§1 principles, §4 the family you use) |
 | Overlays / UI beside the speaker | `system-a-on-screen.md` |
 | Captions / typography / hook text | `system-b-text.md` |
@@ -146,7 +168,7 @@ Do not load `references/library/*.md` wholesale; they are large. Search instead,
 
 ```bash
 python3 scripts/validate.py          # integrity: library, docs, sound docs + gain presets, Remotion kit + timeline contract
-python3 scripts/edit_selftest.py     # end-to-end on synthetic footage: intake -> Remotion -> mix -> QC (+ negative tests), ~2 min
+python3 scripts/edit_selftest.py     # end-to-end on synthetic footage: all five phases, Remotion, mix, QC (+ negative tests), ~3 min
 python3 scripts/sound_selftest.py    # the sound toolchain on synthetic fixtures
 python3 scripts/build_library.py     # regenerate INDEX/category docs/contact sheets from data/references.json
 python3 scripts/ingest.py scan <folder> --batch-name batch-00N   # then fill the draft, then: ingest.py commit

@@ -176,6 +176,31 @@ def main():
     if "edit_qc.py" not in (root / "references" / "workflow.md").read_text(encoding="utf-8"):
         err("workflow.md does not run edit_qc.py (timeline QC) before delivery")
 
+    # ---------------- Creative Director workflow (mandatory phases, A/B/C/D, approval gates, decision log)
+    cdp = root / "references" / "creative-director.md"
+    if not cdp.exists():
+        err("missing references/creative-director.md (Creative Director workflow)")
+    else:
+        cd = cdp.read_text(encoding="utf-8")
+        for phrase in ("Phase 1: Analyze", "Phase 2: Present creative options", "Phase 3: Approval", "Phase 4: Animation preview",
+                       "Phase 5: Final render", "A, Visual Concept 1", "B, Visual Concept 2", "C, Visual Concept 3", "D, My Own Idea",
+                       "genuinely different", "three new concepts", "keep-visible", "timecoded transcript", "Group decisions",
+                       "Don't overwhelm", "explicitly approves", "creative decision log", "no questionnaire"):
+            if phrase not in cd:
+                err(f"creative-director.md lost '{phrase}'")
+    for phrase in ("Creative Director", "creative-director.md", "three genuinely different", "three new concepts",
+                   "explicitly approved", "directly in the conversation", "creative decision log"):
+        if phrase not in skill:
+            err(f"SKILL.md is missing the Creative Director rule about '{phrase}'")
+    rsrc = (root / "scripts" / "edit_render.py").read_text(encoding="utf-8")
+    if not re.search(r"def cmd_picture\(app, pj, a\):\n\s+if not a\.graphics:\n\s+require_final_approval", rsrc):
+        err("edit_render.py picture no longer enforces the final approval gate")
+    if '"approval"' not in (root / "scripts" / "edit_qc.py").read_text(encoding="utf-8"):
+        err("edit_qc.py no longer checks the recorded final approval")
+    isrc = (root / "scripts" / "edit_init.py").read_text(encoding="utf-8")
+    if "concepts.ts" not in isrc or "edit_decisions.py" not in isrc:
+        err("edit_init.py no longer creates concepts.ts and the creative decision log")
+
     # ---------------- Remotion app: kit present and the timeline contract intact
     app = None
     for d in [root, *root.parents]:
@@ -187,7 +212,7 @@ def main():
     else:
         kit = app / "src" / "kit"
         for f in ("SourceFootage.tsx", "TalkingHeadEdit.tsx", "SoundPreview.tsx", "timing.ts", "types.ts", "motion.ts", "tokens.ts",
-                  "beats/CaptionAccent.tsx", "beats/StatCard.tsx", "beats/HorizonTitle.tsx"):
+                  "concepts.ts", "beats/CaptionAccent.tsx", "beats/StatCard.tsx", "beats/HorizonTitle.tsx"):
             if not (kit / f).exists():
                 err(f"Remotion kit file missing: remotion-app/src/kit/{f}")
         if not (app / "scripts" / "export-sfx.ts").exists():
@@ -230,7 +255,7 @@ def main():
     n_alt = sum(len(r.get("alternates", [])) for r in refs)
     per_cat = ", ".join("%s %d" % (c, sum(1 for r in refs if r["category"] == c)) for c in V.CATEGORIES)
     nsnd = len(json.loads((root / "data" / "sounds.json").read_text())["sounds"]) if (root / "data" / "sounds.json").exists() else 0
-    print("%d references (%s), %d alternates, %d image files; System D: %d indexed sounds, source doc checksum verified, gain presets checked; Remotion kit + timeline contract %s. %d errors, %d warnings."
+    print("%d references (%s), %d alternates, %d image files; System D: %d indexed sounds, source doc checksum verified, gain presets checked; Creative Director gates checked; Remotion kit + timeline contract %s. %d errors, %d warnings."
           % (len(refs), per_cat, n_alt, total_files, nsnd, "checked" if app else "not found", len(errors), len(warnings)))
     sys.exit(1 if errors else 0)
 

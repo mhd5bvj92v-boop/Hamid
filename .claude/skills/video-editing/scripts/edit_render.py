@@ -1,24 +1,28 @@
 #!/usr/bin/env python3
-"""Render and export steps of the Remotion talking-head workflow.
+"""Render and export steps of the Remotion talking-head workflow (Creative Director phases 3-5).
 
-  python3 scripts/edit_render.py sfx <slug>                    # beat timeline + sound intents -> work/<slug>/sound/
-  python3 scripts/edit_render.py still <slug> --t 3.2 [--graphics]   # one frame -> work/<slug>/qc/still_3.200.png
-  python3 scripts/edit_render.py picture <slug> [--graphics] [--scale 2]
-                                                               # full picture -> work/<slug>/renders/picture.mp4
+  python3 scripts/edit_render.py sfx <slug>                    # beat + concept timeline, sound intents -> work/<slug>/sound/
+  python3 scripts/edit_render.py still <slug> --t 3.2 [--graphics] [--concept M03:A]
+  python3 scripts/edit_render.py concept-frames <slug> --moment M03 [--options A,B,C] [--sequence]
+                                                               # Phase 3: real preview frames of the proposed concepts
+  python3 scripts/edit_render.py draft-sound <slug>            # Phase 4: draft mix of cues.json (original as picture) + Studio preview
+  python3 scripts/edit_render.py preview <slug> --beat b03 | --concept M03:B | --all [--scale 0.5] [--handles 0.6]
+                                                               # Phase 4: short half-resolution motion previews (with draft sound)
+  python3 scripts/edit_render.py picture <slug> [--scale 2]    # Phase 5 ONLY: final full-resolution picture
+  python3 scripts/edit_render.py picture <slug> --graphics     # beats over black (review / motion measurement)
   python3 scripts/edit_render.py sound-preview <slug> --session work/<slug>/sound/final_v1/session.json
-                                                               # Studio preview of the mixed sound design
 
-picture: Remotion renders the composition Edit-<slug> as H.264 (yuv420p, BT.709, CRF 18) at the
-approved frame rate, with the source dialogue as its audio. The FINAL deliverable is made by
-scripts/sound_mix.py from this picture (picture stream copied untouched + the System D mix built from
-the untouched source dialogue), then checked by sound_qc.py and edit_qc.py.
---graphics renders the beats over black (no footage) for review or motion measurement.
---scale N renders a master at N x 1080x1920 (e.g. 2 for a 2160x3840 source); deliver with
-`edit_render.py downscale` only after QC.
+picture is the FINAL render: it refuses to run until the user's explicit final approval is recorded in the
+project's creative decision log (edit_decisions.py approve --gate final). Before that, use still,
+concept-frames and preview. The final deliverable is made by scripts/sound_mix.py from this picture
+(picture stream copied untouched + the System D mix built from the untouched source dialogue), then
+checked by sound_qc.py and edit_qc.py. --scale N renders a master at N x 1080x1920 (e.g. 2 for a
+2160x3840 source); `edit_render.py downscale` makes the 1080x1920 picture from it.
 """
 import argparse
 import json
 import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -32,11 +36,46 @@ def npx(app, args, log, env=None):
     return V.run(["npx", "--no-install", *args], cwd=app, env=env or V.browser_env(app), log=log)
 
 
+def creative_log(app, slug):
+    p = app / "src" / "projects" / slug / "creative-log.json"
+    return json.loads(p.read_text()) if p.exists() else None
+
+
+def require_final_approval(app, pj):
+    log = creative_log(app, pj["slug"])
+    if not log or not any(x["gate"] == "final" for x in log["approvals"]):
+        sys.exit("PHASE 5 GATE: the final full-resolution render needs the Creative Director's explicit final approval.\n"
+                 "Show the motion previews (edit_render.py preview), collect feedback, and only after the user approves the edit run:\n"
+                 f"  python3 scripts/edit_decisions.py approve {pj['slug']} --gate final --quote \"<the user's words>\"")
+
+
+def export_timeline(app, pj):
+    wd = Path(pj["work"])
+    r = npx(app, ["tsx", "scripts/export-sfx.ts", pj["slug"], str(wd / "sound")], wd / "qc" / "export-sfx.log", env=dict(os.environ))
+    return json.loads((wd / "sound" / "timeline.json").read_text()), r.stdout.strip()
+
+
+def bundle(app, pj):
+    """Bundle once, render many (each CLI render otherwise re-bundles)."""
+    out = Path(pj["work"]) / "renders" / "_bundle"
+    npx(app, ["remotion", "bundle", "--out-dir", str(out)], Path(pj["work"]) / "renders" / "bundle.log")
+    return str(out)
+
+
+def parse_concept(s):
+    if not s:
+        return None
+    m, _, o = s.partition(":")
+    if o.upper() not in ("A", "B", "C", "D"):
+        sys.exit("--concept must look like M03:A")
+    return {"moment": m, "option": o.upper()}
+
+
 def cmd_sfx(app, pj, a):
     wd = Path(pj["work"])
     out = wd / "sound"
-    r = npx(app, ["tsx", "scripts/export-sfx.ts", pj["slug"], str(out)], wd / "qc" / "export-sfx.log", env=dict(os.environ))
-    print(r.stdout.strip())
+    _, msg = export_timeline(app, pj)
+    print(msg)
     # reference IDs must exist in the library
     refs = {x["id"] for x in json.loads((V.SKILL_ROOT / "data" / "references.json").read_text())["references"]}
     tl = json.loads((out / "timeline.json").read_text())
@@ -60,22 +99,22 @@ def cmd_still(app, pj, a):
     fps = pj["approved"]["fps"]
     frame = min(int(round(a.t * fps)), pj["approved"]["durationInFrames"] - 1)
     out = Path(a.out) if a.out else wd / "qc" / f"still{'_gfx' if a.graphics else ''}_{a.t:.3f}.png"
-    props = json.dumps({"layers": "graphics" if a.graphics else "all"})
+    props = json.dumps({"layers": "graphics" if a.graphics else "all", "concept": parse_concept(a.concept)})
     npx(app, ["remotion", "still", pj["remotion"]["composition"], str(out), f"--frame={frame}", f"--props={props}", "--image-format=png"],
         wd / "qc" / "still.log")
     print(f"still   {out} (frame {frame} @ {fps} fps)")
 
 
 def cmd_picture(app, pj, a):
+    if not a.graphics:
+        require_final_approval(app, pj)
     wd = Path(pj["work"])
     name = "picture_graphics.mp4" if a.graphics else ("picture_master.mp4" if a.scale and a.scale != 1 else "picture.mp4")
     out = Path(a.out) if a.out else wd / "renders" / name
-    props = json.dumps({"layers": "graphics" if a.graphics else "all"})
+    props = json.dumps({"layers": "graphics" if a.graphics else "all", "concept": None})
     args = ["remotion", "render", pj["remotion"]["composition"], str(out), *H264, f"--props={props}", "--log=verbose"]
     if a.scale and a.scale != 1:
         args.append(f"--scale={a.scale}")
-    if a.frames:
-        args.append(f"--frames={a.frames}")
     log = wd / "renders" / (out.stem + ".log")
     npx(app, args, log)
     info = V.probe(out)
@@ -84,6 +123,7 @@ def cmd_picture(app, pj, a):
 
 
 def cmd_downscale(app, pj, a):
+    require_final_approval(app, pj)
     wd = Path(pj["work"])
     src = Path(a.input) if a.input else wd / "renders" / "picture_master.mp4"
     out = wd / "renders" / "picture.mp4"
@@ -91,6 +131,133 @@ def cmd_downscale(app, pj, a):
            "-pix_fmt", "yuv420p", "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", "-color_range", "tv",
            "-c:a", "copy", "-movflags", "+faststart", str(out)])
     print(f"picture {out} (lanczos downscale of {src.name})")
+
+
+def cmd_concept_frames(app, pj, a):
+    """Phase 3: render the proposed concepts of one moment as real frames over the footage, side by side."""
+    from PIL import Image, ImageDraw, ImageFont
+    if not a.moment:
+        sys.exit("--moment required")
+    tl, _ = export_timeline(app, pj)
+    rows = [c for c in tl.get("concepts", []) if c["moment"] == a.moment]
+    if not rows:
+        sys.exit(f"no concepts for {a.moment} in concepts.ts")
+    rnd = max(c["round"] for c in rows)
+    want = [o.strip().upper() for o in (a.options or "A,B,C,D").split(",")]
+    rows = [c for c in rows if c["round"] == rnd and c["option"] in want]
+    fps = pj["approved"]["fps"]
+    wd = Path(pj["work"])
+    outdir = wd / "previews" / f"{a.moment}_r{rnd}"
+    outdir.mkdir(parents=True, exist_ok=True)
+    serve = bundle(app, pj)
+    log = creative_log(app, pj["slug"]) or {"moments": []}
+    titles = {}
+    for m in log["moments"]:
+        if m["id"] == a.moment:
+            titles = {k: v.get("title", "") for k, v in (m.get("options") or {}).items()}
+    tiles = []
+    for c in sorted(rows, key=lambda c: c["option"]):
+        n = c["endFrame"] - c["startFrame"]
+        landed = c["endFrame"] - max(2, int(round(0.65 * fps)))      # settled, just before the exit starts
+        keys = ([min(c["startFrame"] + int(round(0.3 * fps)), landed), c["startFrame"] + n // 2, landed] if a.sequence else [landed])
+        props = json.dumps({"layers": "all", "concept": {"moment": c["moment"], "option": c["option"], "round": rnd}})
+        seq = outdir / c["option"]
+        if seq.exists():
+            shutil.rmtree(seq)
+        npx(app, ["remotion", "render", serve, pj["remotion"]["composition"], str(seq), f"--frames={','.join(map(str, keys))}",
+                  "--sequence", "--image-format=png", f"--props={props}", "--scale=0.5"], outdir / f"{c['option']}.log")
+        frames = sorted(seq.glob("*.png"))
+        tiles.append((c, [Image.open(f).convert("RGB") for f in frames], keys))
+    # contact sheet: one column per option (rows = key frames)
+    w, h = tiles[0][1][0].size
+    nrow = max(len(f) for _, f, _ in tiles)
+    pad, head = 16, 64
+    sheet = Image.new("RGB", (len(tiles) * (w + pad) + pad, head + nrow * (h + pad) + pad), (12, 13, 17))
+    d = ImageDraw.Draw(sheet)
+    try:
+        font = ImageFont.truetype("DejaVuSans-Bold.ttf", 22)
+        small = ImageFont.truetype("DejaVuSans.ttf", 16)
+    except OSError:
+        font = small = ImageFont.load_default()
+    for i, (c, frames, keys) in enumerate(tiles):
+        x = pad + i * (w + pad)
+        d.text((x, 12), f"{c['option']} - {titles.get(c['option'], c['kind'])}"[:34], fill=(255, 255, 255), font=font)
+        sysname = {"A": "on-screen", "B": "text", "C": "full-screen"}.get(c["system"], c["system"])
+        d.text((x, 40), f"{', '.join(c['refs'])}  ·  {'full-screen' if c['fullscreen'] else sysname}"[:44], fill=(170, 175, 190), font=small)
+        for j, (im, k) in enumerate(zip(frames, keys)):
+            y = head + j * (h + pad)
+            sheet.paste(im, (x, y))
+            d.text((x + 8, y + h - 26), f"{k / fps:.2f}s", fill=(255, 255, 255), font=small)
+    out = wd / "previews" / f"{a.moment}_r{rnd}_concepts.png"
+    sheet.save(out)
+    # remember the preview in the creative log
+    lp = app / "src" / "projects" / pj["slug"] / "creative-log.json"
+    if lp.exists():
+        lg = json.loads(lp.read_text())
+        for m in lg["moments"]:
+            if m["id"] == a.moment and m.get("options"):
+                for c, _, _ in tiles:
+                    if c["option"] in m["options"]:
+                        m["options"][c["option"]]["preview"] = str(out)
+        lp.write_text(json.dumps(lg, indent=1, ensure_ascii=False) + "\n")
+    print(f"concepts {a.moment} round {rnd}: {', '.join(c['option'] for c, _, _ in tiles)} -> {out}")
+
+
+def cmd_draft_sound(app, pj, a):
+    """Phase 4: a draft mix of the current cue sheet for the motion previews (never a deliverable)."""
+    wd = Path(pj["work"])
+    cues_path = Path(a.cues) if a.cues else wd / "sound" / "cues.json"
+    if not cues_path.exists():
+        sys.exit(f"{cues_path} missing: run edit_render.py sfx, then sfx_plan.py, then choose the sounds (passes 1-3)")
+    cues = json.loads(cues_path.read_text())
+    cues["video"] = pj["source"]["path"]          # same timeline as the edit; the draft never needs the final picture
+    cues["dialogue"] = {"file": pj["source"]["path"], "gain_db": 0}
+    draft = wd / "sound" / "cues_draft.json"
+    draft.write_text(json.dumps(cues, indent=1))
+    n = 1 + max([int(p.name.split("_v")[-1]) for p in (wd / "sound").glob("draft_v*") if p.name.split("_v")[-1].isdigit()] or [0])
+    out = wd / "sound" / f"draft_v{n}"
+    V.run([sys.executable, str(Path(__file__).with_name("sound_mix.py")), str(draft), "--out", str(out), "--passes", a.passes or "1,2,3", "--no-music"],
+          log=out.parent / f"draft_v{n}.log")
+    (out / "final.mp4").unlink(missing_ok=True)   # a draft is not an export
+    a.session = str(out / "session.json")
+    cmd_sound_preview(app, pj, a)
+    print(f"draft sound v{n}: {out} (stems + mix; previews now include it)")
+
+
+def cmd_preview(app, pj, a):
+    """Phase 4: short motion previews at reduced resolution (dialogue + draft sound), never the final export."""
+    wd = Path(pj["work"])
+    fps = pj["approved"]["fps"]
+    total = pj["approved"]["durationInFrames"]
+    concept = parse_concept(a.concept)
+    if a.all:
+        f0, f1, name = 0, total - 1, "full_edit"
+    else:
+        tl, _ = export_timeline(app, pj)
+        if concept:
+            rows = [c for c in tl.get("concepts", []) if c["moment"] == concept["moment"] and c["option"] == concept["option"]]
+            if not rows:
+                sys.exit(f"no concept {a.concept}")
+            rnd = max(c["round"] for c in rows)
+            row = [c for c in rows if c["round"] == rnd][0]
+            concept["round"] = rnd
+            name = f"{concept['moment']}{concept['option']}_r{rnd}"
+        else:
+            rows = [b for b in tl["beats"] if b["id"] == a.beat]
+            if not rows:
+                sys.exit(f"no beat {a.beat} in beats.ts")
+            row, name = rows[0], a.beat
+        h = int(round((a.handles if a.handles is not None else 0.6) * fps))
+        f0, f1 = max(0, row["startFrame"] - h), min(total - 1, row["endFrame"] + h)
+    n = 1 + len(list((wd / "previews").glob(f"{name}_v*.mp4")))
+    out = wd / "previews" / f"{name}_v{n}.mp4"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    props = json.dumps({"layers": "all", "concept": concept})
+    npx(app, ["remotion", "render", pj["remotion"]["composition"], str(out), *H264, f"--props={props}", f"--frames={f0}-{f1}",
+              f"--scale={a.scale or 0.5}"], out.with_suffix(".log"))
+    info = V.probe(out)
+    print(f"preview {out}  {info['width']}x{info['height']}  {f0 / fps:.2f}-{(f1 + 1) / fps:.2f}s of the timeline "
+          f"({info['duration']:.2f}s, {'with audio' if info['audio'] else 'no audio'})")
 
 
 def cmd_sound_preview(app, pj, a):
@@ -140,20 +307,23 @@ def cmd_sound_preview(app, pj, a):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("cmd", choices=["sfx", "still", "picture", "downscale", "sound-preview"])
+    ap.add_argument("cmd", choices=["sfx", "still", "concept-frames", "draft-sound", "preview", "picture", "downscale", "sound-preview"])
     ap.add_argument("slug")
     ap.add_argument("--app"); ap.add_argument("--work")
     ap.add_argument("--t", type=float, default=0.0); ap.add_argument("--out")
     ap.add_argument("--graphics", action="store_true"); ap.add_argument("--scale", type=float)
-    ap.add_argument("--frames", help="render only a frame range, e.g. 0-89 (previews)")
-    ap.add_argument("--session"); ap.add_argument("--input")
+    ap.add_argument("--session"); ap.add_argument("--input"); ap.add_argument("--cues"); ap.add_argument("--passes")
+    ap.add_argument("--concept", help="M03:A - render a proposed concept instead of the approved beats")
+    ap.add_argument("--moment"); ap.add_argument("--options"); ap.add_argument("--sequence", action="store_true")
+    ap.add_argument("--beat"); ap.add_argument("--all", action="store_true"); ap.add_argument("--handles", type=float)
     a = ap.parse_args()
     app = V.find_app(a.app)
     pj = V.load_project(app, a.slug, a.work)
     st = Path(pj["source"]["path"]).stat()     # fast check here; edit_qc.py verifies the full sha256
     if st.st_size != pj["source"]["size"] or st.st_mtime_ns != pj["source"].get("mtime_ns", st.st_mtime_ns):
         sys.exit("STOP: the original footage changed since edit_init (size/mtime differ). It must stay untouched.")
-    {"sfx": cmd_sfx, "still": cmd_still, "picture": cmd_picture, "downscale": cmd_downscale, "sound-preview": cmd_sound_preview}[a.cmd](app, pj, a)
+    {"sfx": cmd_sfx, "still": cmd_still, "concept-frames": cmd_concept_frames, "draft-sound": cmd_draft_sound, "preview": cmd_preview,
+     "picture": cmd_picture, "downscale": cmd_downscale, "sound-preview": cmd_sound_preview}[a.cmd](app, pj, a)
 
 
 if __name__ == "__main__":

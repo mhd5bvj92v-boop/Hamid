@@ -100,7 +100,7 @@ Report each pass from `cuesheet.csv`: what was placed, where (timecode), which v
 
 ## Step 7. Hand off for review, then music
 
-Deliver pass 3 for review. Add music only after approval:
+In the Creative Director workflow, passes 1-3 are reviewed as a **draft** inside the motion previews (`edit_render.py draft-sound <slug>`, then `edit_render.py preview ...`). The user's sound feedback goes into the same feedback rounds. Add music only after approval, and render the final mix only in Phase 5 (after the final approval):
 
 ```bash
 python3 scripts/sound_mix.py work/<slug>/sound/cues.json --out work/<slug>/sound/final_v1 --passes 1,2,3      # includes "music" from cues.json

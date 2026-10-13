@@ -14,6 +14,7 @@ import { mkdirSync, writeFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { beatWindow, kitTiming, TimingRegistry } from "../src/kit/timing";
+import type { ConceptBeat } from "../src/kit/concepts";
 import type { Beat, SourceInfo } from "../src/kit/types";
 
 const [slug, outDir] = process.argv.slice(2);
@@ -74,10 +75,33 @@ const main = async () => {
   const fsFrames = rows.filter((r) => r.fullscreen).reduce((s, r) => s + (r.endFrame - r.startFrame), 0);
   if (fsFrames / total > 0.25) warnings.push(`full-screen scenes cover ${((100 * fsFrames) / total).toFixed(0)}% of the runtime (guideline: <= 20-25%)`);
 
+  // Creative Director concepts (concepts.ts): windows for preview frames / motion previews
+  const concepts: ConceptBeat[] = existsSync(path.join(projectDir, "concepts.ts")) ? ((await load("concepts.ts")).CONCEPTS ?? []) : [];
+  const conceptRows = concepts.map((c) => {
+    const w = beatWindow(c.beat, timing, fps);
+    if (w.from < 0 || w.from + w.durationInFrames > total) errors.push(`concept ${c.moment}:${c.option} (round ${c.round}) runs outside the source timeline`);
+    if (!c.beat.refs?.length && c.option !== "D") warnings.push(`concept ${c.moment}:${c.option} lists no reference IDs (concepts must be grounded in the library)`);
+    return {
+      moment: c.moment,
+      option: c.option,
+      round: c.round,
+      id: c.beat.id,
+      kind: c.beat.kind,
+      system: w.system,
+      fullscreen: w.fullscreen,
+      startFrame: w.from,
+      endFrame: w.from + w.durationInFrames,
+      start: w.from / fps,
+      end: (w.from + w.durationInFrames) / fps,
+      refs: c.beat.refs ?? [],
+      reason: c.beat.reason ?? "",
+    };
+  });
+
   const fullscreen_windows = rows.filter((r) => r.fullscreen).map((r) => [r.start, r.end]);
   writeFileSync(
     path.join(outDir, "timeline.json"),
-    JSON.stringify({ slug, fps, durationInFrames: total, duration: total / fps, beats: rows, fullscreen_windows, graphic_windows: [], warnings, errors }, null, 1),
+    JSON.stringify({ slug, fps, durationInFrames: total, duration: total / fps, beats: rows, concepts: conceptRows, fullscreen_windows, graphic_windows: [], warnings, errors }, null, 1),
   );
   writeFileSync(
     path.join(outDir, "plan.json"),

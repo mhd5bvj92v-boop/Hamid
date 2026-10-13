@@ -4,11 +4,16 @@
   python3 scripts/edit_selftest.py [--keep]
 
 1. makes an 8 s synthetic "already-cut" clip (1080x1920 @ 30 fps, moving test pattern, TTS dialogue);
-2. edit_init.py -> Remotion project "selftest" (footage linked, never copied or modified);
-3. writes a beat list with one beat per system (B caption TXT-001, A stat card ONS-024, C horizon FUL-002);
-4. edit_render.py sfx (timeline + measured sound intents) -> sfx_plan.py -> cue sheet;
-5. assigns SYNTHETIC test sounds (sound_selftest fixtures, temp library; never a deliverable);
-6. edit_render.py picture (Remotion) -> sound_mix.py (final.mp4) -> sound_qc.py and edit_qc.py must pass;
+2. edit_init.py -> Remotion project "selftest" (footage linked, never copied or modified) + creative log;
+3. Creative Director phases 1-3: analysis -> three concepts per moment (duplicates rejected) -> real
+   concept preview frames -> a new round of concepts -> grouped decisions incl. D -> direction approval
+   (out-of-order approvals refused);
+4. approved beats (one per system: B caption TXT-001, A stat card ONS-024, C horizon FUL-002) ->
+   edit_render.py sfx (measured sound intents) -> sfx_plan.py -> cue sheet with SYNTHETIC test sounds;
+5. Phase 4: draft sound + a half-resolution motion preview with audio; feedback; the final render is
+   REFUSED before the final approval;
+6. Phase 5: final approval -> edit_render.py picture (Remotion) -> sound_mix.py (final.mp4) ->
+   sound_qc.py and edit_qc.py must pass;
 7. edit_render.py sound-preview + tsc: the Studio preview compiles;
 8. negative tests: a trimmed head, a sped-up copy, shifted audio and a cut in the middle must FAIL edit_qc;
 9. the original synthetic footage is byte-identical at the end.
@@ -71,6 +76,47 @@ export const BEATS: KitBeat[] = [
 
 export const FOCUS: FocusWindow[] = [{ start: 2.6, end: 5.0, brightness: 0.7, blur: 4 }];
 """
+
+
+CONCEPTS = """// SELF-TEST concepts for moment M03 (payoff line), round 1.
+import type { ConceptBeat } from "../../kit/concepts";
+import type { KitBeat } from "../../kit/timing";
+
+export const CONCEPTS: ConceptBeat<KitBeat>[] = [
+  { moment: "M03", option: "A", round: 1, beat: { id: "M03A", kind: "HorizonTitle", at: 5.2, reason: "number as a full-screen moment", refs: ["FUL-002"],
+    props: { kicker: "Every single day", value: 30, body: "Posts in one month", outAt: 1.9, riseDur: 1.2, numDur: 1.2, bodyAt: 1.1, numAt: 0.4 } } },
+  { moment: "M03", option: "B", round: 1, beat: { id: "M03B", kind: "StatCard", at: 5.2, reason: "stat card beside the speaker", refs: ["ONS-050"],
+    props: { label: "Posts in one month", value: 30, accent: "#22E37A", glow: "rgba(34,227,122,.5)", outAt: 1.9 } } },
+  { moment: "M03", option: "C", round: 1, beat: { id: "M03C", kind: "CaptionAccent", at: 5.2, reason: "the number as designed type", refs: ["TXT-003"],
+    props: { lines: [{ text: "30", style: "serif", at: 0.1 }, { text: "posts in a month", style: "sans-sm", at: 0.5 }], outAt: 1.9 } } },
+];
+"""
+
+ANALYSIS = {"transcript": "synthetic TTS (selftest)", "notes": "8 s synthetic cut",
+            "moments": [{"id": "M01", "in": 0.4, "out": 2.4, "words": "What is the big picture here", "section": "Hook", "why": "hook question"},
+                        {"id": "M02", "in": 2.6, "out": 5.0, "words": "We posted every day", "section": "Body", "why": "a concrete number"},
+                        {"id": "M03", "in": 5.2, "out": 7.6, "words": "And that changed everything for us", "section": "Payoff", "why": "payoff"}],
+            "keep_visible": []}
+
+
+def opt(title, system, kind, refs, desc):
+    return {"title": title, "system": system, "kind": kind, "refs": refs, "description": desc, "motion": "house easings", "sound": "per System D"}
+
+
+PROPOSALS = {"moments": {
+    "M01": {"recommend": "A", "options": {
+        "A": opt("Serif hook question", "B", "CaptionAccent", ["TXT-001"], "sans lead-in + amber serif 'big picture' under the chin"),
+        "B": opt("Extended caps keyword", "B", "new kind", ["TXT-007"], "one tracked keyword PICTURE with a thin kicker"),
+        "C": opt("Question chip", "A", "new kind", ["ONS-034"], "a prompt-bar chip types the question beside the speaker")}},
+    "M02": {"recommend": "B", "options": {
+        "A": opt("Calendar fills", "A", "ProgressGrid (port)", ["ONS-004"], "a 30-day grid fills cell by cell"),
+        "B": opt("Stat card 30", "A", "StatCard", ["ONS-024"], "glass stat card, curve draws to a peak, 30 counts up"),
+        "C": opt("Big serif 30", "B", "CaptionAccent", ["TXT-003"], "asymmetric serif number with a sans phrase")}},
+    "M03": {"recommend": "A", "options": {
+        "A": opt("Horizon number", "C", "HorizonTitle", ["FUL-002"], "full-screen planet horizon, 30 rises from the atmosphere"),
+        "B": opt("Green stat card", "A", "StatCard", ["ONS-050"], "speaker stays visible; green stat card beside him"),
+        "C": opt("Serif number caption", "B", "CaptionAccent", ["TXT-003"], "the number as designed type under the chin")}},
+}}
 
 
 def say(msg):
@@ -138,10 +184,41 @@ def main():
         assert link.is_symlink() and (link / src.name).resolve() == src.resolve(), "footage must be linked, not copied"
         say("  ok   240 frames @ 30 fps approved; footage folder linked into public/ (no copy)")
 
-        say("3. beat list (one beat per system)")
-        (app / "src" / "projects" / SLUG / "beats.ts").write_text(BEATS)
+        say("3. Creative Director phases 1-3 (analyze, options, approval)")
+        ED = [py, str(HERE / "edit_decisions.py")]
+        pdir = app / "src" / "projects" / SLUG
+        assert (pdir / "creative-log.json").exists(), "edit_init must create the creative decision log"
+        (d / "analysis.json").write_text(json.dumps(ANALYSIS))
+        step(ED + ["analyze", SLUG, "--file", str(d / "analysis.json")], env)
+        dup = json.loads(json.dumps(PROPOSALS))
+        dup["moments"]["M03"]["options"]["B"] = dict(dup["moments"]["M03"]["options"]["A"], title="copy")
+        (d / "dup.json").write_text(json.dumps({"moments": {"M03": dup["moments"]["M03"]}}))
+        step(ED + ["propose", SLUG, "--file", str(d / "dup.json")], env, expect=1)
+        say("       duplicate concepts rejected (A and B were the same idea)")
+        (d / "proposals.json").write_text(json.dumps(PROPOSALS))
+        step(ED + ["propose", SLUG, "--file", str(d / "proposals.json")], env)
+        (pdir / "concepts.ts").write_text(CONCEPTS)
+        step([py, str(HERE / "edit_render.py"), "concept-frames", SLUG, "--moment", "M03", "--app", str(app)], env)
+        sheet = work / SLUG / "previews" / "M03_r1_concepts.png"
+        from PIL import Image
+        assert sheet.exists() and Image.open(sheet).size[0] > 3 * 540, "concept sheet must show A, B and C side by side"
+        say(f"       concept preview frames: {sheet.name} {Image.open(sheet).size}")
+        step(ED + ["storyboard", SLUG], env)
+        step(ED + ["propose", SLUG, "--file", str(d / "proposals.json")], env)      # "three new concepts" -> round 2
+        lg = json.loads((pdir / "creative-log.json").read_text())
+        m3 = next(m for m in lg["moments"] if m["id"] == "M03")
+        assert m3["round"] == 2 and len(m3["history"]) == 1, "a new round must archive the previous concepts"
+        say("       new round of concepts archived round 1")
+        step(ED + ["approve", SLUG, "--gate", "final", "--quote", "looks good"], env, expect=1)
+        step(ED + ["approve", SLUG, "--gate", "direction", "--quote", "go"], env, expect=1)
+        say("       out-of-order approvals refused (final before direction; direction with open moments)")
+        step(ED + ["decide", SLUG, "--moments", "M01,M03", "--choice", "A", "--quote", "M01 and M03 A"], env)
+        step(ED + ["decide", SLUG, "--moments", "M02", "--choice", "D", "--custom", "option B's stat card with a green accent",
+                   "--combine", "B", "--quote", "M02: B but green"], env)
+        step(ED + ["approve", SLUG, "--gate", "direction", "--quote", "Approved, go ahead with these (selftest)"], env)
 
-        say("4. timeline + measured sound intents -> draft cue sheet")
+        say("4. approved beats -> timeline + measured sound intents -> draft cue sheet")
+        (pdir / "beats.ts").write_text(BEATS.replace('header: "Last 30 days"', 'accent: "#22E37A", glow: "rgba(34,227,122,.5)", header: "Last 30 days"'))
         step([py, str(HERE / "edit_render.py"), "sfx", SLUG, "--app", str(app)], env)
         lib = d / "SYNTHETIC_TEST_LIBRARY"
         SST.fixtures(lib)
@@ -153,7 +230,7 @@ def main():
         tl = json.loads((snd / "timeline.json").read_text())
         assert tl["fullscreen_windows"] and abs(tl["fullscreen_windows"][0][0] - 5.2) < 1e-6, tl["fullscreen_windows"]
 
-        say("5. assign SYNTHETIC test sounds (selftest only)")
+        say("4b. assign SYNTHETIC test sounds (selftest only)")
         idx = json.loads((d / "sounds.json").read_text())["sounds"]
         by_cat = {}
         for s in idx:
@@ -176,7 +253,22 @@ def main():
         (snd / "cues.json").write_text(json.dumps(cues, indent=1))
         say(f"  ok   {placed} cues placed with synthetic fixtures")
 
-        say("6. picture (Remotion) -> mix + final (sound_mix) -> QC")
+        say("5. Phase 4: draft sound + motion preview; the final render waits for approval")
+        step([py, str(HERE / "edit_render.py"), "draft-sound", SLUG, "--app", str(app)], env)
+        assert not (snd / "draft_v1" / "final.mp4").exists(), "a draft mix must not leave an export behind"
+        step([py, str(HERE / "edit_render.py"), "preview", SLUG, "--beat", "b02-stat", "--app", str(app)], env)
+        pv = work / SLUG / "previews" / "b02-stat_v1.mp4"
+        pinfo = V.probe(pv)
+        assert (pinfo["width"], pinfo["height"]) == (540, 960) and pinfo["audio"], pinfo
+        say(f"       motion preview {pv.name}: {pinfo['width']}x{pinfo['height']}, {pinfo['duration']:.2f}s, with dialogue + draft sound")
+        step([py, str(HERE / "edit_render.py"), "picture", SLUG, "--app", str(app)], env, expect=1)
+        say("       final render REFUSED without the Creative Director's final approval")
+        step(ED + ["feedback", SLUG, "--quote", "card a bit greener", "--change", "M02: greener accent (already applied)"], env)
+        step(ED + ["approve", SLUG, "--gate", "preview", "--quote", "previews look right (selftest)"], env)
+        step(ED + ["approve", SLUG, "--gate", "final", "--quote", "Approved, render the final (selftest)"], env)
+        step(ED + ["status", SLUG, "--require", "final"], env)
+
+        say("6. Phase 5: picture (Remotion) -> mix + final (sound_mix) -> QC")
         step([py, str(HERE / "edit_render.py"), "picture", SLUG, "--app", str(app)], env)
         step([py, str(HERE / "video_events.py"), str(work / SLUG / "renders" / "picture.mp4"), "--out", str(snd / "video_events.json")], env)
         step([py, str(HERE / "sound_mix.py"), str(snd / "cues.json"), "--out", str(snd / "final_v1"), "--passes", "1,2,3", "--no-music"], env)
@@ -209,6 +301,10 @@ def main():
             r = step([py, str(HERE / "edit_qc.py"), SLUG, "--final", str(out), "--app", str(app)], env, expect=1)
             errs = sorted({x["area"] for x in json.loads((bad / "edit_qc_report.json").read_text())["results"] if x["level"] == "ERROR"})
             say(f"       {name}: rejected ({', '.join(errs)})")
+
+        md = (pdir / "CREATIVE-LOG.md").read_text()
+        assert "D (own idea)" in md and "**final**" in md and "round 2" in md, "the decision log must record choices, rounds and approvals"
+        say("  ok   CREATIVE-LOG.md records the decisions (incl. D), both concept rounds, feedback and approvals")
 
         say("9. original footage untouched")
         same = V.sha256(src) == sha0

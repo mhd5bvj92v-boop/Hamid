@@ -20,11 +20,13 @@ original cut (never touched) ──► edit_init.py ──► src/projects/<slug
 |---|---|---|
 | `remotion-app/src/kit/` | the edit kit (below) | extend carefully; keep the timeline contract |
 | `remotion-app/src/projects/<slug>/source.ts` | timeline facts of the original: src, source size/fps/duration, approved fps, `durationInFrames`, sha256 | **generated** by `edit_init.py`, never by hand |
-| `.../beats.ts` | `HOOK_END`, `BEATS` (the graphics edit decision list), `FOCUS` | yes: this is the edit |
+| `.../beats.ts` | `HOOK_END`, `BEATS` (the approved graphics edit decision list), `FOCUS` | yes: this is the edit (after the direction approval) |
+| `.../concepts.ts` | `CONCEPTS`: the proposed A/B/C (and D) concepts per moment and round, as renderable beats | yes: Phase 2 previews |
+| `.../creative-log.json` + `CREATIVE-LOG.md` | the creative decision log (moments, concept rounds, choices, feedback, approvals) | via `edit_decisions.py` only |
 | `.../Edit.tsx` | the composition component (`TalkingHeadEdit` + project extras) | yes, for custom components |
 | `.../timing.ts` (optional) | `PROJECT_TIMING`: pure timing + sound intents of project-specific kinds | yes |
 | `.../sound-preview.ts` | Studio sound preview data | **generated** by `edit_render.py sound-preview` |
-| `.../index.tsx` | `<Composition id="Edit-<slug>">` at the approved fps, `SOURCE.durationInFrames` frames, 1080x1920 | generated once |
+| `.../index.tsx` | `<Composition id="Edit-<slug>">` at the approved fps, `SOURCE.durationInFrames` frames, 1080x1920; props `layers` and `concept` (`{moment, option, round?}` renders one concept instead of the approved beats) | generated once |
 | `remotion-app/src/projects/index.tsx` | registry of all projects | **generated** |
 | `remotion-app/public/projects/<slug>/footage` | symlink to the original's folder (no copy) | generated, git-ignored |
 | `work/<slug>/` | manifest (`project.json`), frames, plan, renders, sound, QC | git-ignored |
@@ -76,8 +78,11 @@ The other templates (`live-ui-list` for ONS-001/003, `progress-grid` for ONS-004
 
 | Output | How | Settings |
 |---|---|---|
-| Still preview | `edit_render.py still <slug> --t S [--graphics]` | PNG at the composition size |
-| Picture | `edit_render.py picture <slug>` | H.264, yuv420p, BT.709 limited range, CRF 18, AAC, JPEG frame capture, the approved fps |
+| Still preview | `edit_render.py still <slug> --t S [--graphics] [--concept M03:A]` | PNG at the composition size |
+| Concept preview frames (Phase 2) | `edit_render.py concept-frames <slug> --moment M03 [--sequence]` | A, B, C side by side over the real footage (half resolution, one bundle reused) |
+| Draft sound (Phase 4) | `edit_render.py draft-sound <slug>` | `sound_mix.py` on the current cue sheet with the original as picture; stems + session, no export; updates the Studio preview |
+| Motion preview (Phase 4) | `edit_render.py preview <slug> --beat ID / --concept M03:B / --all` | half resolution (`--scale 0.5`), the beat ±0.6 s, H.264 with dialogue + draft sound |
+| Picture (Phase 5) | `edit_render.py picture <slug>` | **refuses without the user's final approval in the creative log.** H.264, yuv420p, BT.709 limited range, CRF 18, AAC, JPEG frame capture, the approved fps |
 | Graphics only | `edit_render.py picture <slug> --graphics` | beats over black (review, motion measurement) |
 | Source-resolution master | `edit_render.py picture <slug> --scale 2`, then `edit_render.py downscale <slug>` | for sources above 1080x1920: renders at e.g. 2160x3840, then a lanczos downscale to the 1080x1920 picture |
 | Final export | `sound_mix.py` | picture stream copied untouched + the System D mix (AAC 320k, 48 kHz) |
@@ -105,5 +110,7 @@ The other templates (`live-ui-list` for ONS-001/003, `progress-grid` for ONS-004
 - `edit_qc.py`: 0 errors. 240/240 frames, 8.000 s, 12 graphics-free frames matched the source at the same time (PSNR ≥ 46 dB), the face came back in sync after the full-screen scene, and the audio lag was 0.00 ms;
 - a trimmed head, a 4% speed-up, an 80 ms audio shift and a 0.5 s cut in the middle were **all rejected** by `edit_qc.py`;
 - the original's sha256 was unchanged at the end.
+
+Creative Director workflow (added the same day, same self-test): the analysis and three moments were recorded; a proposal whose A and B were the same idea was rejected; `concept-frames` rendered A | B | C for M03 over the footage (checked by eye: settled frames, labels, references); a second round archived the first; a final approval before the direction, and a direction approval with undecided moments, were both refused; grouped decisions incl. a D were recorded; draft sound + a 540x960 motion preview with audio were rendered; **`picture` refused to render before the final approval**; after the preview and final approvals it rendered, and `edit_qc.py` confirmed the approval. `CREATIVE-LOG.md` recorded every round, decision, feedback and approval.
 
 Not yet tested: real footage, VFR phone footage, non-9:16 sources with `--fit cover`, `--scale` masters, and a real sound library.

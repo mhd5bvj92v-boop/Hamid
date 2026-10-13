@@ -4,6 +4,7 @@
   python3 scripts/edit_qc.py <slug> --final work/<slug>/sound/final_v1/final.mp4 [--samples 12]
 
 Compares the delivered file with the ORIGINAL footage recorded by edit_init.py:
+  approval   the Creative Director's explicit final approval is recorded in the project's creative decision log
   source     the original still has its recorded sha256 (untouched) and is not the output file
   spec       MP4, H.264, 1080x1920, yuv420p, BT.709 limited range, the approved constant frame rate, AAC 48 kHz audio
   duration   same length as the source (+-1 frame) and exactly round(duration * fps) frames: nothing removed or added
@@ -97,6 +98,15 @@ def main():
         add("ERROR", "source", "the output path IS the original footage")
     same = V.sha256(src) == pj["source"]["sha256"]
     add("PASS" if same else "ERROR", "source", "original footage unchanged (sha256 matches intake)" if same else "original footage CHANGED since intake")
+
+    # ---- Creative Director approval (Phase 5 gate)
+    lp = app / "src" / "projects" / a.slug / "creative-log.json"
+    log = json.loads(lp.read_text()) if lp.exists() else None
+    fin = [x for x in (log or {}).get("approvals", []) if x["gate"] == "final"]
+    if fin:
+        add("PASS", "approval", f"final render approved by the Creative Director ({fin[-1]['at']}: \"{fin[-1]['quote']}\")")
+    else:
+        add("ERROR", "approval", "no final approval in the creative decision log: a final export may only be made after the user explicitly approves the edit")
 
     # ---- spec
     if not final.exists():

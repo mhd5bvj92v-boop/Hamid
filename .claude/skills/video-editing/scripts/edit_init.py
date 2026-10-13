@@ -9,7 +9,8 @@ What it does (nothing is ever written to or next to the original):
   3. links it into the Remotion app (public/projects/<slug>/footage -> the original's folder; no copy);
   4. writes work/<slug>/project.json (the manifest) and creates the editable Remotion project
      src/projects/<slug>/: source.ts (GENERATED, timeline facts), beats.ts (the beat list you edit),
-     sound-preview.ts (GENERATED later), Edit.tsx and index.tsx (the composition Edit-<slug>);
+     concepts.ts (Creative Director concepts A/B/C/D for preview renders), sound-preview.ts (GENERATED later),
+     Edit.tsx and index.tsx (the composition Edit-<slug>), and the creative decision log (edit_decisions.py);
   5. regenerates src/projects/index.tsx so the composition shows up in Remotion Studio.
 
 The composition is exactly as long as the source (round(duration * fps) frames) at the approved
@@ -74,17 +75,39 @@ export const SOUND_PREVIEW: SoundPreviewData | null = null;
 """
 
 EDIT_TSX = """import React from "react";
+import {{ ConceptPick, selectBeats }} from "../../kit/concepts";
 import {{ EditLayers, TalkingHeadEdit }} from "../../kit/TalkingHeadEdit";
 import {{ BEATS, FOCUS }} from "./beats";
+import {{ CONCEPTS }} from "./concepts";
 import {{ SOUND_PREVIEW }} from "./sound-preview";
 import {{ SOURCE }} from "./source";
 
 // Talking-head edit "{slug}": untouched source footage + designed beats.
+// `concept` renders one proposed concept (concepts.ts) instead of the approved
+// beats, for Creative Director preview frames and motion previews.
 // Project-specific components go here (pass them as extraComponents and
 // their pure timing as extraTiming from ./timing.ts).
-export const Edit: React.FC<{{ layers: EditLayers }}> = ({{ layers }}) => (
-  <TalkingHeadEdit source={{SOURCE}} beats={{BEATS}} focus={{FOCUS}} sound={{SOUND_PREVIEW}} layers={{layers}} />
+export const Edit: React.FC<{{ layers: EditLayers; concept: ConceptPick }}> = ({{ layers, concept }}) => (
+  <TalkingHeadEdit
+    source={{SOURCE}}
+    beats={{selectBeats(BEATS, CONCEPTS, concept)}}
+    focus={{concept ? [] : FOCUS}}
+    sound={{concept ? null : SOUND_PREVIEW}}
+    layers={{layers}}
+  />
 );
+"""
+
+CONCEPTS_TS = """// Proposed concepts for "{slug}" (Creative Director workflow, Phase 2).
+// For each major moment: options A, B and C (and D once the user describes their
+// own idea), each a renderable beat, so preview frames and motion previews can be
+// made before anything is approved. Approved concepts are copied into beats.ts.
+// The options are presented to the user by Claude in chat; this file only feeds
+// the preview renders (edit_render.py concept-frames / preview --concept).
+import type {{ ConceptBeat }} from "../../kit/concepts";
+import type {{ KitBeat }} from "../../kit/timing";
+
+export const CONCEPTS: ConceptBeat<KitBeat>[] = [];
 """
 
 INDEX_TSX = """import React from "react";
@@ -101,7 +124,7 @@ export const Composition_{ident}: React.FC = () => (
     fps={{SOURCE.fps}}
     width={{SOURCE.width}}
     height={{SOURCE.height}}
-    defaultProps={{{{ layers: "all" as const }}}}
+    defaultProps={{{{ layers: "all" as const, concept: null }}}}
     calculateMetadata={{() => ({{ defaultCodec: "h264" as const, defaultOutName: "{slug}-picture.mp4" }})}}
   />
 );
@@ -201,7 +224,7 @@ def main():
     (pdir / "source.ts").write_text(SOURCE_TS.format(src=json.dumps(rel), sw=info["width"], sh=info["height"], sfps=round(info["fps"] or fps, 6),
                                                       dur=round(info["duration"], 6), fps=fps, frames=frames, sha=sha))
     created = []
-    for name, text in (("beats.ts", BEATS_TS.format(slug=a.slug)), ("sound-preview.ts", SOUND_TS),
+    for name, text in (("beats.ts", BEATS_TS.format(slug=a.slug)), ("concepts.ts", CONCEPTS_TS.format(slug=a.slug)), ("sound-preview.ts", SOUND_TS),
                        ("Edit.tsx", EDIT_TSX.format(slug=a.slug)),
                        ("index.tsx", INDEX_TSX.format(ident=ident(a.slug), comp=V.comp_id(a.slug), slug=a.slug))):
         if not (pdir / name).exists():
@@ -231,6 +254,11 @@ def main():
     print(f"project src/projects/{a.slug}/ ({'created ' + ', '.join(created) if created else 'existing files kept'}; source.ts regenerated)")
     print(f"studio  composition {V.comp_id(a.slug)} ({len(projects)} project(s) registered)")
     print(f"work    {wd}  (manifest: project.json)")
+    # Creative Director workflow: the project's decision log (committed next to the Remotion source)
+    import subprocess
+    r = subprocess.run([sys.executable, str(Path(__file__).with_name("edit_decisions.py")), "init", a.slug, "--app", str(app)]
+                       + (["--work", a.work] if a.work else []), capture_output=True, text=True)
+    print("log     " + (r.stdout.strip() or r.stderr.strip()))
 
 
 if __name__ == "__main__":

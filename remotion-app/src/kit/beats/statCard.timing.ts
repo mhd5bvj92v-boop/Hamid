@@ -37,6 +37,8 @@ export type StatCardProps = {
 // Type scales with the card (uiScale = cardWidth / 0.62) unless set.
 export const statDefaults = (p: StatCardProps) => {
   const cardWidth = p.cardWidth ?? (p.fullscreen ? 0.62 : 0.4);
+  const drawAt = p.drawAt ?? 0.45;
+  const countAt = p.countAt ?? 0.9;
   return {
     center: p.center ?? { x: 0.5, y: p.fullscreen ? 0.5 : 0.71 },
     cardWidth,
@@ -44,10 +46,15 @@ export const statDefaults = (p: StatCardProps) => {
     accent: p.accent ?? "#2F6BFF",
     glow: p.glow ?? "rgba(47,107,255,.55)",
     inAt: p.inAt ?? 0.15,
-    drawAt: p.drawAt ?? 0.45,
-    drawDur: p.drawDur ?? 1.1,
-    countAt: p.countAt ?? 0.9,
-    countDur: p.countDur ?? 1.1,
+    drawAt,
+    // the draw and the count-up always finish while the card is fully visible
+    // (>= 0.15 s before the exit), however short the beat is
+    drawDur: Math.max(0.3, Math.min(p.drawDur ?? 1.1, p.outAt - 0.15 - drawAt)),
+    countAt,
+    countDur: Math.max(
+      0.3,
+      Math.min(p.countDur ?? 1.1, p.outAt - 0.15 - countAt),
+    ),
     outDur: p.outDur ?? 0.35,
   };
 };
