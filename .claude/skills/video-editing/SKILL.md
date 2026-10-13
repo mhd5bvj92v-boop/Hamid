@@ -1,5 +1,5 @@
 ---
-name: video-visual-editing
+name: video-editing
 description: Premium editing system for short-form talking-head videos, covering visuals and professional sound design. It is built from a curated, growing library of visual references (182 unique references from 219 files in batch-001) and from Joseph's sound design system (Ultimate Editors). Use it whenever the user provides a talking-head video, script or transcript to edit; asks for captions or kinetic typography, on-screen overlays, or full-screen animated scenes or transitions; asks for sound design, SFX, whooshes, risers, music levels or a mix; wants a visual or sound plan or a cue sheet; or adds new visual references or sound effects to the libraries. It has four coordinated systems (A on-screen visuals, B text and text animation, C full-screen animations, D professional sound design), searchable reference and sound indexes, and render, mix and QC scripts built on HTML templates, Playwright, numpy and ffmpeg. Remotion is never used.
 compatibility: Library scripts need Python 3 with Pillow and numpy. Rendering needs Node + Playwright/Chromium and ffmpeg. Sound needs ffmpeg + numpy. Optional - Blender, whisper, rembg. Remotion is not used.
 ---
@@ -117,4 +117,4 @@ python3 scripts/sound_selftest.py                                  # prove the s
 
 ## Packaging
 
-The skill is self-contained in this folder. To produce an installable archive, zip the folder, for example with skill-creator's `package_skill.py` (`python3 -m scripts.package_skill <path-to-this-folder> <out-dir>`, run from the skill-creator directory), or with `zip -r video-visual-editing.skill video-visual-editing -x '*/__pycache__/*' '*/data/inbox/*'`. To install in Claude Code, copy the folder to `~/.claude/skills/video-visual-editing/` (personal) or `.claude/skills/video-visual-editing/` (project).
+The skill is self-contained in this folder. To produce an installable archive, zip the folder, for example with skill-creator's `package_skill.py` (`python3 -m scripts.package_skill <path-to-this-folder> <out-dir>`, run from the skill-creator directory), or, from `.claude/skills/`, with `zip -r video-editing.skill video-editing -x '*/__pycache__/*' '*/data/inbox/*' '*/work/*'`. In this repository the skill already lives at `.claude/skills/video-editing/`, so Claude Code discovers it automatically for any session started in the repo. To use it in other projects, copy the folder to `~/.claude/skills/video-editing/` (personal) or `<project>/.claude/skills/video-editing/` (project).

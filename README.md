@@ -9,8 +9,10 @@ A reusable Claude Skill for premium short-form video editing. It has four coordi
 
 Remotion is never used.
 
-- **Skill source:** [`video-visual-editing/`](video-visual-editing/SKILL.md)
-- **Installable package:** [`dist/video-visual-editing.skill`](dist/video-visual-editing.skill) (zip archive, about 21 MB)
+- **Skill source:** [`.claude/skills/video-editing/`](.claude/skills/video-editing/SKILL.md) (skill name `video-editing`)
+- **Installable package:** [`dist/video-visual-editing.skill`](dist/video-visual-editing.skill) (zip archive, about 21 MB). It was built before the move and still uses the old folder and skill name `video-visual-editing`. Apart from the name and the packaging note in `SKILL.md`, its content matches the current source byte for byte.
+
+The skill used to live in `video-visual-editing/` at the repository root. It was moved to `.claude/skills/video-editing/` so Claude Code discovers it automatically. Only three things changed: the `name:` field and the packaging note in `SKILL.md`, and the `"skill"` label in `data/references.json`. Every other file is byte-identical. The old path is still in the git history.
 
 ## What's inside
 
@@ -27,8 +29,9 @@ Remotion is never used.
 
 ## Install
 
-- **Claude Code (personal):** copy `video-visual-editing/` to `~/.claude/skills/video-visual-editing/`
-- **Claude Code (project):** copy it to `<project>/.claude/skills/video-visual-editing/`
+- **This repository:** nothing to do. Claude Code loads project skills from `.claude/skills/`, so any session started in this repo has `video-editing` (also available as `/video-editing`).
+- **Claude Code (personal):** copy `.claude/skills/video-editing/` to `~/.claude/skills/video-editing/`
+- **Claude Code (other project):** copy it to `<project>/.claude/skills/video-editing/`
 - **Claude apps:** upload `dist/video-visual-editing.skill` where Skills are managed
 
 Requirements: Python 3 with Pillow and numpy; Node + Playwright/Chromium and ffmpeg for rendering; ffmpeg + numpy for sound.
@@ -36,7 +39,7 @@ Requirements: Python 3 with Pillow and numpy; Node + Playwright/Chromium and ffm
 ## Adding your sound effects
 
 ```bash
-cd video-visual-editing
+cd .claude/skills/video-editing
 python3 scripts/sfx_index.py scan /path/to/your/SFX     # indexed in place; nothing is copied or modified
 python3 scripts/sound_selftest.py                       # checks the sound toolchain in this environment
 ```
@@ -44,11 +47,11 @@ python3 scripts/sound_selftest.py                       # checks the sound toolc
 ## Adding more references later
 
 ```bash
-cd video-visual-editing
+cd .claude/skills/video-editing
 python3 scripts/ingest.py scan /path/to/new-images --batch-name batch-002
 # Claude analyses each new image and fills data/inbox/draft.json
 python3 scripts/ingest.py commit
 python3 scripts/validate.py
 ```
 
-See `video-visual-editing/references/extending-library.md`.
+See `.claude/skills/video-editing/references/extending-library.md`.
