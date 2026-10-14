@@ -35,9 +35,11 @@ All choices, concept rounds, feedback and approvals are saved per project in one
 cd remotion-app && npm i && npm run studio      # http://127.0.0.1:3010
 ```
 
-Import your cut and your timestamped script, click or drag over your words, pick **Text Animation / On-Screen Visual / Full-Screen Animation / Sound Design**, compare A/B/C (real Remotion preview stills) or write D, choose, fine-tune in the inspector or on the timeline (the Remotion Player updates live), adjust the SFX track, approve, render a motion preview, and export the final MP4 (Remotion picture + sound mix from your original dialogue + QC). Details: `.claude/skills/video-editing/references/remotion.md` §8. `npm run studio:test` runs the end-to-end test.
+Two connected workspaces over one `edit.json` and one Remotion composition:
+- **Scene Planning:** set the Constants for the Whole Edit, then plan sentence by sentence: scene type (Captions Only, Captions + UI, Halfscreen, Fullscreen, with examples from your library), what happens on screen, optional "Ask Claude for Ideas" with A/B/C/D, then approve the plans.
+- **Timeline Editor:** the multi-track timeline, Remotion Player, inspector, sound track and export. Retime a scene in either view and the other, its animation and its sounds follow.
 
-The instant A/B/C you see for a new segment are library drafts; ask Claude in the chat for its own concepts (the Studio's "Ask Claude" button leaves the request in `edit.json`).
+Claude Code processes your requests in a Claude Code session (no automatic Claude connection): `python3 .claude/skills/video-editing/scripts/edit_decisions.py pending`. It writes the Remotion components; nothing counts as built until Remotion has rendered it. **Everything you export is rendered by Remotion**: your original footage and dialogue (unchanged), every animation layer and every sound effect, then QC. Quick Drafts are instant template versions, labelled as such. Details: `.claude/skills/video-editing/references/remotion.md` §8. Tests: `npm run studio:test`, `studio:test:claude`, `studio:test:plan`.
 
 ## The workflow in short
 
@@ -51,10 +53,11 @@ python3 $S/edit_render.py sfx my-video                                     # mea
 python3 $S/sfx_plan.py work/my-video/sound/plan.json --out work/my-video/sound/cues.json
 python3 $S/edit_render.py draft-sound my-video && python3 $S/edit_render.py preview my-video --all   # phase 4 previews
 python3 $S/edit_decisions.py approve my-video --gate final --quote "<your words>"                     # phase 5, after your approval
-python3 $S/edit_render.py picture my-video                                 # final Remotion picture
-python3 $S/sound_mix.py work/my-video/sound/cues.json --out work/my-video/sound/final_v1 --passes 1,2,3
+python3 $S/sound_mix.py work/my-video/sound/cues.json --out work/my-video/sound/final_v1 --passes 1,2,3   # offline check of the sound plan
 python3 $S/sound_qc.py work/my-video/sound/final_v1
-python3 $S/edit_qc.py my-video --final work/my-video/sound/final_v1/final.mp4   # proves duration, frames, sync, untouched original
+python3 $S/edit_render.py final my-video --session work/my-video/sound/final_v1/session.json
+#   Remotion renders THE final (footage + every layer + those sounds) -> work/my-video/renders/final_v1.mp4,
+#   then edit_qc proves duration, frames, sync, the dialogue untouched and every effect present
 ```
 
 `work/`, `remotion-app/out/` and `remotion-app/public/projects/` are git-ignored: rendered media never goes into the repository. Rendering is local only (no AWS/Lambda, no paid render service).

@@ -241,11 +241,11 @@ Full-screen scenes carry the widest, roomiest sounds and the scene's single loud
 
 ## 11. Joseph's Remotion instructions in this pipeline
 
-His document assumed Remotion. This repository now uses Remotion for the picture, so most of his Part B applies directly. The one deliberate difference: the final mix is rendered by `sound_mix.py` from the cue sheet (sample-accurate anchors, voice bit-identical, clip protection, QC) instead of by Remotion's `<Audio>` mixer, and Remotion Studio shows a generated preview of the same placements.
+His document assumed Remotion, and so does this pipeline: **Remotion places and mixes every sound in the final render** (Remotion-first, `SKILL.md` rule 8). The cue sheet is planned with `sfx_plan.py`; `sound_mix.py` mixes it offline only so `sound_qc.py` can check the plan (anchors, presets, voice on top, headroom, the hits it pulls to avoid clipping); `edit_render.py sound-preview` / `final --session` put exactly those placements and gains into the Remotion composition as `<Audio>` layers, and `edit_qc.py` then checks the Remotion render itself (voice untouched, every effect present, no clipping). In the Studio, the SFX track of `edit.json` is placed by `StudioEdit` the same way.
 
 | Joseph's document (Remotion) | This pipeline |
 |---|---|
-| Sound design "inside the Remotion project, on the composition timeline" | The **cue sheet** (`work/<slug>/sound/cues.json`) is the sound timeline, built from the Remotion beats' measured motion. `sound_mix.py` renders it sample-accurately; `edit_render.py sound-preview` puts the same placements on the Remotion Studio timeline as `<Audio>` layers (`SFX <id>`). |
+| Sound design "inside the Remotion project, on the composition timeline" | The **cue sheet** (`work/<slug>/sound/cues.json`, or the Studio's SFX track) is planned from the Remotion beats' measured motion and placed in the Remotion composition as `<Audio>` layers (`SFX <id>`); the final MP4 is rendered by Remotion with them. `sound_mix.py` is an offline check of the plan. |
 | "Separate editable tracks so Joseph can inspect in Remotion Studio" | In Studio: one `<Audio>` sequence per placement (preview, ±½ frame). For mixing: **per-family stems** (DIALOGUE, WHOOSHES, TEXTURES, RISERS, HITS, ENV, MUSIC) aligned to 00:00:00:00, plus `cuesheet.csv` and `session.json`. Stems import into Premiere, Resolve, Final Cut, Audacity or any DAW. |
 | Remotion `<Audio>` volume per clip | `gain_db` per cue (clip gain), with family presets; the preview converts it to `volume`. |
 | Composition fps / frames | The approved fps of `Edit-<slug>` (the source's rate unless approved otherwise); timecodes in HH:MM:SS:FF. |
@@ -255,7 +255,7 @@ His document assumed Remotion. This repository now uses Remotion for the picture
 | "Joseph fixes something by hand in Remotion Studio" (Step 8) | The user edits `cues.json` (or tells Claude what they changed while previewing in Studio or in their NLE). Claude diffs the cue sheets and extends the same logic to every similar cue (`sound-design-workflow.md` §8). |
 | "Generate a sound when the library has no fit" (one per generation) | No sound-effect generation model is available here. Report the gap and ask the user for a sound. Synthetic ffmpeg/numpy placeholders are allowed **only** for timing previews the user knows about, never in a delivered edit. |
 | "You cannot EQ/muffle audio you didn't create" | ffmpeg *can* process audio here. Keep Joseph's spirit: don't reshape library sounds by default. If a processed variant is needed (muffled, filtered), write it as a **new file**, log it in the cue, and never touch the original. |
-| Hand off in Remotion Studio for manual finishing | Hand off `final.mp4`, the Remotion project (`Edit-<slug>`, with the sound preview), the stems, `cuesheet.csv`, `cues.json` and the QC reports. Expect the user to refine; that's by design. |
+| Hand off in Remotion Studio for manual finishing | Hand off the Remotion render (`renders/final_vN.mp4`), the Remotion project (`Edit-<slug>` with its sound layers, or `edit.json` in the Studio), the analysis stems, `cuesheet.csv`, `cues.json` and the QC reports. Expect the user to refine; that's by design. |
 
 ## 12. Quick reference
 
@@ -266,8 +266,9 @@ python3 scripts/sfx_audition.py --group "Whooshes/Hollow" --fit-duration 0.6 --o
 python3 scripts/edit_render.py sfx <slug>                               # Remotion beats -> measured intents + timeline + plan.json
 python3 scripts/video_events.py work/<slug>/renders/picture.mp4 --out work/<slug>/sound/video_events.json --strip work/<slug>/sound/events.png
 python3 scripts/sfx_plan.py work/<slug>/sound/plan.json --out work/<slug>/sound/cues.json      # draft cue sheet (proposals)
-python3 scripts/sound_mix.py work/<slug>/sound/cues.json --out work/<slug>/sound/final_v1 --passes 1,2,3 --no-music
+python3 scripts/sound_mix.py work/<slug>/sound/cues.json --out work/<slug>/sound/final_v1 --passes 1,2,3 --no-music   # offline check of the plan
 python3 scripts/sound_qc.py work/<slug>/sound/final_v1 --events work/<slug>/sound/video_events.json
-python3 scripts/edit_render.py sound-preview <slug> --session work/<slug>/sound/final_v1/session.json   # Studio preview
+python3 scripts/edit_render.py sound-preview <slug> --session work/<slug>/sound/final_v1/session.json   # the placements -> Remotion composition
+python3 scripts/edit_render.py final <slug> --session work/<slug>/sound/final_v1/session.json          # Phase 5: Remotion renders the final, edit_qc checks it
 python3 scripts/sound_selftest.py                                         # proves the toolchain works here
 ```

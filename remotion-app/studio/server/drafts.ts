@@ -64,6 +64,33 @@ export const draftConcepts = (seg: CreativeSegment): { A: Concept; B: Concept; C
     };
   }
 
+  if (seg.sceneType === "halfscreen") {
+    // no half-screen reference in the library yet: three layouts of the kit's HalfPanel, honestly without refs
+    const words = seg.text.replace(/[.,!?;:]+$/, "").split(/\s+/);
+    const headline = words.length <= 6 ? seg.text.replace(/[.,!?;:]+$/, "") : key;
+    return {
+      recommend: "A",
+      A: draft({
+        title: "Half panel: headline + accent", system: "A", kind: "HalfPanel", refs: [], family: "HALFSCREEN",
+        description: `a dark panel fills the lower half with "${headline}" (accent on "${key}"); you stay visible above it`,
+        motion: "panel slides up from the bottom edge, slides back down", sound: "soft whoosh on the slide",
+        props: { headline, accent: key },
+      }),
+      B: draft({
+        title: "Half panel: checklist", system: "A", kind: "HalfPanel", refs: [], family: "HALFSCREEN",
+        description: `lower-half panel with your words as short check rows: ${chunks(seg.text, 3).map((c) => `"${c}"`).join(", ")}`,
+        motion: "panel slides up, rows stagger in", sound: "whoosh + a UI tick per row",
+        props: { headline: key, accent: key, rows: chunks(seg.text, 3), accentFont: "Montserrat" },
+      }),
+      C: draft({
+        title: "Half panel: warm kicker", system: "A", kind: "HalfPanel", refs: [], family: "HALFSCREEN",
+        description: `amber-accented lower half: small kicker${lead ? ` "${lead}"` : ""} over a big "${key}"`,
+        motion: "panel slides up, headline settles", sound: "soft whoosh",
+        props: { kicker: lead || undefined, headline: key, accent: key, accentColor: "#F2A14A", top: 0.52 },
+      }),
+    };
+  }
+
   if (seg.type === "onscreen") {
     const parts = chunks(seg.text, 3);
     const stat: Concept = num

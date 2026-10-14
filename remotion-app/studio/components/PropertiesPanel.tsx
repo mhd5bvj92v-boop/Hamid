@@ -1,10 +1,18 @@
 import React from "react";
 import type { EditDoc } from "../../src/kit/project";
-import { fmtTime } from "../../src/kit/project";
+import { SCENE_TYPES, fmtTime, sceneTypeOf } from "../../src/kit/project";
+import { retimeScene } from "../../src/kit/studio";
 import { beatWindow, kitTiming } from "../../src/kit/timing";
 import type { BeatTiming } from "../../src/kit/types";
 
-type Props = { doc: EditDoc; beatId: string | null; setBeatId: (id: string) => void; setDoc: (d: EditDoc) => void; seek: (t: number) => void };
+type Props = {
+  doc: EditDoc;
+  beatId: string | null;
+  setBeatId: (id: string) => void;
+  setDoc: (d: EditDoc) => void;
+  seek: (t: number) => void;
+  onOpenPlan?: (segmentId: string) => void;
+};
 type Json = string | number | boolean | null | Json[] | { [k: string]: Json };
 
 /** Generic editor for a beat's props: every change goes into edit.json and the Remotion Player at once. */
@@ -58,7 +66,7 @@ const Field: React.FC<{ name: string; value: Json; onChange: (v: Json) => void; 
   return null;
 };
 
-export const PropertiesPanel: React.FC<Props> = ({ doc, beatId, setBeatId, setDoc, seek }) => {
+export const PropertiesPanel: React.FC<Props> = ({ doc, beatId, setBeatId, setDoc, seek, onOpenPlan }) => {
   const beat = doc.beats.find((b) => b.id === beatId);
   if (!beat) {
     return (
@@ -89,10 +97,37 @@ export const PropertiesPanel: React.FC<Props> = ({ doc, beatId, setBeatId, setDo
         {beat.id} <span className="muted small">{beat.kind} · System {w.system}</span>
       </h2>
       <p className="muted small">{beat.reason}</p>
+      {seg ? (
+        <div className="scene-card" data-testid="scene-card">
+          <div className="row">
+            <b>Scene plan {seg.id}</b>
+            <span className="pill">{SCENE_TYPES.find((t) => t.type === sceneTypeOf(seg))?.label ?? seg.type}</span>
+            <span className={`pill${seg.plan?.status === "approved" ? " ok-pill" : ""}`}>{seg.plan?.status === "approved" ? "plan approved" : "plan draft"}</span>
+            {onOpenPlan ? (
+              <button className="ghost small" onClick={() => onOpenPlan(seg.id)} data-testid="open-plan">
+                Open in Scene Planning
+              </button>
+            ) : null}
+          </div>
+          <p className="small">“{seg.text}” · {fmtTime(seg.start)}–{fmtTime(seg.end)}</p>
+          {seg.onScreen ? <p className="small muted" data-testid="scene-card-onscreen">On screen: {seg.onScreen}</p> : null}
+        </div>
+      ) : null}
       <div className="field-row">
         <label className="field">
           <span>start (s)</span>
-          <input type="number" step={1 / fps} value={+beat.at.toFixed(3)} data-testid="beat-at" onChange={(e) => update({ at: Math.max(0, +e.target.value) })} />
+          <input
+            type="number"
+            step={1 / fps}
+            value={+beat.at.toFixed(3)}
+            data-testid="beat-at"
+            onChange={(e) => {
+              const at = Math.max(0, +e.target.value);
+              // a scene's item: moving it moves the scene (Scene Planning shows the same times)
+              if (seg) setDoc(retimeScene(doc, seg.id, seg.start + (at - beat.at), seg.end + (at - beat.at)));
+              else update({ at });
+            }}
+          />
         </label>
         <label className="field">
           <span>end (s)</span>
@@ -102,6 +137,7 @@ export const PropertiesPanel: React.FC<Props> = ({ doc, beatId, setBeatId, setDo
             value={+end.toFixed(3)}
             data-testid="beat-end"
             onChange={(e) => {
+              if (seg) return setDoc(retimeScene(doc, seg.id, seg.start, seg.end + (+e.target.value - end)));
               const tail = tm.duration({ ...props, outAt: 0 });
               update({ props: { ...props, outAt: Math.max(0.3, +(+e.target.value - beat.at - tail).toFixed(3)) } });
             }}

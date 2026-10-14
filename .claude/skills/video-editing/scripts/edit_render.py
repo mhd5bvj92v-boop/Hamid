@@ -8,7 +8,10 @@
   python3 scripts/edit_render.py draft-sound <slug>            # Phase 4: draft mix of cues.json (original as picture) + Studio preview
   python3 scripts/edit_render.py preview <slug> --beat b03 | --concept S03:B | --all [--scale 0.5] [--handles 0.6]
                                                                # Phase 4: short half-resolution motion previews (with draft sound)
-  python3 scripts/edit_render.py picture <slug> [--scale 2]    # Phase 5 ONLY: final full-resolution picture
+  python3 scripts/edit_render.py final <slug> [--session work/<slug>/sound/draft_v2/session.json]
+                                                               # Phase 5 ONLY: THE deliverable, rendered by Remotion: footage
+                                                               # (dialogue at unity) + all layers + sound effects + music, then edit_qc
+  python3 scripts/edit_render.py picture <slug> [--scale 2]    # Phase 5: full-resolution picture (+ dialogue) for analysis / masters
   python3 scripts/edit_render.py picture <slug> --graphics     # beats over black (review / motion measurement)
   python3 scripts/edit_render.py sound-preview <slug> --session work/<slug>/sound/final_v1/session.json
 
@@ -131,6 +134,44 @@ def cmd_picture(app, pj, a):
     info = V.probe(out)
     print(f"picture {out}  {info['width']}x{info['height']} r={info['r_frame_rate']} {info['duration']:.3f}s "
           f"nb_frames={info['nb_frames']} (log: {log})")
+
+
+def sound_preview_data(app, slug):
+    """The sound placements the Remotion composition plays (sound-preview.ts, written by sound-preview / draft-sound)."""
+    f = app / "src" / "projects" / slug / "sound-preview.ts"
+    txt = f.read_text() if f.exists() else ""
+    i = txt.find("SOUND_PREVIEW: SoundPreviewData | null = ")
+    if i < 0:
+        return None
+    body = txt[i + len("SOUND_PREVIEW: SoundPreviewData | null = "):].strip().rstrip(";").strip()
+    return None if body == "null" else json.loads(body)
+
+
+def cmd_final(app, pj, a):
+    """Remotion-first: the final MP4 is the Remotion composition itself (footage + every layer + every sound), then QC."""
+    require_final_approval(app, pj)
+    if a.session:
+        cmd_sound_preview(app, pj, a)          # place exactly this session's sounds in the composition
+    sp = sound_preview_data(app, pj["slug"])
+    wd = Path(pj["work"])
+    n = 1 + len(list((wd / "renders").glob("final_v*.mp4")))
+    out = Path(a.out) if a.out else wd / "renders" / f"final_v{n}.mp4"
+    print(f"final   Remotion render of {pj['remotion']['composition']}: footage + layers + "
+          f"{len(sp['placements']) if sp else 0} sound effect(s){' + music' if sp and sp.get('music') else ''} -> {out}")
+    if not sp:
+        print("NOTE  no sound placements in the composition (sound-preview.ts is empty): the final carries the dialogue only")
+    props = json.dumps({"layers": "all", "concept": None})
+    args = ["remotion", "render", pj["remotion"]["composition"], str(out), *H264, "--audio-bitrate=320k", f"--props={props}", "--log=verbose"]
+    npx(app, args, out.with_suffix(".log"))
+    export_timeline(app, pj)                   # graphics windows for the QC
+    qc = [sys.executable, str(Path(__file__).with_name("edit_qc.py")), pj["slug"], "--final", str(out)]
+    if sp and sp.get("generatedFrom"):
+        qc += ["--sfx", sp["generatedFrom"]]
+    r = V.run(qc, check=False)
+    print(r.stdout.strip().splitlines()[-1] if r.stdout.strip() else r.stderr)
+    if r.returncode:
+        sys.exit(f"edit_qc failed on {out} - do not deliver it")
+    print(f"final   {out}  (rendered by Remotion; edit_qc passed)")
 
 
 def cmd_downscale(app, pj, a):
@@ -317,7 +358,7 @@ def cmd_sound_preview(app, pj, a):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("cmd", choices=["sfx", "still", "concept-frames", "draft-sound", "preview", "picture", "downscale", "sound-preview"])
+    ap.add_argument("cmd", choices=["sfx", "still", "concept-frames", "draft-sound", "preview", "picture", "final", "downscale", "sound-preview"])
     ap.add_argument("slug")
     ap.add_argument("--app"); ap.add_argument("--work")
     ap.add_argument("--t", type=float, default=0.0); ap.add_argument("--out")
@@ -337,7 +378,7 @@ def main():
         if st.st_size != pj["source"]["size"] or st.st_mtime_ns != pj["source"].get("mtime_ns", st.st_mtime_ns):
             sys.exit("STOP: the original footage changed since edit_init (size/mtime differ). It must stay untouched.")
     {"sfx": cmd_sfx, "still": cmd_still, "concept-frames": cmd_concept_frames, "draft-sound": cmd_draft_sound, "preview": cmd_preview,
-     "picture": cmd_picture, "downscale": cmd_downscale, "sound-preview": cmd_sound_preview}[a.cmd](app, pj, a)
+     "picture": cmd_picture, "final": cmd_final, "downscale": cmd_downscale, "sound-preview": cmd_sound_preview}[a.cmd](app, pj, a)
 
 
 if __name__ == "__main__":

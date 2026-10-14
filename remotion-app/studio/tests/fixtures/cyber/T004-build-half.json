@@ -1,0 +1,24 @@
+{
+ "beat": {
+  "kind": "HalfPanel",
+  "at": 11.8,
+  "props": {
+   "headline": "That is real protection",
+   "accent": "real protection",
+   "rows": ["breaches found in seconds", "attackers locked out", "your data untouched"],
+   "accentColor": "#FF4D57",
+   "accentFont": "Instrument Serif",
+   "rowsAt": 0.3,
+   "stagger": 0.12,
+   "outAt": 0.85
+  },
+  "refs": []
+ },
+ "notes": "Halfscreen built with the kit's HalfPanel (no half-screen reference exists in the library). Rows restate the earlier lines of the script; nothing invented.",
+ "coverage": [
+  {"item": "lower half: a dark panel", "done": true, "how": "HalfPanel fills 50-100% of the height on a dark gradient; the speaker stays visible above"},
+  {"item": "'real protection' as the headline", "done": true, "how": "headline 'That is real protection' with 'real protection' in the red accent serif (constants)"},
+  {"item": "three check rows from my earlier lines", "done": true, "how": "'breaches found in seconds', 'attackers locked out', 'your data untouched' stagger in"},
+  {"item": "I stay visible on top", "done": true, "how": "nothing above 50% of the frame changes"}
+ ]
+}

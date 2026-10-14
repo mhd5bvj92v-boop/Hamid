@@ -79,7 +79,7 @@ export const ExportPanel: React.FC<{ doc: EditDoc; fromServer: (d: EditDoc) => v
         </button>
       </div>
       <h3>Final export</h3>
-      <p className="muted small">Full-resolution Remotion render of edit.json → System D mix (original dialogue untouched) → sound QC → timeline QC. Only after your final approval.</p>
+      <p className="muted small">The final MP4 is rendered by Remotion: your original footage and dialogue (unchanged), every animation layer and every sound effect in one composition → timeline + audio QC. Only after your final approval.</p>
       {doc.source.scriptOnly ? (
         <p className="warn small" data-testid="export-blocked">
           Script-only project: attach your cut first (python3 .claude/skills/video-editing/scripts/edit_init.py /path/to/my-cut.mp4 --slug {doc.slug}). The final export needs the

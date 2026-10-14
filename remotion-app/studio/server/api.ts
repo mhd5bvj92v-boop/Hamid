@@ -7,8 +7,10 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
 import type { Plugin, ViteDevServer } from "vite";
 import type { Concept, ConceptOption, CreativeSegment, EditDoc, SfxItem } from "../../src/kit/project";
-import { ANCHOR, GAIN_PRESETS, OPEN_REQUEST, detectFormat, normalizeDoc, parseTranscript, validateTranscript } from "../../src/kit/project";
+import { GAIN_PRESETS, OPEN_REQUEST, detectFormat, normalizeDoc, parseTranscript, validateTranscript } from "../../src/kit/project";
 import type { SoundMeta } from "../../src/kit/studio";
+import type { DocPatch } from "../../src/kit/patch";
+import { applyPatch } from "../../src/kit/patch";
 import { draftConcepts } from "./drafts";
 import { APP, getBundle, media, still } from "./render";
 
@@ -149,50 +151,33 @@ const finalExport = async (j: Job, slug: string, origin: string) => {
   const errs = K.docErrors(doc);
   if (errs.length) throw new Error(errs.join("; "));
   const wd = workDir(slug);
-  const picture = path.join(wd, "renders", "picture.mp4");
-  mkdirSync(path.dirname(picture), { recursive: true });
-  j.log.push("1/5 Remotion: rendering the full-resolution picture (StudioEdit, edit.json)...");
-  await media({ doc, layers: "all", concept: null, audio: null }, picture, { final: true, onProgress: (p) => (j.progress = 0.05 + 0.6 * p) });
-  j.outputs.picture = picture;
-  j.log.push("2/5 timeline + sound intents (export-sfx)...");
+  // Remotion-first: the final MP4 is the Remotion composition itself - original footage (dialogue at unity),
+  // every animation layer and every sound effect, placed and mixed by Remotion. FFmpeg tools only inspect it.
+  j.log.push("1/3 timeline windows (export-sfx, used by the QC)...");
   const ex = await run("npx", ["--no-install", "tsx", "scripts/export-sfx.ts", slug, path.join(wd, "sound")]);
-  j.log.push(ex.out.trim());
-  if (ex.code) throw new Error("export-sfx failed");
-  j.progress = 0.7;
-  // cue sheet from the Studio's SFX track (same anchor rule as the Player)
-  const timeline = JSON.parse(readFileSync(path.join(wd, "sound", "timeline.json"), "utf8"));
-  const pass: Record<string, number> = { whoosh: 1, texture: 2, riser: 3, hit: 3 };
-  const cues = doc.sfx
-    .filter((s) => s.enabled && s.sound)
-    .flatMap((s) => {
-      const t = K.sfxEventTime(doc, s);
-      if (t === null) return [];
-      const p = GAIN_PRESETS[s.family];
-      const outside = s.gainDb < p.min - 1e-6 || s.gainDb > p.max + 1e-6;
-      return [{ id: s.id, pass: pass[s.family], family: s.family, t: +t.toFixed(5), sound: s.sound, gain_db: s.gainDb, anchor: ANCHOR[s.family],
-        event: s.label, auditioned: [s.sound], link: { event_t: +t.toFixed(5), what: s.label }, ...(outside ? { gain_override_reason: s.gainReason || "set in the Studio" } : {}) }];
-    });
-  const cueSheet = { video: picture, dialogue: { file: manifest(slug).source.path, gain_db: 0 }, hook_end: doc.hookEnd, fullscreen_windows: timeline.fullscreen_windows,
-    graphic_windows: [], music: null, mix: { ceiling_dbfs: -1.0 }, cues };
-  const cuesPath = path.join(wd, "sound", "cues_studio.json");
-  writeFileSync(cuesPath, JSON.stringify(cueSheet, null, 1));
-  const v = nextVersion(path.join(wd, "sound"), "final_v");
-  const outDir = path.join(wd, "sound", `final_v${v}`);
-  j.log.push(`3/5 System D mix (${cues.length} sound effects, dialogue from the original, untouched) -> ${outDir}`);
-  const mix = await py("sound_mix.py", [cuesPath, "--out", outDir, "--passes", "1,2,3"]);
-  j.log.push(mix.out.trim());
-  if (mix.code) throw new Error("sound_mix failed");
-  j.progress = 0.85;
-  j.log.push("4/5 sound_qc...");
-  const sq = await py("sound_qc.py", [outDir]);
-  j.log.push(sq.out.trim().split("\n").slice(-6).join("\n"));
-  j.log.push("5/5 edit_qc (timeline, duration, dialogue, approval)...");
-  const eq = await py("edit_qc.py", [slug, "--final", path.join(outDir, "final.mp4")]);
-  j.log.push(eq.out.trim().split("\n").slice(-4).join("\n"));
-  j.outputs.final = path.join(outDir, "final.mp4");
-  j.outputs.soundQc = String(sq.code);
+  if (ex.code) throw new Error("export-sfx failed: " + ex.out);
+  const lib = soundMeta(origin);
+  const audio = K.resolveAudio(doc, lib);
+  const missing = doc.sfx.filter((s) => s.enabled && !s.sound).length;
+  const v = nextVersion(path.join(wd, "renders"), "final_v");
+  const out = path.join(wd, "renders", `final_v${v}.mp4`);
+  j.log.push(`2/3 Remotion: rendering the final composition (footage + ${doc.beats.length} animation layer(s) + ${audio.length} sound effect(s)${missing ? `; ${missing} without a sound asset, not added` : ""})...`);
+  await media({ doc, layers: "all", concept: null, audio }, out, { final: true, onProgress: (p) => (j.progress = 0.05 + 0.8 * p) });
+  const placed = audio.map((p) => {
+    const snd = lib[doc.sfx.find((x) => x.id === p.id)!.sound!];
+    return { id: p.id, start: +p.start.toFixed(5), end: +(p.start + Math.max(0.05, snd.duration - p.clipIn)).toFixed(5), eventTime: +p.eventTime.toFixed(5), gainDb: p.gainDb };
+  });
+  const sfxJson = out.replace(/\.mp4$/, "_sfx.json");
+  writeFileSync(sfxJson, JSON.stringify(placed, null, 1));
+  j.outputs.render = out;
+  j.outputs.sfx = sfxJson;
+  j.progress = 0.88;
+  j.log.push("3/3 edit_qc: timeline, duration, frames, dialogue untouched, effects present, no clipping...");
+  const eq = await py("edit_qc.py", [slug, "--final", out, "--sfx", sfxJson]);
+  j.log.push(eq.out.trim().split("\n").slice(-3).join("\n"));
   j.outputs.editQc = String(eq.code);
-  if (sq.code || eq.code) throw new Error("QC failed - see the log (the file exists but must not be delivered)");
+  if (eq.code) throw new Error("QC failed - see the log (the file exists but must not be delivered)");
+  j.outputs.final = out; // only a render that passed QC is offered as the final
   void origin;
 };
 
@@ -225,6 +210,22 @@ const routes: [string, RegExp, (c: Ctx) => Promise<unknown> | unknown][] = [
     const d = readDoc(m[1]);
     return { rev: d.rev ?? 0, updated: d.updated, open: (d.requests ?? []).filter((r) => OPEN_REQUEST.includes(r.status)).length };
   }],
+  // The Studio's saves: the user's field-level changes applied to the current file (never a whole document)
+  ["PATCH", /^\/api\/project\/([\w-]+)$/, async ({ req, m }) => {
+    const b = await body(req);
+    const disk = readDoc(m[1]);
+    const patch = b.patch as DocPatch;
+    // a "new" scene whose id already belongs to a different scene would overwrite it: refuse
+    for (const [id, ch] of Object.entries(patch.segs ?? {})) {
+      const d = ch.created && disk.segments.find((x) => x.id === id);
+      if (d && JSON.stringify(d.transcriptIds) !== JSON.stringify(ch.created!.transcriptIds))
+        throw new Error(`scene id ${id} is already used by another scene; reload the Studio and try again`);
+    }
+    const next = applyPatch(disk, patch);
+    writeDoc(m[1], next);
+    const doc = readDoc(m[1]);
+    return { ok: true, rev: doc.rev, updated: doc.updated, doc, errors: (await kit()).docErrors(doc), issues: validateTranscript(doc.transcript.segments, doc.source.sourceDurationSeconds) };
+  }],
   ["PUT", /^\/api\/project\/([\w-]+)$/, async ({ req, res, m }) => {
     const doc = normalizeDoc((await body(req)) as unknown as EditDoc);
     const disk = readDoc(m[1]);
@@ -233,6 +234,22 @@ const routes: [string, RegExp, (c: Ctx) => Promise<unknown> | unknown][] = [
       send(res, 409, { error: "edit.json was changed outside the Studio (for example Claude Code processed a request). The Studio reloaded it; redo your last change if it is missing.", doc: disk });
       return undefined;
     }
+    // Scene fields owned by server actions and Claude Code (concepts, drafts, decisions, builds, plan
+    // approvals) always come from disk: a UI save never undoes them. The UI owns times, type, words and plan text.
+    const OWNED = ["concepts", "recommend", "history", "round", "drafts", "draftRound", "decision", "versions", "activeVersion", "review", "plan", "requests", "beatId"] as const;
+    const onDisk = new Map(disk.segments.map((x) => [x.id, x]));
+    doc.segments = doc.segments.map((x) => {
+      const d = onDisk.get(x.id);
+      if (!d) return x;
+      const merged = { ...x } as Record<string, unknown>;
+      for (const k of OWNED) merged[k] = (d as Record<string, unknown>)[k];
+      // the user changed what an approved plan is about: it needs approving again
+      if (d.plan?.status === "approved" && (x.sceneType !== d.sceneType || (x.onScreen ?? "") !== (d.onScreen ?? "") || x.text !== d.text || x.type !== d.type))
+        merged.plan = { status: "draft" };
+      return merged as unknown as CreativeSegment;
+    });
+    for (const d of disk.segments) if (!doc.segments.some((x) => x.id === d.id)) doc.segments.push(d);
+    doc.segments.sort((x, y) => x.start - y.start);
     // the source, approvals and requests are not editable from the UI (approve/request actions change them)
     doc.source = disk.source;
     doc.approvals = disk.approvals;
@@ -300,6 +317,15 @@ const routes: [string, RegExp, (c: Ctx) => Promise<unknown> | unknown][] = [
   ["POST", /^\/api\/project\/([\w-]+)\/cancel-request$/, async ({ req, m }) => {
     const b = await body(req);
     const out = await decisions(["cancel", m[1], `--request=${String(b.requestId)}`, `--reason=${String(b.reason ?? "cancelled in the Studio")}`]);
+    return { doc: readDoc(m[1]), out };
+  }],
+  // Scene Planning: approve scene plans -> one build request per scene for Claude Code
+  ["POST", /^\/api\/project\/([\w-]+)\/plan-approve$/, async ({ req, m }) => {
+    const b = await body(req);
+    const ids = ((b.segmentIds as string[]) ?? []).join(",");
+    if (!ids) throw new Error("no scenes to approve");
+    const out = await decisions(["plan-approve", m[1], `--segments=${ids}`, `--quote=${String(b.quote ?? "")}`]);
+    await syncLog(m[1]);
     return { doc: readDoc(m[1]), out };
   }],
   ["POST", /^\/api\/project\/([\w-]+)\/review$/, async ({ req, m }) => {
@@ -438,14 +464,21 @@ const routes: [string, RegExp, (c: Ctx) => Promise<unknown> | unknown][] = [
     if (beat) doc.beats.push(beat as never);
     doc.sfx.push(...sfx);
     seg.beatId = beat?.id ?? null;
+    doc.beats.sort((a, b2) => a.at - b2.at);
     if (beat) {
       seg.versions ??= [];
       const v = seg.versions.length + 1;
-      seg.versions.push({ v, at: now(), source: "draft", requestId: null, beat: beat as never, sfx, status: "built", notes: `Quick Draft ${option}: ${concept.title} (template)` });
+      // only recorded as built once Remotion has rendered it inside the full composition
+      const w = K.beatWindow(beat, K.kitTiming, doc.source.fps);
+      const frame = Math.min(doc.source.durationInFrames - 1, w.from + w.durationInFrames - Math.max(2, Math.round(0.65 * doc.source.fps)));
+      const name = `${seg.id}_v${v}_${Date.now() % 100000}.png`;
+      mkdirSync(path.join(workDir(slug), "previews"), { recursive: true });
+      await still({ doc, layers: "all", concept: null, audio: null }, frame, path.join(workDir(slug), "previews", name), 0.5);
+      seg.versions.push({ v, at: now(), source: "draft", requestId: null, beat: beat as never, sfx, status: "built", notes: `Quick Draft ${option}: ${concept.title} (template)`,
+        still: `/api/file/${slug}/previews/${name}` });
       seg.activeVersion = v;
       seg.review = null;
     }
-    doc.beats.sort((a, b2) => a.at - b2.at);
     writeDoc(slug, doc);
     await syncLog(slug);
     return { doc: readDoc(slug), built: Boolean(beat || sfx.length), awaitingClaude: false };

@@ -84,6 +84,7 @@ export const media = async (
     pixelFormat: "yuv420p",
     colorSpace: "bt709",
     audioCodec: "aac",
+    audioBitrate: opts.final ? "320k" : "192k",
     imageFormat: "jpeg",
     scale: opts.scale ?? 1,
     frameRange: opts.frameRange ?? null,

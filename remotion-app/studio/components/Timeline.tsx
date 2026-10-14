@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import type { EditDoc, SfxItem } from "../../src/kit/project";
 import { fmtTime } from "../../src/kit/project";
-import { sfxEventTime } from "../../src/kit/studio";
+import { retimeScene, sfxEventTime } from "../../src/kit/studio";
 import { beatWindow, kitTiming } from "../../src/kit/timing";
 import type { BeatTiming } from "../../src/kit/types";
 import type { Selection } from "../App";
@@ -14,6 +14,7 @@ type Props = {
   setSelection: (s: Selection) => void;
   setDoc: (d: EditDoc) => void;
   selectedBeat: string | null;
+  selectedSegment?: string | null;
   onSelectBeat: (id: string) => void;
   onSelectSegment: (id: string) => void;
   onSelectSfx: (id: string) => void;
@@ -65,14 +66,22 @@ export const Timeline: React.FC<Props> = (p) => {
   };
 
   const timing = kitTiming as unknown as Record<string, BeatTiming<Record<string, unknown>>>;
+  // a scene's item moves the scene (and with it the plan's times and its sounds): one record, never two copies
+  const moveScene = (segId: string, s0: number, e0: number, dt: number, edge: "move" | "start" | "end") =>
+    p.setDoc(retimeScene(doc, segId, edge === "end" ? s0 : s0 + dt, edge === "start" ? e0 : e0 + dt));
+  const segOf = (id?: string) => (id ? doc.segments.find((s) => s.id === id) : undefined);
   const moveBeat = (id: string, at0: number, dt: number) => {
     const b = doc.beats.find((x) => x.id === id)!;
+    const sg = segOf(b.segmentId);
+    if (sg) return moveScene(sg.id, sg.start, sg.end, dt, "move");
     const w = beatWindow(b, kitTiming, fps);
     const at = Math.max(0, Math.min(total - w.durationInFrames / fps, snap(at0 + dt)));
     p.setDoc({ ...doc, beats: doc.beats.map((x) => (x.id === id ? { ...x, at } : x)) });
   };
   const resizeBeat = (id: string, dur0: number, dt: number) => {
     const b = doc.beats.find((x) => x.id === id)!;
+    const sg = segOf(b.segmentId);
+    if (sg) return moveScene(sg.id, sg.start, sg.end, dt, "end");
     const tm = timing[b.kind];
     const props = b.props as Record<string, unknown>;
     const tail = tm.duration({ ...props, outAt: 0 });
@@ -160,8 +169,19 @@ export const Timeline: React.FC<Props> = (p) => {
             <div className="tl-label">Segments</div>
             <div className="tl-lane">
               {doc.segments.map((s) => (
-                <div key={s.id} className={`clip seg seg-${s.type}`} style={{ left: x(s.start), width: Math.max(4, x(s.end - s.start)) }} onPointerDown={(e) => { e.stopPropagation(); p.onSelectSegment(s.id); }} data-testid={`seg-${s.id}`}>
-                  {s.id} {s.decision ? `· ${s.decision.choice}` : "· open"}
+                <div
+                  key={s.id}
+                  className={`clip seg seg-${s.type}${p.selectedSegment === s.id ? " sel" : ""}`}
+                  style={{ left: x(s.start), width: Math.max(4, x(s.end - s.start)) }}
+                  onPointerDown={(e) => drag(e, (dt) => moveScene(s.id, s.start, s.end, dt, "move"), () => p.onSelectSegment(s.id))}
+                  data-testid={`seg-${s.id}`}
+                  data-start={s.start}
+                  data-end={s.end}
+                  title={`${s.id} ${fmtTime(s.start)}-${fmtTime(s.end)} · ${s.sceneType ?? s.type} · "${s.text}"`}
+                >
+                  <i className="handle left" onPointerDown={(e) => drag(e, (dt) => moveScene(s.id, s.start, s.end, dt, "start"))} data-testid={`seg-start-${s.id}`} />
+                  {s.id} {s.decision ? `· ${s.decision.choice}` : s.plan?.status === "approved" ? "· plan ✓" : "· open"} · {s.text}
+                  <i className="handle" onPointerDown={(e) => drag(e, (dt) => moveScene(s.id, s.start, s.end, dt, "end"))} data-testid={`seg-end-${s.id}`} />
                 </div>
               ))}
             </div>

@@ -1,6 +1,7 @@
 import React from "react";
 import { AbsoluteFill, Sequence, useVideoConfig } from "remotion";
 import { CaptionAccent } from "./beats/CaptionAccent";
+import { HalfPanel } from "./beats/HalfPanel";
 import { HorizonTitle } from "./beats/HorizonTitle";
 import { StatCard } from "./beats/StatCard";
 import { StatementScene } from "./beats/StatementScene";
@@ -20,6 +21,7 @@ export const kitComponents: ComponentRegistry = {
   HorizonTitle,
   UiCard,
   StatementScene,
+  HalfPanel,
   // kinds Claude Code built for approved concepts (src/kit/custom/)
   ...customComponents,
 };

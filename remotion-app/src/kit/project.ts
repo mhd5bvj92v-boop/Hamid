@@ -34,6 +34,67 @@ export const SEGMENT_TYPES: { type: SegmentType; label: string; system: "A" | "B
   { type: "sound", label: "Sound Design", system: "D" },
 ];
 
+// ------------------------------------------------------------------ scene planning
+// A scene IS a CreativeSegment: Scene Planning and the Timeline Editor edit the same
+// record (times, type, words, plan, concepts, decision, built versions).
+export type SceneType = "captions" | "captions-ui" | "halfscreen" | "fullscreen";
+export const SCENE_TYPES: {
+  type: SceneType;
+  label: string;
+  /** The animation category it maps to (timeline track / Claude concept category). */
+  segType: Exclude<SegmentType, "sound">;
+  what: string;
+  /** Examples from the user's reference library (style examples, not frames of the edit). */
+  examples: string[];
+  exampleNote?: string;
+}[] = [
+  { type: "captions", label: "Captions Only", segType: "text", what: "designed captions under the chin; the speaker stays fully visible", examples: ["TXT-004", "TXT-007"] },
+  { type: "captions-ui", label: "Captions + UI", segType: "onscreen", what: "captions plus interface elements beside the speaker (lower UI band)", examples: ["ONS-001", "ONS-004"] },
+  {
+    type: "halfscreen",
+    label: "Halfscreen",
+    segType: "onscreen",
+    what: "a graphic fills one half of the frame; the speaker stays visible in the other half",
+    examples: [],
+    exampleNote: "No half-screen example in your library yet: the diagram shows the layout only.",
+  },
+  { type: "fullscreen", label: "Fullscreen", segType: "fullscreen", what: "a full-screen scene covers the footage for a moment; the original keeps running underneath", examples: ["FUL-002", "FUL-063"] },
+];
+export const sceneTypeOf = (seg: { sceneType?: SceneType; type: SegmentType }): SceneType | null =>
+  seg.sceneType ?? (seg.type === "text" ? "captions" : seg.type === "onscreen" ? "captions-ui" : seg.type === "fullscreen" ? "fullscreen" : null);
+export const segTypeOf = (t: SceneType) => SCENE_TYPES.find((x) => x.type === t)!.segType;
+
+/** Global styling for the whole edit ("Constants for the Whole Edit"): every brief for Claude Code carries it. */
+export type EditConstants = {
+  captionStyle: string;
+  captionPosition: "under-chin" | "lower-third" | "center";
+  captionCase: "as-spoken" | "sentence" | "upper";
+  accentColor: string;
+  secondaryColor: string;
+  accentFont: "Instrument Serif" | "Playfair Display" | "JetBrains Mono" | "none";
+  uiStyle: "dark-glass" | "light-glass" | "neon-rim" | "editorial";
+  transitions: string;
+  soundDensity: "minimal" | "standard" | "rich";
+  music: boolean;
+  notes: string;
+};
+export const DEFAULT_CONSTANTS: EditConstants = {
+  captionStyle: "Montserrat 600 white, one key word in the accent font",
+  captionPosition: "under-chin",
+  captionCase: "as-spoken",
+  accentColor: "#2F6BFF",
+  secondaryColor: "#F2A14A",
+  accentFont: "Instrument Serif",
+  uiStyle: "dark-glass",
+  transitions: "fade-rise with blur clearing in; quick fade out; hard cuts in and out of full-screen scenes",
+  soundDensity: "standard",
+  music: false,
+  notes: "",
+};
+
+/** The plan of one scene: drafted in Scene Planning, approved before Claude Code builds it. */
+export type ScenePlan = { status: "draft" | "approved"; approvedAt?: string; quote?: string; via?: "plan" | "choice" };
+
 export type SfxFamily = "whoosh" | "texture" | "riser" | "hit";
 /** Joseph's starting clip gains (sound-design.md §6). Not loudness targets. */
 export const GAIN_PRESETS: Record<SfxFamily, { db: number; min: number; max: number }> = {
@@ -127,6 +188,9 @@ export type RequestBrief = {
   basedOn?: ConceptOption;
   refs?: string[];
   uploads?: string[];
+  /** The approved scene plan and the edit-wide constants (Scene Planning). */
+  plan?: { sceneType: SceneType | null; sceneLabel: string; onScreen: string; status: string };
+  constants?: EditConstants;
   /** revision: the user's feedback, exactly as typed, and the version it applies to. */
   feedback?: string;
   version?: number;
@@ -196,6 +260,10 @@ export type CreativeSegment = {
   activeVersion?: number | null;
   /** The user's review of the active version. */
   review?: { status: "approved" | "changes-requested"; version: number | null; at: string; note?: string } | null;
+  /** Scene Planning: layout type, what happens on screen (the user's words), and the plan's approval. */
+  sceneType?: SceneType;
+  onScreen?: string;
+  plan?: ScenePlan;
 };
 
 export type SfxItem = {
@@ -227,6 +295,8 @@ export type EditDoc = {
   hookEnd: number | null;
   approvals: Approval[];
   feedback: { at: string; quote: string; changes: string[] }[];
+  /** Global styling for the whole edit (Scene Planning). */
+  constants?: EditConstants;
   /** Tasks for Claude Code (concepts, implementations, revisions). */
   requests?: ClaudeRequest[];
   nextRequest?: number;
@@ -237,11 +307,15 @@ export type EditDoc = {
 
 export const OPEN_REQUEST: RequestStatus[] = ["pending", "in_progress"];
 
+/** A scene counts as decided once the user chose A/B/C/D or approved its plan. */
+export const isDecided = (s: CreativeSegment) => !!s.decision || s.plan?.status === "approved";
+
 /** Defaults for older documents; Quick Drafts that older versions stored as concepts move to drafts. */
 export const normalizeDoc = (doc: EditDoc): EditDoc => {
   doc.requests ??= [];
   doc.nextRequest ??= doc.requests.length + 1;
   doc.rev ??= 0;
+  doc.constants = { ...DEFAULT_CONSTANTS, ...(doc.constants ?? {}) };
   for (const s of doc.segments) {
     s.history ??= [];
     s.requests ??= [];

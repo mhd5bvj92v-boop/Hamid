@@ -240,12 +240,31 @@ def main():
                 err("studio/server/api.ts: the final export no longer refuses while animations wait for Claude Code")
             if "doc.requests = disk.requests" not in a_src:
                 err("studio/server/api.ts: saving from the UI may overwrite Claude Code requests")
+            # Remotion-first: the Studio's final MP4 is a Remotion render (sound effects included), never a mixer output
+            if fx and ("sound_mix.py" in fx.group(1) or "sound_mix.py" in a_src.split("const finalExport", 1)[1].split("// ------------------------------------------------------------------ routes", 1)[0]):
+                err("studio/server/api.ts: the final export uses sound_mix.py - the final MP4 must be rendered by Remotion (Remotion-first)")
+            if not re.search(r"await media\(\{ doc, layers: \"all\", concept: null, audio \}", a_src):
+                err("studio/server/api.ts: the final export no longer renders the sound effects in Remotion")
+            if '["PATCH"' not in a_src or "applyPatch" not in a_src:
+                err("studio/server/api.ts: Studio saves must be field-level patches (src/kit/patch.ts), not whole documents")
             if "doc.approvals = disk.approvals" not in a_src:
                 err("studio/server/api.ts: saving from the UI may overwrite approvals (they must only change via edit_decisions.py)")
             if "!b.replace" not in a_src:
                 err("studio/server/api.ts: importing a script may silently replace the user's timestamped script")
+        for f in ("beats/HalfPanel.tsx", "beats/halfPanel.timing.ts", "patch.ts", "custom/timing.ts", "custom/components.ts"):
+            if not (kit / f).exists():
+                err(f"kit file missing: remotion-app/src/kit/{f}")
+        if not (app / "studio" / "components" / "ScenePlanning.tsx").exists():
+            err("Scene Planning workspace missing: remotion-app/studio/components/ScenePlanning.tsx")
+        rsrc2 = (root / "scripts" / "edit_render.py").read_text(encoding="utf-8")
+        if "def cmd_final" not in rsrc2 or "require_final_approval(app, pj)" not in rsrc2.split("def cmd_final", 1)[1][:600]:
+            err("edit_render.py has no gated 'final' command: the deliverable must be rendered by Remotion")
+        if "--no-render" in (root / "scripts" / "edit_decisions.py").read_text(encoding="utf-8"):
+            err("edit_decisions.py built must always render with Remotion before recording an edit as done")
+        if "Remotion-first" not in skill:
+            err("SKILL.md lost the Remotion-first rule")
         pj = json.loads((app / "package.json").read_text(encoding="utf-8"))
-        for sc in ("studio", "studio:test"):
+        for sc in ("studio", "studio:test", "studio:test:claude", "studio:test:plan"):
             if sc not in pj.get("scripts", {}):
                 err(f"remotion-app/package.json lost the '{sc}' script")
         if not (app / "scripts" / "export-sfx.ts").exists():

@@ -2,7 +2,7 @@ import React from "react";
 import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
 import { SANS } from "../../fonts";
 import { COLORS, SHADOW } from "../tokens";
-import { LoginAlertStackProps, Toast, alertDefaults, alertPose, calmPose } from "./loginAlertStack.timing";
+import { LoginAlertStackProps, Toast, alertDefaults, alertPose, calmPose, captionPose } from "./loginAlertStack.timing";
 
 const TOAST_H = 96;
 const GAP = 14;
@@ -42,8 +42,39 @@ export const LoginAlertStack: React.FC<LoginAlertStackProps> = (p) => {
   const total = alertH + GAP + p.calm.length * (TOAST_H + GAP) - GAP;
   const top = d.anchor.y * height - total / 2;
 
+  const cp = captionPose(t, p);
+  const cap = p.caption;
+  const capParts = cap?.accent && cap.text.includes(cap.accent) ? cap.text.split(cap.accent) : null;
+
   return (
     <AbsoluteFill style={{ fontFamily: SANS, color: COLORS.ink }}>
+      {cap ? (
+        <div
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            top: top - 96,
+            textAlign: "center",
+            fontWeight: 600,
+            fontSize: 44,
+            textShadow: "0 2px 18px rgba(0,0,0,.6)",
+            opacity: cp.opacity,
+            translate: `0px ${cp.dy}px`,
+            filter: `blur(${cp.blur}px)`,
+          }}
+        >
+          {capParts ? (
+            <>
+              {capParts[0]}
+              <span style={{ color: d.alertColor }}>{cap.accent}</span>
+              {capParts[1]}
+            </>
+          ) : (
+            cap?.text
+          )}
+        </div>
+      ) : null}
       <div style={{ position: "absolute", left: d.anchor.x * width - W / 2, top, width: W }}>
         {/* the alert slot: its push moves the calm toasts down */}
         <div style={{ position: "absolute", left: 0, right: 0, top: 0, opacity: a.opacity, translate: `0px ${a.dy}px`, filter: `blur(${a.blur}px)` }}>

@@ -96,7 +96,7 @@ Notes:
 | Measure animation motion (fastest frames, visible frames) and the declared sound intents | Remotion beats: `edit_render.py sfx <slug>`; HTML templates: `render_html.js --analyze-only --motion X.json --cues Y.json` |
 | Find cuts, motion peaks and speech in footage | `video_events.py` |
 | Draft the cue sheet from layers + events | `sfx_plan.py` |
-| Render stems + mix + final export (anchor-accurate placement, presets, music gating, hit-first clip protection) | `sound_mix.py` |
+| Offline check mix of the sound plan: stems, anchors, presets, music gating, hit-first clip protection (the deliverable itself is rendered by Remotion) | `sound_mix.py` |
 | Validate sync, levels, clipping, dialogue, assets and export | `sound_qc.py` |
 | Prove the toolchain works in this environment | `sound_selftest.py` |
 

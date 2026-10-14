@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Non-destructive timeline QC: prove the final export keeps the original cut. Exit code 1 on any ERROR.
 
-  python3 scripts/edit_qc.py <slug> --final work/<slug>/sound/final_v1/final.mp4 [--samples 12]
+  python3 scripts/edit_qc.py <slug> --final work/<slug>/renders/final_v1.mp4 [--sfx placements.json] [--samples 12]
 
 Compares the delivered file with the ORIGINAL footage recorded by edit_init.py:
   approval   the Creative Director's explicit final approval is recorded in the project file (edit.json)
@@ -15,6 +15,10 @@ Compares the delivered file with the ORIGINAL footage recorded by edit_init.py:
              is back in sync (the timeline ran on underneath)
   audio      the final audio is aligned with the source dialogue (cross-correlation lag 0 +-1 ms) and
              correlates with it over the whole duration (dialogue kept, not replaced or shifted)
+  mix        (the Remotion render is the mix) final minus original dialogue, sample-aligned at 48 kHz:
+             outside the sound-effect windows only codec noise remains and the voice is at unity gain;
+             each planned sound effect (--sfx: [{id, start, end}] or a sound_mix session.json) is present
+             at its time; nothing is louder than the voice while it speaks; no clipping.
 Writes <final dir>/edit_qc_report.md + .json.
 """
 import argparse
@@ -82,6 +86,7 @@ def main():
     ap.add_argument("slug"); ap.add_argument("--final", required=True)
     ap.add_argument("--timeline", help="default: work/<slug>/sound/timeline.json")
     ap.add_argument("--samples", type=int, default=12)
+    ap.add_argument("--sfx", help="sound effects Remotion placed: JSON [{id, start, end}] or a session.json with placements")
     ap.add_argument("--app"); ap.add_argument("--work")
     a = ap.parse_args()
     app = V.find_app(a.app)
@@ -202,7 +207,76 @@ def main():
         add("PASS" if abs(lag) <= 0.001 else "ERROR", "audio", f"final audio vs source dialogue: lag {lag * 1000:+.2f} ms (must be 0 +-1 ms), correlation {peak:.3f}")
         add("PASS" if peak >= 0.6 else ("WARN" if peak >= 0.3 else "ERROR"), "audio",
             f"whole-file correlation with the source dialogue {peak:.3f} (dialogue kept; effects lower it slightly)")
+        win, music = sfx_windows(a.sfx)
+        mix_checks(src, final, win, music)
     return finish(final, pj)
+
+
+def sfx_windows(path):
+    if not path:
+        return None, False
+    d = json.loads(Path(path).read_text())
+    if isinstance(d, dict) and "placements" in d:          # a sound_mix session.json
+        out = []
+        for p in d["placements"]:
+            out.append({"id": p["id"], "start": max(0.0, p["start"]), "end": max(p["end"], p["start"] + 0.05)})
+        return out, bool(d.get("music"))
+    return [{"id": x["id"], "start": float(x["start"]), "end": float(x["end"])} for x in d], False
+
+
+def mix_checks(src, final, sfx, music=False):
+    """The Remotion render is the mix: prove the dialogue is untouched and the effects are where they were placed."""
+    sr = 48000
+    s_a, f_a = mono(src, sr), mono(final, sr)
+    lag, _ = xcorr_lag(s_a[: sr * 20], f_a[: sr * 20], sr, max_lag_s=0.02)
+    k = int(round(lag * sr))
+    if k > 0:
+        f_a = f_a[k:]
+    elif k < 0:
+        s_a = s_a[-k:]
+    n = min(len(s_a), len(f_a))
+    s_a, f_a = s_a[:n].astype(np.float64), f_a[:n].astype(np.float64)
+    res = f_a - s_a
+    db = lambda x: 20 * np.log10(np.sqrt(np.mean(x ** 2)) + 1e-12)
+    clean = np.ones(n, bool)
+    for w in sfx or []:
+        clean[max(0, int((w["start"] - 0.05) * sr)): min(n, int((w["end"] + 0.1) * sr))] = False
+    speech = np.zeros(n, bool)
+    hop = int(0.4 * sr)
+    for i in range(0, n - hop, hop):
+        if db(s_a[i:i + hop]) > -40:
+            speech[i:i + hop] = True
+    sc = clean & speech
+    if music:
+        add("WARN", "mix", "a music bed plays under the voice: unity of the dialogue is checked by correlation and lag only")
+    elif sc.sum() > sr * 0.4:
+        gain = float(np.dot(f_a[sc], s_a[sc]) / (np.dot(s_a[sc], s_a[sc]) + 1e-12))
+        resid = db(res[sc]) - db(s_a[sc])
+        ok = abs(gain - 1) <= 0.05 and resid <= -25
+        add("PASS" if ok else "ERROR", "mix", f"outside the sound effects the voice is untouched: gain {gain:.3f} (unity), residual {resid:.1f} dB below the voice (codec noise only; render offset {k} samples)")
+    # sample peak per channel (a mono downmix can exceed both channels)
+    st = subprocess.run(["ffmpeg", "-v", "error", "-i", str(final), "-map", "0:a:0", "-ar", str(sr), "-f", "f32le", "-"], capture_output=True).stdout
+    peak = float(np.max(np.abs(np.frombuffer(st, np.float32)))) if st else 0.0
+    pk = 20 * np.log10(peak + 1e-12)
+    add("ERROR" if pk >= -0.01 else ("WARN" if pk > -1.0 else "PASS"), "mix", f"sample peak of the Remotion render {pk:.2f} dBFS (" + ("CLIPS" if pk >= -0.01 else "no clipping") + ")")
+    if sfx is None:
+        add("WARN", "mix", "no sound-effect list given (--sfx): presence and placement of the effects not checked")
+        return
+    if music:
+        return
+    # codec floor: 90th percentile of the 50 ms residual levels where no effect plays; an effect must stand 10 dB above it
+    w50 = int(0.05 * sr)
+    clean_lv = [db(res[i:i + w50]) for i in range(0, n - w50, w50) if clean[i:i + w50].all()]
+    floor = float(np.percentile(clean_lv, 90)) if clean_lv else -90.0
+    for w in sfx:
+        a0, a1 = int(w["start"] * sr), min(n, int(min(w["end"], w["start"] + 0.5) * sr))
+        lvl = max((db(res[i:i + w50]) for i in range(a0, max(a0 + 1, a1 - w50), w50 // 2)), default=-120.0) if a1 > a0 else -120.0
+        add("PASS" if lvl >= floor + 10 else "ERROR", "mix", f"sound effect {w['id']} present at {w['start']:.3f} s in the render ({lvl:.1f} dBFS vs {floor:.1f} dBFS codec floor)")
+    loud = 0
+    for i in range(0, n - hop, hop):
+        if speech[i] and not clean[i:i + hop].all() and db(res[i:i + hop]) > db(s_a[i:i + hop]):
+            loud += 1
+    add("PASS" if loud == 0 else "ERROR", "mix", "nothing is louder than the voice while it speaks" if loud == 0 else f"{loud} speech window(s) with an effect louder than the voice")
 
 
 def finish(final, pj):

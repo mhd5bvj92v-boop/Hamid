@@ -100,11 +100,12 @@ Report each pass from `cuesheet.csv`: what was placed, where (timecode), which v
 
 ## Step 7. Hand off for review, then music
 
-In the Creative Director workflow, passes 1-3 are reviewed as a **draft** inside the motion previews (`edit_render.py draft-sound <slug>`, then `edit_render.py preview ...`). The user's sound feedback goes into the same feedback rounds. Add music only after approval, and render the final mix only in Phase 5 (after the final approval):
+In the Creative Director workflow, passes 1-3 are reviewed as a **draft** inside the motion previews (`edit_render.py draft-sound <slug>`, then `edit_render.py preview ...`): the placements are already Remotion `<Audio>` layers there. The user's sound feedback goes into the same feedback rounds. Add music only after approval. In Phase 5 (after the final approval) check the plan offline, then let **Remotion render the final** with exactly those placements:
 
 ```bash
-python3 scripts/sound_mix.py work/<slug>/sound/cues.json --out work/<slug>/sound/final_v1 --passes 1,2,3      # includes "music" from cues.json
+python3 scripts/sound_mix.py work/<slug>/sound/cues.json --out work/<slug>/sound/final_v1 --passes 1,2,3      # offline check of the plan (incl. "music")
 python3 scripts/sound_qc.py work/<slug>/sound/final_v1 --events work/<slug>/sound/video_events.json
+python3 scripts/edit_render.py final <slug> --session work/<slug>/sound/final_v1/session.json    # THE deliverable (Remotion) + edit_qc
 ```
 
 **Music** goes in `cues.json` as `"music": {"file": "<user track>", "gain_db": -19, "fade": 0.4}`. The mixer silences it inside `fullscreen_windows` and `graphic_windows`, and QC verifies that.
@@ -120,11 +121,11 @@ When the user changes something, either by editing `cues.json` or by reporting w
 
 ## Deliverables (what "done" means)
 
-All of these live in `work/<slug>/sound/final_vN/`:
+**The deliverable is `work/<slug>/renders/final_vN.mp4`, rendered by Remotion** (`edit_render.py final`, or the Studio's Export): footage + every layer + every sound placement, AAC 320k / 48 kHz, checked by `edit_qc.py` (timeline, dialogue untouched at unity, every effect present at its time, nothing louder than the voice, no clipping). The offline check of the sound plan lives in `work/<slug>/sound/final_vN/`:
 
 | File | What it is |
 |---|---|
-| `final.mp4` | **The deliverable**: the Remotion picture stream copied untouched, plus the mixed audio (AAC 320k, 48 kHz). Checked by `sound_qc.py` and `edit_qc.py`. |
+| `final.mp4` | The offline check mix of the plan (not the deliverable), checked by `sound_qc.py` |
 | `mix.wav` | The full mix, 48 kHz / 24-bit |
 | `stems/*.wav` | DIALOGUE, WHOOSHES, TEXTURES, RISERS, HITS, ENV, MUSIC, each aligned to 00:00:00:00, to drop onto separate tracks in any NLE/DAW |
 | `cuesheet.csv` | Track, cue, anchor timecode, clip-in timecode, file, gain, event and reason |
@@ -193,6 +194,6 @@ Always prefer the measured value from `--motion` over this table. The table is f
 - [ ] No clipping: mix sample peak and final true peak are within the ceiling. The loudest stack was identified and reported.
 - [ ] One family per track. Original audio and every library file are unchanged (sha256).
 - [ ] Every placed sound was compared with its variations (`auditioned`).
-- [ ] `final.mp4` exists, has picture and audio, and its picture is bit-identical to the Remotion picture.
-- [ ] `sound_qc.py` exits 0, and `edit_qc.py <slug> --final .../final.mp4` exits 0 (original timeline, duration and dialogue sync preserved). Report warnings honestly.
+- [ ] The deliverable `renders/final_vN.mp4` was rendered by Remotion with the checked placements (`edit_render.py final --session ...` or the Studio's Export).
+- [ ] `sound_qc.py` exits 0 on the plan, and `edit_qc.py <slug> --final renders/final_vN.mp4 --sfx <session.json>` exits 0 (original timeline, duration, dialogue untouched, every effect present, no clipping). Report warnings honestly.
 - [ ] No sound was invented or reported as placed without an accessible, authorised file behind it.

@@ -243,7 +243,7 @@ try {
 
   // ---------------------------------------------------------------- 8 Claude Code implements with Remotion
   writeFileSync(path.join(tmp, "bad-build.json"), JSON.stringify({ beat: { kind: "GenericTemplate", props: {} }, coverage: [{ item: "x", done: true }] }));
-  r = claude("try an unregistered kind", "built", SLUG, "--request", aReq.id, "--file", path.join(tmp, "bad-build.json"), "--no-render");
+  r = claude("try an unregistered kind", "built", SLUG, "--request", aReq.id, "--file", path.join(tmp, "bad-build.json"));
   const refused = r.status !== 0 && /not registered/.test(r.out) && reqFor(SLUG, "S02", "implement").status === "pending";
   r = claude("build concept A", "built", SLUG, "--request", aReq.id, "--file", path.join(FIX, "S01-build-v1.json"));
   const rD = claude("build D", "built", SLUG, "--request", dReq.id, "--file", path.join(FIX, "S02-build-D.json"));

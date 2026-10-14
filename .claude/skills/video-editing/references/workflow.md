@@ -27,7 +27,7 @@ Every step writes a concrete artifact to `work/<slug>/` (git-ignored), so progre
 How it is enforced:
 - the footage enters only through `SourceFootage` (no trim, speed, loop or order props exist);
 - the composition is exactly `round(source duration × fps)` frames long, and `TalkingHeadEdit` throws if it is not;
-- the final mix uses the **original** file's dialogue at 0 dB (`sound_mix.py` refuses any other gain);
+- the final MP4 is rendered by **Remotion** (footage with its own dialogue at unity + every layer + every sound placement); `edit_qc.py` proves the dialogue in that render is the original at unity and that every planned effect is present;
 - `edit_qc.py` compares the export with the original: duration, frame count, frame-by-frame alignment outside the graphics, the return to sync after every full-screen scene, audio lag 0 ms, and the original's sha256.
 
 ## 0. Intake
@@ -119,7 +119,7 @@ Draft in Phase 4, once the beat timings are approved; the final mix in Phase 5. 
 2. **Draft:** `python3 scripts/sfx_plan.py work/<slug>/sound/plan.json --out work/<slug>/sound/cues.json`, then write the breakdown (MOVEMENT / EVENT / BUILD / SILENCE) and report it.
 3. **Passes 1-3:** audition, fill in `sound` and `auditioned`. In Phase 4, `edit_render.py draft-sound <slug>` mixes the current cue sheet as a draft (no export) and feeds the motion previews and Studio; report what was placed after each pass. In Phase 5, render the final with `sound_mix.py --passes 1,2,3` against the approved picture.
 4. **Validate:** `sound_qc.py` must exit 0.
-5. **Studio preview:** `python3 scripts/edit_render.py sound-preview <slug> --session work/<slug>/sound/final_vN/session.json` lets the user hear the placements in Remotion Studio.
+5. **Into the composition:** `python3 scripts/edit_render.py sound-preview <slug> --session work/<slug>/sound/final_vN/session.json` puts the checked placements into the Remotion composition (`<Audio>` layers): the user hears them in Remotion Studio, and `edit_render.py final` renders them into the deliverable.
 6. **Pass 4 (music):** only after approval, -19 dB under the talking head, silent in full-screen windows. Re-run QC.
 
 If the library is empty or has no fitting sound, place nothing and say so. Never invent or claim a sound.
@@ -127,11 +127,11 @@ If the library is empty or has no fitting sound, place nothing and say so. Never
 ## 9. Final QC
 
 ```bash
-python3 scripts/sound_qc.py work/<slug>/sound/final_vN
-python3 scripts/edit_qc.py <slug> --final work/<slug>/sound/final_vN/final.mp4
+python3 scripts/sound_qc.py work/<slug>/sound/final_vN                                    # the sound plan (offline check mix)
+python3 scripts/edit_render.py final <slug> --session work/<slug>/sound/final_vN/session.json  # Remotion renders the deliverable, runs edit_qc
 ```
 
-Both must exit 0. Then look at the frames yourself (`quality-control.md`): every beat entering, landed and before exit, plus the first and last frame of every full-screen scene.
+Both must exit 0 (`edit_qc.py` runs on the Remotion render with `--sfx`). Then look at the frames yourself (`quality-control.md`): every beat entering, landed and before exit, plus the first and last frame of every full-screen scene.
 
 ## 10. Improve
 
@@ -140,7 +140,7 @@ Fix the gaps (scale, colour, timing, legibility, clutter), re-render, and re-com
 ## Delivering
 
 Tell the user exactly what exists:
-- `work/<slug>/sound/final_vN/final.mp4` (1080x1920, approved fps, H.264 + AAC) with its duration and frame count, and the `edit_qc` and `sound_qc` results;
+- `work/<slug>/renders/final_vN.mp4`, rendered by Remotion (1080x1920, approved fps, H.264 + AAC), with its duration and frame count, and the `edit_qc` (on that render) and `sound_qc` (on the plan) results;
 - the editable sources: `remotion-app/src/projects/<slug>/` (beats, components), `cues.json`, the stems and `cuesheet.csv`;
 - what was rendered and checked (which frames you inspected);
 - the sound numbers: errors and warnings, true peak, loudest stack, sync errors, deliberate silences; say the mix was verified by measurement and ask the user to listen;

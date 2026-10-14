@@ -30,6 +30,8 @@ export type LoginAlertStackProps = {
   okColor?: string;
   /** Size of the alert toast relative to the calm ones (1 = same size). */
   alertScale?: number;
+  /** Optional caption line above the stack (Captions + UI); `accent` = the word drawn in the alert colour. */
+  caption?: { text: string; accent?: string; at?: number };
 };
 
 export const alertDefaults = (p: LoginAlertStackProps) => ({
@@ -52,6 +54,13 @@ export const calmPose = (t: number, i: number, p: LoginAlertStackProps) => {
   const k = prog(t, d.inAt + i * d.stagger, 0.34, "outCubic");
   const x = exitK(t, p, p.calmOutAt ?? p.outAt);
   return { opacity: k * x, dy: (1 - k) * -26 + (1 - x) * -18, blur: (1 - k) * 7 };
+};
+
+/** The caption line: fade-rise in, leaves with the alert. */
+export const captionPose = (t: number, p: LoginAlertStackProps) => {
+  const k = prog(t, p.caption?.at ?? alertDefaults(p).inAt, 0.3, "outCubic");
+  const x = exitK(t, p);
+  return { opacity: k * x, dy: (1 - k) * 14, blur: (1 - k) * 6 };
 };
 
 /** The alert toast: drops in on top (pushing the stack down), rim pulse, FLAGGED stamp. */

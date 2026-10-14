@@ -11,6 +11,7 @@ import {
   SEGMENT_TYPES,
   buildState,
   fmtTime,
+  isDecided,
   latestRequest,
 } from "../../src/kit/project";
 import type { StudioEditProps } from "../../src/kit/StudioEdit";
@@ -92,7 +93,7 @@ export const CreativePanel: React.FC<Props> = (p) => {
   };
 
   const direction = doc.approvals.some((a) => a.gate === "direction");
-  const openMajor = doc.segments.filter((s) => s.major && !s.decision);
+  const openMajor = doc.segments.filter((s) => s.major && !isDecided(s));
 
   if (!seg) {
     return (
@@ -129,7 +130,23 @@ export const CreativePanel: React.FC<Props> = (p) => {
       const next = {
         ...doc,
         segments: doc.segments.map((s) =>
-          s.id === seg.id ? { ...s, type } : s,
+          // keep Scene Planning's scene type in step (one record)
+          s.id === seg.id
+            ? {
+                ...s,
+                type,
+                sceneType:
+                  type === "text"
+                    ? ("captions" as const)
+                    : type === "onscreen"
+                      ? s.sceneType === "halfscreen"
+                        ? ("halfscreen" as const)
+                        : ("captions-ui" as const)
+                      : type === "fullscreen"
+                        ? ("fullscreen" as const)
+                        : undefined,
+              }
+            : s,
         ),
       };
       await api.save(next);

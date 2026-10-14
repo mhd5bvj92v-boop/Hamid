@@ -1,17 +1,18 @@
 # Remotion: the composition engine
 
-Remotion (React + TypeScript, `remotion-app/` in this repository) previews and renders the **picture**: the untouched footage plus every designed beat. The **sound** is mixed by System D (`sound_mix.py`) from the same timing data, and the final export joins the two. This file covers the project layout, the single project file `edit.json`, the edit kit, the timeline contract, the render settings and the Creative Director Studio (§8). For Remotion API details, use the `remotion-best-practices` skill; this skill's editorial rules take precedence.
+Remotion (React + TypeScript, `remotion-app/` in this repository) **is the editing engine (Remotion-first, `SKILL.md` rule 8)**. One composition holds the untouched footage with its dialogue, every caption and text animation, on-screen UI, half-screen and full-screen composition, transition, and every sound effect (and music) as `<Audio>` layers. The Player, every preview and **the final MP4** are renders of that composition. FFmpeg and the System D scripts only inspect, transcode, plan and check (`sound_mix.py` mixes the sound plan offline so `sound_qc.py` can check it; `edit_qc.py` checks the Remotion render). This file covers the project layout, the single project file `edit.json`, the edit kit, the timeline contract, the render settings and the Creative Director Studio (§8). For Remotion API details, use the `remotion-best-practices` skill; this skill's editorial rules take precedence.
 
 ```
-original cut (never touched) ──► edit_init.py ──► src/projects/<slug>/edit.json  ◄──► Creative Director Studio (Player, timeline)
-        │                                              │   (source.ts GENERATED; beats.ts / concepts.ts read edit.json)
-        │ (dialogue, 0 dB)                             ▼
-        │                         edit_render.py picture ──► renders/picture.mp4  (Remotion, H.264)
-        │                         edit_render.py sfx     ──► sound/timeline.json, layers/*.json, plan.json
-        ▼                                              ▼
-   sound_mix.py  ◄── cues.json ◄── sfx_plan.py + passes 1-4
-        │
-        └──► sound/final_vN/final.mp4  = picture stream (copied) + System D mix  ──► sound_qc.py + edit_qc.py
+original cut (never touched) ──► edit_init.py ──► src/projects/<slug>/edit.json ◄──► Creative Director Studio
+                                                     │  (Scene Planning + Timeline Editor, one record per scene)
+                                                     ▼
+                     ONE Remotion composition (StudioEdit / Edit-<slug>):
+                     SourceFootage (footage + dialogue at unity) + text + UI + half/full-screen + transitions
+                     + <Audio> sound effects (Studio SFX track, or sound-preview placements from the cue sheet)
+                                                     │
+              Player / stills / motion previews ◄────┼────► final MP4 (edit_render.py final | Studio Export)
+                                                     │                    └──► edit_qc.py on that render
+   analysis only: edit_render.py sfx → sfx_plan.py → cues.json → sound_mix.py (offline check) → sound_qc.py
 ```
 
 ## 1. Project layout
@@ -71,6 +72,9 @@ Fonts are bundled from npm (`src/fonts.ts`): Montserrat 100-800 (house sans), Pl
 | `HorizonTitle` | C | FUL-002 (HORIZON-ARC) | `kicker`, `value`, `body`, `riseDur`, `numAt/numDur`, `bodyAt`, `camPush`, `outAt` |
 | `UiCard` | A | ONS-001 chips (`variant: "rows"`), ONS-003 inbox cards (`"inbox"`) | `rows[{title, sub?}]`, `header`, `active`, `anchor`, `width`, `accent`, `inAt`, `stagger`, `outAt`, `outDur` |
 | `StatementScene` | C | FUL-063 (`variant: "aurora"`), FUL-090 (`"editorial"`), FUL-006 (`"streak"`) | `lines[]`, `accentLine`, `kicker`, `tag`, `accent`, `inAt`, `lineStagger`, `camPush`, `outAt`, `outDur` |
+| `HalfPanel` | Halfscreen (track A) | no half-screen reference in the library yet (layout from the scene type) | `headline`, `accent`, `kicker`, `rows[]` (≤4, the speaker's words), `top` (0.5 = half), `accentColor`, `accentFont`, `background`, `inAt`, `rowsAt`, `stagger`, `outAt`, `outDur` |
+
+Kinds Claude Code builds for approved concepts live in `src/kit/custom/` (`<name>.timing.ts` + `<Name>.tsx`, registered in `custom/timing.ts` and `custom/components.ts`), and join the same registry, e.g. `LoginAlertStack` (ONS-041 sign-in toasts, optional caption: Captions + UI) and `LockdownTitle` (typed monospace title, padlock, glitch-cut transition). Never change how an existing kind renders a version the user has seen: add a prop whose default keeps the old look, or add a new kind.
 
 The other templates (`progress-grid` for ONS-004, `ai-input-bar` for ONS-034/044) are ported on demand (§4).
 
@@ -90,10 +94,11 @@ The other templates (`progress-grid` for ONS-004, `ai-input-bar` for ONS-034/044
 | Concept preview frames (Phase 2) | `edit_render.py concept-frames <slug> --moment S03 [--sequence]` | A, B, C side by side over the real footage (half resolution, one bundle reused) |
 | Draft sound (Phase 4) | `edit_render.py draft-sound <slug>` | `sound_mix.py` on the current cue sheet with the original as picture; stems + session, no export; updates the Studio preview |
 | Motion preview (Phase 4) | `edit_render.py preview <slug> --beat ID / --concept S03:B / --all` | half resolution (`--scale 0.5`), the beat ±0.6 s, H.264 with dialogue + draft sound |
-| Picture (Phase 5) | `edit_render.py picture <slug>` | **refuses without the user's final approval in the creative log.** H.264, yuv420p, BT.709 limited range, CRF 18, AAC, JPEG frame capture, the approved fps |
+| **Final (Phase 5)** | `edit_render.py final <slug> [--session session.json]` | **the deliverable, rendered by Remotion**: `Edit-<slug>` with every layer and the sound placements of `sound-preview.ts`; refuses without the final approval and while builds wait; H.264, yuv420p, BT.709 limited range, CRF 18, AAC 320k 48 kHz, the approved fps; then `edit_qc.py --sfx` on it |
+| Picture (Phase 5) | `edit_render.py picture <slug>` | the same composition for analysis/masters (refuses without the final approval) |
 | Graphics only | `edit_render.py picture <slug> --graphics` | beats over black (review, motion measurement) |
 | Source-resolution master | `edit_render.py picture <slug> --scale 2`, then `edit_render.py downscale <slug>` | for sources above 1080x1920: renders at e.g. 2160x3840, then a lanczos downscale to the 1080x1920 picture |
-| Final export | `sound_mix.py` | picture stream copied untouched + the System D mix (AAC 320k, 48 kHz) |
+| Sound plan check | `sound_mix.py` + `sound_qc.py` | offline mix of the cue sheet for analysis (anchors, presets, headroom, voice on top); **not** the deliverable |
 | Remotion Studio | `cd remotion-app && npm run dev` | composition `Edit-<slug>` (Remotion's own preview tool); `npm run lint` lints and type-checks |
 | Creative Director Studio | `cd remotion-app && npm run studio` | the editor UI (§8); its renders use `StudioEdit` with the same settings as above |
 
@@ -124,6 +129,8 @@ Creative Director workflow (added the same day, same self-test): the analysis an
 
 Creative Director Studio (2026-10-13): `npm run studio:test` passed 27/27 checks (§8) in Playwright's Chromium, with the preview proxy (that Chromium has no H.264).
 
+Remotion-first + Scene Planning (2026-10-14): `studio:test` 27/27, `studio:test:claude` 20/20, `studio:test:plan` 26/26, `edit_selftest.py` passed with the final rendered by Remotion (`edit_render.py final`): `edit_qc` found all 12 planned effects in the render, the voice at unity (gain 0.998, residual 41 dB below it) and a −1.57 dBFS peak; a copy without the effects was rejected. The Remotion render's audio matched the offline check mix within 0.4 dB of peak. Remotion has no limiter: if effects stack past the ceiling, QC fails and names them.
+
 Not yet tested: real footage, VFR phone footage, non-9:16 sources with `--fit cover`, `--scale` masters, a real sound library, the Studio in Chrome/Safari with H.264 played directly, long videos (timeline performance with many beats), and touch input.
 
 ## 8. The Creative Director Studio (`remotion-app/studio/`)
@@ -140,103 +147,55 @@ cd remotion-app && npm run studio          # http://127.0.0.1:3010 (bound to loc
 npm run studio:test                        # end-to-end test in Chromium (below)
 ```
 
-**Layout:**
-- **top bar:** project, frames and fps, footage-locked badge, proxy, save state
-- **left, Script:** the user's timestamped script. Lines with editable times, flags, split, combine, and set start/end from the playhead.
+**Two workspaces, one project.** The header switches between **Scene Planning** and the **Timeline Editor**. Both edit the same `edit.json` and preview the same `StudioEdit` composition; the Remotion Player and the multi-track timeline stay on screen in both.
+
+**Scene Planning** (`studio/components/ScenePlanning.tsx`):
+- **Constants for the Whole Edit:** caption style, position and case, accent font and colours, interface style, transitions, sound density, music, notes. Stored as `edit.json` `constants`; every request to Claude Code carries them.
+- **Transcript & Scene Plan:** one row per sentence (or per scene spanning several): exact spoken words, start/end (editable for scenes), word timings when the script has them, the scene type (Captions Only / Captions + UI / Halfscreen / Fullscreen, with example images from the library and a layout diagram; Halfscreen honestly shows "no example yet"), "What happens on screen" (the user's words), plan / build status, "Ask Claude for Ideas", the optional A/B/C/D panel inline, and "Approve plan".
+- "Approve the scene plans" approves every described scene at once (`edit_decisions.py plan-approve`), creating one build request per scene for Claude Code.
+
+**Timeline Editor:** the previous layout:
+- **left:** the user's script (editable times, flags, split, combine)
 - **centre:** Remotion Player
-- **right, inspector tabs:**
-  - A/B/C/D
-  - Properties (every prop of the selected beat, plus start/end)
-  - Sound
-  - References (library browser; "use for D")
-  - Export (gates, feedback, approvals, motion preview, final export)
-- **bottom, multi-track timeline:**
-  - Video 🔒
-  - Script
-  - Segments
-  - Text (B), On-screen (A) and Full-screen (C) tracks
-  - SFX
-  - Dialogue 🔒
+- **right:** inspector tabs A/B/C/D, Properties (with the beat's scene plan and "Open in Scene Planning"), Sound, References, Export
+- **bottom:** the multi-track timeline (Video 🔒, Script, Segments/scenes, Text, On-screen, Full-screen, SFX, Dialogue 🔒)
 
-  It has a playhead, ruler seek and zoom. On the tracks you can:
-  - drag a range on the Script track to select words
-  - drag beats to move them, or use their handle to resize
-  - drag SFX diamonds to offset them by frames
+**A scene is one record** (`CreativeSegment`): `start`/`end`, `type` and `sceneType`, `text`, `onScreen`, `plan`, Claude Concepts, Quick Drafts, decision, built versions. `retimeScene` (`src/kit/studio.ts`) is the only way timing changes: whether the user edits a scene's times in Scene Planning, drags or resizes the scene or its animation on the timeline, or edits start/end in the inspector, the scene, its animation (start offset kept, end kept aligned) and its sounds (beat-linked ones follow automatically, fixed-time ones shift) move together. Clicking a sentence selects its range on the timeline and moves the Player; clicking an animation on the timeline selects its scene row (or shows its plan in the inspector).
 
-**Primary flow:** select spoken words → choose the type (Text Animation / On-Screen Visual / Full-Screen Animation / Sound Design) → review A/B/C/D with rendered previews → choose → the beat is built on the segment's exact times → fine-tune → approve direction → motion preview → approve preview and final → export.
+**Saves.** Local edits update the Player at once and autosave (450 ms). All writes from the browser are queued in order and a pending autosave is sent before any other action. A save carries the last revision the Studio saw: if Claude Code or the CLI wrote `edit.json` in between, it is refused (409) and the Studio reloads instead of overwriting. Fields owned by server actions and Claude Code (concepts, drafts, decisions, versions, plan approvals, requests) are always kept from disk. The Studio polls the revision (1.5 s) and picks up Claude Code's writes without a reload.
 
-**Data flow.** A UI edit updates the in-memory `EditDoc`. The Player re-renders immediately, and the document is saved to `edit.json` 450 ms later. A save cannot change `source` or `approvals`: approvals go through the approve action, which calls `edit_decisions.py approve`. Importing a script over an existing one needs `replace`, which the UI asks the user to confirm.
+**Claude Concepts and builds** (no API: requests in `edit.json`, processed by Claude Code with `edit_decisions.py pending / show / claim / propose / built`). "Generate with Claude" / "Ask Claude for Ideas" creates a concepts request; choosing a Claude Concept or writing D (kept verbatim, with extra references or uploaded images) or approving a scene plan creates a build request. `built` validates the item (`scripts/beat-check.ts`), renders a Remotion still and clip of the candidate composition, and only then adds a version on the timeline; it is never processed twice. Quick Drafts (instant kit templates) are labelled as such and also render a still before they count as built. Revisions ("Request changes", verbatim) and restorable versions work the same way.
 
 **Server** (`studio/server/`, a Vite plugin, local only):
 
 | Route | Does |
 |---|---|
-| `GET/POST /api/projects` | list projects; import a video (runs `edit_init.py`) |
-| `GET/PUT /api/project/:slug` | load / save `edit.json` (+ transcript issues, document errors) |
-| `POST …/transcript` | import the user's script (pasted, SRT, VTT, JSON), as written |
-| `POST …/drafts`, `…/request` | library drafts for a new segment; record "ask Claude for three new concepts" |
-| `POST …/concept-preview` | `renderStill` of one concept at its landed frame → `work/<slug>/previews/` |
-| `POST …/choose` | record the decision; replace the segment's beat and its SFX (`beatFromConcept`, `sfxForBeat`) |
-| `POST …/approve`, `…/feedback` | through `edit_decisions.py` (the user's quoted words) |
-| `POST …/proxy` | build the Player-only preview proxy |
-| `POST …/render` | job: half-resolution motion preview with resolved audio, or the final export (gated) |
-| `GET /api/references`, `/api/refimg/:id`, `/api/sounds`, `/api/sound/:id`, `/api/file/:slug/…` | library, sounds, and files inside `work/<slug>/` (Range requests) |
+| `GET/POST /api/projects` | list; import a video or create a script-only project (`edit_init.py`) |
+| `GET/PUT /api/project/:slug`, `GET …/rev` | load / save `edit.json` (revision-checked, merged per scene) / revision for polling |
+| `POST …/transcript` | import the user's script, as written |
+| `POST …/drafts`, `…/claude-request`, `…/cancel-request` | Quick Drafts; requests for Claude Code |
+| `POST …/choose`, `…/plan-approve`, `…/review`, `…/restore` | decisions, plan approvals, approve / request changes, restore a version (via `edit_decisions.py`) |
+| `POST …/concept-preview`, `…/render-version` | `renderStill` of a Quick Draft or of the active version |
+| `POST …/upload`, `…/assign-sounds`, `…/proxy` | reference images for D; fill unassigned SFX from the library; Player proxy |
+| `POST …/approve`, `…/feedback`, `…/render` | gates; feedback; jobs: motion preview, final export |
+| `GET /api/references`, `/api/refimg/:id`, `/api/sounds`, `/api/sound/:id`, `/api/file/:slug/…` | library, sounds (re-read on every call: index new sounds without a restart), files in `work/<slug>/` |
 
-`render.ts` bundles `src/` once with `@remotion/bundler`, and rebundles when a file in `src/` changes. It uses the local headless shell when Remotion's own download is unavailable.
+The kit's timing registry is loaded through Vite on every use, so kinds Claude Code adds are known without restarting the Studio. `render.ts` bundles `src/` once and rebundles when a file in `src/` changes.
 
-**Preview proxy.** Open-source Chromium builds (including Playwright's) cannot decode H.264. In such a browser the Studio offers "Create preview proxy" instead of a broken Player. The proxy:
-- is VP9/Opus WebM, 540 px wide, with the same fps and every frame
-- has its duration and frame count verified against the source
-- is linked as `public/projects/<slug>/proxy`
-- is used only inside the Player
+**Preview proxy.** Open-source Chromium builds cannot decode H.264; the Studio then offers a VP9/Opus proxy (same frames and duration, verified), used only inside the Player. Renders always read the original.
 
-Renders always read the original. Chrome, Edge and Safari play the original directly.
+**Sound in the Studio:** SFX items in `edit.json` `sfx`, linked to an animation event (`{beatId, intent}`) or a time, with family, sound (or none: shown as a missing asset, nothing invented), preset gain, frame offset, on/off. The Player, the motion preview **and the final MP4** play them with `<Audio>` at the anchor rule (whoosh/riser by their peak, texture/hit by their onset).
 
-**Sound in the Studio:**
-- SFX items live in `edit.json` `sfx`. Each is linked to a beat's sound intent (`{beatId, intent}`, so it moves with the beat) or to a fixed time.
-- Each carries a family, a sound from the indexed library (or none), a gain starting at the preset, an offset in frames, and an on/off switch.
-- The Player and the motion preview play them with `<Audio>` at the same anchor rule as `sound_mix.py`: whoosh and riser by their peak, texture and hit by their onset.
-- The final mix is not made in Remotion. The export writes a cue sheet from the SFX track, with `gain_override_reason` for gains outside the presets, and `sound_mix.py` mixes it with the original dialogue.
-- With an empty sound library, SFX stay unassigned and nothing is added.
+**Final export** (only with the `final` approval, no document errors, nothing waiting for Claude Code, and not script-only):
+1. `export-sfx.ts` (graphics windows for the QC)
+2. Remotion `renderMedia(StudioEdit)` → `work/<slug>/renders/final_vN.mp4`: footage with its dialogue at unity, every layer, every assigned sound effect (H.264 CRF 18, AAC 320k)
+3. `edit_qc.py --sfx final_vN_sfx.json`: timeline, frames, duration, dialogue untouched, every effect present, nothing louder than the voice, no clipping
 
-**Final export** (only with the `final` approval and no document errors):
-1. `renderMedia(StudioEdit)` → `work/<slug>/renders/picture.mp4` (H.264, CRF 18, yuv420p, BT.709)
-2. `export-sfx.ts`
-3. `cues_studio.json`
-4. `sound_mix.py` → `sound/final_vN/final.mp4`
-5. `sound_qc.py`
-6. `edit_qc.py`
+Remotion has no limiter: if the effects stack past the ceiling, QC fails and names the window; lower those effects (never the voice).
 
-The job log shows each step and both QC summaries.
+**Tests** (each drives the real UI in Chromium on SYNTHETIC footage; the Claude Code steps run the real CLI with files Claude wrote):
+- `npm run studio:test` (27 checks): script import and flags, selection ↔ timeline, Quick Drafts with `renderStill` previews, choose/switch designs, inspector edits in the Player, SFX offsets, motion preview audio, final export through Remotion, reopen.
+- `npm run studio:test:claude` (20 checks): the 12 Claude-workflow checks on a cybersecurity segment (request → CLI → concepts with STYLE REFERENCE images → D verbatim → implementation requests → Remotion builds → revision → restore → render), empty sound library, script-only project.
+- `npm run studio:test:plan` (26 checks): Scene Planning ↔ Timeline Editor sync (sentence → timeline range, retiming in either view moves the scene, its animation and its sounds, scene type → `edit.json` and Quick Drafts, concepts stay on their scene, an animation click opens its scene plan, reopen), and every editing category measured in the exported Remotion render: Captions Only, Captions + UI, Halfscreen (lower half replaced, speaker's half untouched), Fullscreen, text animation, a glitch transition with a hard cut back, sound effects (each present at its time, voice untouched, no clipping), final export.
 
-**Concept authorship.** The Studio's instant A/B/C for a new segment are *library drafts*: mechanical variants of the kit kinds (`studio/server/drafts.ts`, `author: "draft"`). Claude's own concepts come from `edit_decisions.py propose` (`author: "claude"`). The Studio cannot call Claude; "Ask Claude" records a request that Claude sees in `edit_decisions.py status`.
-
-**End-to-end test** (`npm run studio:test`, about 3 minutes). It runs on synthetic footage (8 s, 1080x1920, 30 fps, TTS dialogue), a synthetic test sound library and a pasted 4-line script whose last line has no end time. It drives the real UI in Chromium and checks:
-- **Script and selection:**
-  - the script is imported as written, and the missing end time is flagged, not guessed
-  - the user's correction is saved and the flag clears
-  - clicking a line selects its exact times and jumps the Player to the right frame (2.70 s → frame 81)
-  - a range dragged on the timeline highlights the matching line
-- **Concepts and building:**
-  - the segment panel shows the exact words, start and end
-  - real `renderStill` previews come back for A, B and C
-  - choosing A creates a `UiCard` beat on 2.70–4.36 s, and the Player shows it
-  - choosing C changes the design and the picture
-  - editing a prop in the inspector updates the Player and `edit.json`
-  - changing the start moves the timeline item
-  - D is recorded with the user's words and built from B
-- **Sound:**
-  - SFX items are on the track at the presets
-  - a 2-frame offset moves the event by 66.7 ms
-  - the motion preview's audio carries the SFX exactly at the events
-  - the final mix places each SFX on the Studio's event time (0.00 ms difference)
-- **Export and integrity:**
-  - export is disabled before the final approval
-  - the final export passes `sound_qc` and `edit_qc`
-  - in the exported MP4, frames before and after each beat match the original (PSNR ≈ 47 dB) and mid-beat frames show the animation
-  - the export has 240 frames, 8.000 s, 30 fps
-  - the dialogue stem is identical to the source
-  - the original's sha256 is unchanged
-- **Reopen:** decisions, edited props, beats and approvals come back from `edit.json`.
-
-The test removes its project afterwards unless you pass `--keep`.
+Each test removes its project afterwards unless you pass `--keep`.

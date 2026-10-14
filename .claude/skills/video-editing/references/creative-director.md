@@ -40,6 +40,17 @@ The timeline rules in `SKILL.md` hold in every phase: the user's cut, pauses, re
 
 ---
 
+## Scene Planning (the Studio's planning workspace)
+
+The Studio's **Scene Planning** view is the default way to run Phases 1-3 with the user, sentence by sentence, on the same `edit.json` the Timeline Editor and Remotion use:
+1. **Constants for the Whole Edit:** caption style, position and case, accent font and colours, interface style, transitions, sound density, music, notes (`edit.json` `constants`). Every request to Claude Code carries them; follow them unless a scene's plan says otherwise.
+2. **Per sentence:** the exact words and times, word timings if the script has them, a **scene type** (Captions Only → System B; Captions + UI → System A with a caption; **Halfscreen** → a panel filling one half, the speaker visible in the other, e.g. the kit's `HalfPanel`; Fullscreen → System C) and **"What happens on screen"** in the user's words.
+3. **Optional:** "Ask Claude for Ideas" (three Claude Concepts with STYLE REFERENCE images) and A/B/C/D inline for that scene.
+4. **Approve the scene plans:** each approved scene becomes a build request whose brief holds the scene type, the user's on-screen description (verbatim), the constants, and the chosen concept or D if there is one. Choosing A/B/C/D also approves that scene's plan.
+5. Claude Code builds each request in Remotion (`built` renders it before recording it); the user reviews in the Timeline Editor (approve, request changes, restore a version) and exports.
+
+Changing a scene's type, words or plan text after approval sets the plan back to draft (approve again to rebuild); changing only its timing moves its animation and sounds with it (`retimeScene`). When a plan is approved without a concept, implement **the plan** (all of it, listed in `coverage`), using the kit or a new kind in `src/kit/custom/`.
+
 ## The user's script is the timing source
 
 The user provides their **own script with timestamps**. That is the default, and it is the timecoded transcript of the project. Claude does not transcribe, rewrite or re-time it.
@@ -206,16 +217,13 @@ Preview: S03_r1_concepts.png · Say "new concepts for S03" for three fresh optio
 python3 scripts/edit_decisions.py approve <slug> --gate final --quote "<their words>"
 ```
 
-Then: `edit_render.py picture <slug>` (full resolution) → `sound_mix.py` (all passes, music if approved) → `sound_qc.py` → `edit_qc.py` → deliver (`workflow.md` §9 and Delivering). The Studio's Export final MP4 runs the same chain on `edit.json`:
-1. Remotion `renderMedia` of `StudioEdit`
-2. `export-sfx.ts`
-3. a cue sheet from the SFX track
-4. `sound_mix.py` with the original dialogue
-5. `sound_qc.py`
-6. `edit_qc.py`
+Then **Remotion renders the final** (Remotion-first): `sound_mix.py` + `sound_qc.py` check the sound plan offline, `edit_render.py final <slug> --session <checked session.json>` renders the whole composition (footage with its dialogue, every layer, those sound placements) and runs `edit_qc.py` on the render → deliver (`workflow.md` §9 and Delivering). The Studio's Export final MP4 does the same on `edit.json`:
+1. `export-sfx.ts` (graphics windows for the QC)
+2. Remotion `renderMedia` of `StudioEdit` with every layer and every assigned sound effect → `renders/final_vN.mp4`
+3. `edit_qc.py --sfx`: timeline, dialogue untouched, every effect present, nothing louder than the voice, no clipping
 
 Enforcement:
-- `edit_render.py picture` (and `downscale`) and the Studio's final export refuse to run without the `final` approval in `edit.json`.
+- `edit_render.py final` / `picture` (and `downscale`) and the Studio's final export refuse to run without the `final` approval in `edit.json`, while an implementation or revision still waits for Claude Code, and for a script-only project.
 - `edit_qc.py` reports an ERROR for an export without it.
 - Any feedback recorded after the final approval withdraws it.
 - The Studio cannot write approvals by saving the document: they change only through the approve action.

@@ -22,10 +22,11 @@ Requests for Claude Code (written by the Studio or by these commands; processed 
   edit_decisions.py show <slug> --request REQ-0003         # the full brief + what to do + the exact command to finish
   edit_decisions.py claim <slug> --request REQ-0003        # pending -> in_progress (refused if already taken or done)
   edit_decisions.py request <slug> --segment S02 [--note "..."]   # ask for three (new) Claude Concepts
-  edit_decisions.py built <slug> --request REQ-0004 --file build.json [--no-render]   # implementation / revision done
+  edit_decisions.py built <slug> --request REQ-0004 --file build.json   # implementation / revision done (renders it with Remotion)
   edit_decisions.py fail <slug> --request REQ-0004 --reason "..."
   edit_decisions.py cancel <slug> --request REQ-0004 --reason "..."
   edit_decisions.py review <slug> --segment S02 --approve [--note "..."] | --changes "<the user's feedback>"
+  edit_decisions.py plan-approve <slug> --segments S01,S02 --quote "..."   # Scene Planning: approved plans -> build requests
   edit_decisions.py restore <slug> --segment S02 --version 1
 
 concepts.json (Claude Concepts for one segment; the moments form {"moments": {"S02": {...}}} also works):
@@ -67,6 +68,17 @@ FINAL_STATES = ("completed", "partial", "cancelled")
 CAT_LABEL = {"text": "Text Animation", "onscreen": "On-Screen Visual", "fullscreen": "Full-Screen Animation", "sound": "Sound Design"}
 CAT_SYSTEM = {"text": "B", "onscreen": "A", "fullscreen": "C", "sound": "D"}
 CAT_REF = {"text": "TXT", "onscreen": "ONS", "fullscreen": "FUL"}
+SCENE_LABEL = {"captions": "Captions Only", "captions-ui": "Captions + UI", "halfscreen": "Halfscreen", "fullscreen": "Fullscreen"}
+SCENE_OF_TYPE = {"text": "captions", "onscreen": "captions-ui", "fullscreen": "fullscreen"}
+
+
+def scene_type(m):
+    return m.get("sceneType") or SCENE_OF_TYPE.get(m.get("type"))
+
+
+def decided(m):
+    """A scene is decided once the user chose A/B/C/D or approved its scene plan."""
+    return bool(m.get("decision")) or (m.get("plan") or {}).get("status") == "approved"
 FAMILY_CATS = {"whoosh": ["WSH"], "texture": ["POP", "UI", "SCI", "MEC", "TEX"], "riser": ["RIS"], "hit": ["HIT"]}
 STOP = set("a an and are as at be but by for from has have i in is it its of on or our so that the their them then there "
            "these they this to was we were what when which who will with you your my me us".split())
@@ -166,7 +178,10 @@ def render_md(log):
          f"Phase: **{log.get('phase', '')}**. Updated {log.get('updated', '')}.", ""]
     L += ["## Approvals", ""]
     L += [f"- **{a['gate']}** ({a['at']}): \"{a['quote']}\"" for a in log["approvals"]] or ["- none yet"]
-    L += ["", "## Segments", "", "| Segment | Time | Spoken text | Type | Decision | Build | User |", "|---|---|---|---|---|---|---|"]
+    c = log.get("constants") or {}
+    if c:
+        L += ["", "## Constants for the whole edit", ""] + [f"- {k}: {v}" for k, v in c.items() if v not in ("", None)]
+    L += ["", "## Scenes", "", "| Scene | Time | Spoken text | Scene type | Plan (what happens on screen) | Decision | Build | User |", "|---|---|---|---|---|---|---|---|"]
     for m in log["segments"]:
         d = m.get("decision") or {}
         choice = d.get("choice", "open")
@@ -187,7 +202,9 @@ def render_md(log):
             build += f", approved v{m['review'].get('version')}"
         said = '"' + d["quote"] + '"' if d.get("quote") else ""
         text = m.get("text", "")[:60]
-        L.append(f'| {m["id"]} | {tc(m.get("start"))}-{tc(m.get("end"))} | "{text}" | {m.get("type", "")} | {choice} | {build} | {said} |')
+        pl = m.get("plan") or {}
+        plan = f"{pl.get('status', 'draft')}: {(m.get('onScreen') or '-').replace('|', '/')}"
+        L.append(f'| {m["id"]} | {tc(m.get("start"))}-{tc(m.get("end"))} | "{text}" | {SCENE_LABEL.get(scene_type(m), m.get("type", ""))} | {plan} | {choice} | {build} | {said} |')
     if log.get("keepVisible"):
         L += ["", "## Deliberately kept on camera", ""] + [f"- {tc(k['in'])}-{tc(k['out'])}: {k['why']}" for k in log["keepVisible"]]
     L += ["", "## Claude Concepts (all rounds)", ""]
@@ -254,7 +271,10 @@ def make_brief(log, seg, **extra):
              "category": seg.get("type", "text"), "categoryLabel": CAT_LABEL.get(seg.get("type", "text"), ""),
              "context": {"before": ctx(before), "after": ctx(after)}, "decisions": decisions,
              "timeline": [{"id": b["id"], "kind": b["kind"], "at": b["at"], "segmentId": b.get("segmentId")} for b in log["beats"]],
-             "references": {"suggested": suggest_refs(seg["text"], seg.get("type")), "previous": previous}}
+             "references": {"suggested": suggest_refs(seg["text"], seg.get("type")), "previous": previous},
+             "plan": {"sceneType": scene_type(seg), "sceneLabel": SCENE_LABEL.get(scene_type(seg), ""), "onScreen": seg.get("onScreen") or "",
+                      "status": (seg.get("plan") or {}).get("status", "draft")},
+             "constants": log.get("constants") or {}}
     brief.update({k: v for k, v in extra.items() if v not in (None, [], "")})
     return brief
 
@@ -455,6 +475,8 @@ def cmd_decide(app, slug, a):
         # anything still waiting for Claude Code on this segment is superseded by this decision
         for r in open_requests(log, mid, ("implement", "revision")):
             set_status(r, "cancelled", result="superseded by a new decision")
+        if choice != "none":
+            m["plan"] = {"status": "approved", "approvedAt": now(), "via": "choice", **({"quote": a.quote} if a.quote else {})}
         m["decision"] = {"choice": choice, "round": m.get("round"), "decided": now(), "quote": a.quote, "note": a.note or "",
                          **({"source": source} if source else {}),
                          **({"custom": custom} if choice == "D" else {}),
@@ -484,7 +506,7 @@ def cmd_approve(app, slug, a):
     log = load(app, slug)
     if not a.quote or len(a.quote.strip()) < 2:
         raise SystemExit("--quote must contain the user's own words of approval")
-    open_major = [m["id"] for m in log["segments"] if m.get("major") and not m.get("decision")]
+    open_major = [m["id"] for m in log["segments"] if m.get("major") and not decided(m)]
     if a.gate == "direction" and open_major:
         raise SystemExit(f"cannot approve the direction: undecided major moments {open_major}")
     if a.gate in ("preview", "final") and not approved(log, "direction"):
@@ -520,12 +542,16 @@ def cmd_status(app, slug, a):
         return
     log = load(app, slug)
     print(f"{slug}: phase {log.get('phase', phase_of(log))}" + ("  (script-only: no footage attached)" if log["source"].get("scriptOnly") else ""))
-    undecided = [m["id"] for m in log["segments"] if m.get("major") and not m.get("decision")]
+    undecided = [m["id"] for m in log["segments"] if m.get("major") and not decided(m)]
     unproposed = [m["id"] for m in log["segments"] if m.get("major") and m.get("recommendVisual") != "keep-visible" and not m.get("concepts")]
     print(f"  segments: {len(log['segments'])}  without Claude Concepts: {unproposed or '-'}  undecided: {undecided or '-'}  beats: {len(log.get('beats', []))}")
     for m in log["segments"]:
         state, req, ver = build_state(log, m)
         d = m.get("decision") or {}
+        pl = m.get("plan") or {}
+        if scene_type(m) and m.get("type") != "sound":
+            print(f"  {m['id']} {tc(m['start'])}-{tc(m['end'])} scene {SCENE_LABEL.get(scene_type(m))}: plan {pl.get('status', 'draft')}"
+                  + (f" - \"{(m.get('onScreen') or '')[:60]}\"" if m.get("onScreen") else " (nothing described yet)"))
         if d:
             print(f"  {m['id']} {tc(m['start'])}-{tc(m['end'])} decided {d['choice']} ({d.get('source', '')}): build {state}"
                   + (f" v{ver['v']}" if ver else "") + (f" [{req['id']} {req['status']}]" if req else "")
@@ -630,7 +656,8 @@ GUIDE = {
       {ed} propose {slug} --request {rid} --file <concepts.json>
     Validation runs before anything is written; the request is completed and the Studio shows the concepts.""",
     "implement": """WHAT TO DO (Claude Code, with the video-editing skill):
- 1. Read the approved concept (or the user's own idea D, verbatim) below, references/remotion.md (§4 adding a kind,
+ 1. Read the approved scene plan (scene type + what happens on screen), the constants for the whole edit, and the
+    approved concept or the user's own idea (D, verbatim) if there is one; then references/remotion.md (§4 adding a kind,
     §8 Studio) and the style references (open the images).
  2. Build it in Remotion. Reuse a kit kind only if it really does what was approved; otherwise write a new kind in
     remotion-app/src/kit/custom/ (<name>.timing.ts + <Name>.tsx) and register it in custom/timing.ts and
@@ -662,6 +689,12 @@ def cmd_show(app, slug, a):
         print(f"  before {tc(l['start'])}: {l['text']}")
     for l in b["context"]["after"]:
         print(f"  after  {tc(l['start'])}: {l['text']}")
+    pl = b.get("plan") or {}
+    if pl.get("sceneType"):
+        print(f"\nSCENE PLAN ({pl.get('status')}): {pl.get('sceneLabel')}" + (f"\n  what happens on screen (the user's words): {pl['onScreen']}" if pl.get("onScreen") else ""))
+    if b.get("constants"):
+        c = b["constants"]
+        print("CONSTANTS FOR THE WHOLE EDIT: " + "; ".join(f"{k}: {v}" for k, v in c.items() if v not in ("", None)))
     if b.get("custom") is not None:
         print("\nTHE USER'S OWN IDEA (D), verbatim - implement all of it:\n" + "-" * 60 + f"\n{b['custom']}\n" + "-" * 60)
     if b.get("feedback") is not None:
@@ -798,14 +831,13 @@ def cmd_built(app, slug, a):
     candidate = copy.deepcopy(log)
     candidate["beats"] = sorted([x for x in candidate["beats"] if x.get("segmentId") != seg["id"]] + [beat], key=lambda x: x["at"])
     candidate["sfx"] = [s for s in candidate["sfx"] if s.get("segmentId") != seg["id"]] + sfx
-    still = clip = None
-    if not a.no_render:
-        print(f"rendering {seg['id']} v{v} with Remotion (still + clip)...")
-        try:
-            still, clip, landed = render_version(app, slug, candidate, beat, v)
-        except SystemExit as e:
-            raise SystemExit(f"Remotion could not render it ({e}); nothing was written; {r['id']} is still {r['status']}. Fix the component and run built again.")
-        print(f"rendered: still frame {landed} -> {still}; clip -> {clip}")
+    # an edit is only done when it is in the Remotion composition and renders: still + clip of the candidate timeline
+    print(f"rendering {seg['id']} v{v} with Remotion (still + clip)...")
+    try:
+        still, clip, landed = render_version(app, slug, candidate, beat, v)
+    except SystemExit as e:
+        raise SystemExit(f"Remotion could not render it ({e}); nothing was written; {r['id']} is still {r['status']}. Fix the component and run built again.")
+    print(f"rendered: still frame {landed} -> {still}; clip -> {clip}")
     log["beats"], log["sfx"] = candidate["beats"], candidate["sfx"]
     versions.append({"v": v, "at": now(), "source": "revision" if r["type"] == "revision" else ((seg.get("decision") or {}).get("source") or "claude"),
                      "requestId": r["id"], "beat": beat, "sfx": sfx, "status": "partial" if partial else "built", "notes": data.get("notes", ""),
@@ -850,6 +882,37 @@ def cmd_review(app, slug, a):
     print(f"{req['id']} pending: revision of {seg['id']} v{seg.get('activeVersion')} - \"{a.changes}\"")
 
 
+def cmd_plan_approve(app, slug, a):
+    """Scene Planning: the user approved these scene plans -> one build request per scene for Claude Code."""
+    log = load(app, slug)
+    if not a.quote or len(a.quote.strip()) < 2:
+        raise SystemExit("--quote must contain the user's words (or the Studio's record of their click)")
+    made = []
+    for sid in [x.strip() for x in a.segments.split(",") if x.strip()]:
+        m = seg_by_id(log, sid)
+        if not scene_type(m) or m.get("type") == "sound":
+            raise SystemExit(f"{sid}: choose a scene type first")
+        if not (m.get("onScreen") or "").strip() and not m.get("decision"):
+            raise SystemExit(f"{sid}: describe what happens on screen first (or choose A/B/C/D)")
+        if (m.get("plan") or {}).get("status") == "approved":
+            print(f"{sid}: plan already approved, not duplicated")
+            continue
+        for r in open_requests(log, sid, ("implement", "revision")):
+            set_status(r, "cancelled", result="superseded by the approved scene plan")
+        m["plan"] = {"status": "approved", "approvedAt": now(), "via": "plan", "quote": a.quote.strip()}
+        d = m.get("decision") or {}
+        extra = {"choice": d.get("choice") if d.get("choice") in ("A", "B", "C", "D") else None}
+        if d.get("choice") in OPTIONS:
+            pool = m.get("drafts") if d.get("source") == "draft" else m.get("concepts")
+            extra.update(conceptSet=d.get("source"), concept=(pool or {}).get(d["choice"]))
+        elif d.get("choice") == "D":
+            extra.update(custom=d.get("custom"), combine=d.get("combine"), basedOn=d.get("basedOn"), refs=d.get("refs"), uploads=d.get("uploads"))
+        req = new_request(log, "implement", m, **extra)
+        made.append(f"{sid} -> {req['id']}")
+    save(app, slug, log)
+    print("scene plans approved: " + (", ".join(made) if made else "nothing new") + ("  (build requests pending for Claude Code)" if made else ""))
+
+
 def cmd_restore(app, slug, a):
     log = load(app, slug)
     seg = seg_by_id(log, a.segment)
@@ -866,7 +929,7 @@ def cmd_restore(app, slug, a):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("cmd", choices=["init", "analyze", "propose", "decide", "approve", "feedback", "status", "storyboard",
-                                    "request", "pending", "show", "claim", "built", "fail", "cancel", "review", "restore"])
+                                    "request", "pending", "show", "claim", "built", "fail", "cancel", "review", "restore", "plan-approve"])
     ap.add_argument("slug", nargs="?")
     ap.add_argument("--file"); ap.add_argument("--moments"); ap.add_argument("--choice")
     ap.add_argument("--set", choices=["claude", "draft"], default="claude", help="decide: which A/B/C (Claude Concepts; Quick Drafts are chosen in the Studio)")
@@ -875,9 +938,8 @@ def main():
     ap.add_argument("--quote"); ap.add_argument("--note"); ap.add_argument("--scope")
     ap.add_argument("--gate", choices=GATES); ap.add_argument("--change", action="append")
     ap.add_argument("--require", choices=GATES, help="status: exit 1 unless this gate is approved")
-    ap.add_argument("--request"); ap.add_argument("--segment"); ap.add_argument("--reason"); ap.add_argument("--version", type=int)
+    ap.add_argument("--request"); ap.add_argument("--segment"); ap.add_argument("--segments"); ap.add_argument("--reason"); ap.add_argument("--version", type=int)
     ap.add_argument("--approve", action="store_true"); ap.add_argument("--changes")
-    ap.add_argument("--no-render", action="store_true", help="built: skip the Remotion still + clip")
     ap.add_argument("--json", action="store_true", help="show: also print the brief as JSON")
     ap.add_argument("--app"); ap.add_argument("--work")
     a = ap.parse_args()
@@ -894,12 +956,15 @@ def main():
         sys.exit("--request REQ-#### required")
     if a.cmd in ("request", "review", "restore") and not a.segment:
         sys.exit("--segment required")
+    if a.cmd == "plan-approve" and not a.segments:
+        sys.exit("--segments S01,S02 required")
     if a.cmd == "restore" and not a.version:
         sys.exit("--version required")
     {"init": cmd_init, "analyze": cmd_analyze, "propose": cmd_propose, "decide": cmd_decide, "approve": cmd_approve,
      "feedback": cmd_feedback, "status": cmd_status, "storyboard": cmd_storyboard, "request": cmd_request, "pending": cmd_pending,
      "show": cmd_show, "claim": cmd_claim, "built": cmd_built, "fail": cmd_fail,
-     "cancel": lambda ap_, s, x: cmd_fail(ap_, s, x, status="cancelled"), "review": cmd_review, "restore": cmd_restore}[a.cmd](app, a.slug, a)
+     "cancel": lambda ap_, s, x: cmd_fail(ap_, s, x, status="cancelled"), "review": cmd_review, "restore": cmd_restore,
+     "plan-approve": cmd_plan_approve}[a.cmd](app, a.slug, a)
 
 
 if __name__ == "__main__":

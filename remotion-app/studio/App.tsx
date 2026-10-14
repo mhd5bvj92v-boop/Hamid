@@ -9,16 +9,31 @@ import React, {
 import type {
   CreativeSegment,
   EditDoc,
+  SceneType,
   SegmentType,
   TranscriptIssue,
 } from "../src/kit/project";
-import { SEGMENT_TYPES, fmtTime, linesInRange } from "../src/kit/project";
+import {
+  SEGMENT_TYPES,
+  fmtTime,
+  linesInRange,
+  segTypeOf,
+} from "../src/kit/project";
 import { StudioEdit, StudioEditProps } from "../src/kit/StudioEdit";
 import { SoundMeta, resolveAudio } from "../src/kit/studio";
-import { api, ConflictError, ProjectInfo } from "./api";
+import {
+  api,
+  ConflictError,
+  hasPendingSave,
+  knownRev,
+  ProjectInfo,
+  scheduleSave,
+  view as localView,
+} from "./api";
 import { CreativePanel } from "./components/CreativePanel";
 import { ExportPanel } from "./components/ExportPanel";
 import { PropertiesPanel } from "./components/PropertiesPanel";
+import { ScenePlanning } from "./components/ScenePlanning";
 import { ReferencesPanel } from "./components/ReferencesPanel";
 import { SoundPanel } from "./components/SoundPanel";
 import { Timeline } from "./components/Timeline";
@@ -38,6 +53,8 @@ const canPlayH264 =
     .canPlayType('video/mp4; codecs="avc1.640028"') !== "";
 
 type Tab = "creative" | "properties" | "sound" | "references" | "export";
+/** Two connected workspaces over the same edit.json: Scene Planning and the Timeline Editor. */
+type View = "plan" | "timeline";
 
 export const App: React.FC = () => {
   const [projects, setProjects] = useState<ProjectInfo[]>([]);
@@ -60,13 +77,23 @@ export const App: React.FC = () => {
     useState<StudioEditProps["concept"]>(null);
   const [extraRefs, setExtraRefs] = useState<string[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
+  const [view, setViewState] = useState<View>(() =>
+    new URLSearchParams(location.search).get("view") === "plan"
+      ? "plan"
+      : "timeline",
+  );
+  const [focus, setFocus] = useState<{ id: string; n: number } | null>(null);
+  const setView = (v: View) => {
+    setViewState(v);
+    const u = new URL(location.href);
+    u.searchParams.set("view", v);
+    history.replaceState(null, "", u.toString());
+  };
+  const focusScene = (id: string) =>
+    setFocus((f) => ({ id, n: (f?.n ?? 0) + 1 }));
   const player = useRef<PlayerRef>(null);
-  const saveTimer = useRef<number | null>(null);
-  const live = useRef<{ rev: number; state: string }>({
-    rev: 0,
-    state: "saved",
-  });
-  live.current = { rev: doc?.rev ?? 0, state: saveState };
+  const live = useRef<{ state: string }>({ state: "saved" });
+  live.current = { state: saveState };
   const reloadSounds = useCallback(
     () =>
       api
@@ -89,7 +116,11 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     if (!slug) return;
-    history.replaceState(null, "", `?project=${slug}`);
+    history.replaceState(
+      null,
+      "",
+      `?project=${slug}${new URLSearchParams(location.search).get("view") ? `&view=${new URLSearchParams(location.search).get("view")}` : ""}`,
+    );
     api
       .projects()
       .then(setProjects)
@@ -104,19 +135,25 @@ export const App: React.FC = () => {
       .catch((e) => setError(String(e.message)));
   }, [slug]);
 
-  /** Local edit: the Player updates immediately, edit.json is saved shortly after. */
+  /** Local edit: the Player updates immediately, edit.json is saved shortly after (writes are queued in order). */
   const setDoc = useCallback((next: EditDoc) => {
     setDocState(next);
     setSaveState("dirty");
-    if (saveTimer.current) window.clearTimeout(saveTimer.current);
-    saveTimer.current = window.setTimeout(async () => {
-      setSaveState("saving");
-      try {
-        const r = await api.save(next);
+    scheduleSave(
+      next,
+      (r) => {
+        // the server copy (with everything done meanwhile) + any newer unsaved edits
+        const v = localView(next.slug);
+        if (v) setDocState(v);
+        if (!r) {
+          if (!hasPendingSave()) setSaveState("saved");
+          return;
+        }
         setIssues(r.issues);
-        setSaveState(r.errors.length ? "error" : "saved");
+        setSaveState(hasPendingSave() ? "dirty" : r.errors.length ? "error" : "saved");
         setError(r.errors.length ? r.errors.join("; ") : null);
-      } catch (e) {
+      },
+      (e) => {
         if (e instanceof ConflictError) {
           // Claude Code (or the CLI) wrote edit.json first: take its version, never overwrite it
           setDocState(e.doc);
@@ -126,8 +163,8 @@ export const App: React.FC = () => {
         }
         setSaveState("error");
         setError(String((e as Error).message));
-      }
-    }, 450);
+      },
+    );
   }, []);
 
   // Pick up what Claude Code writes to edit.json (concepts, builds, request status) while the Studio is open.
@@ -137,7 +174,7 @@ export const App: React.FC = () => {
       if (live.current.state !== "saved") return;
       try {
         const r = await api.rev(slug);
-        if (r.rev === live.current.rev || live.current.state !== "saved")
+        if (r.rev === knownRev(slug) || live.current.state !== "saved")
           return;
         const l = await api.load(slug);
         if (live.current.state !== "saved") return;
@@ -154,9 +191,10 @@ export const App: React.FC = () => {
     return () => window.clearInterval(t);
   }, [slug]);
   /** Server-side change (drafts, choose, approvals): already saved. */
+  /** A server action's result: the new server copy, with the user's unsaved edits (if any) re-applied on top. */
   const fromServer = useCallback((next: EditDoc) => {
-    setDocState(next);
-    setSaveState("saved");
+    setDocState(localView(next.slug) ?? next);
+    if (!hasPendingSave()) setSaveState("saved");
   }, []);
 
   useEffect(() => {
@@ -215,20 +253,55 @@ export const App: React.FC = () => {
     ).filter(
       (l) => selection.lineIds.length === 0 || selection.lineIds.includes(l.id),
     );
+    addScene(lines, selection.start, selection.end, type);
+  };
+
+  /** Scene Planning: a scene type chosen on a transcript line creates the scene on that line's exact times. */
+  const createScene = (lineIds: string[], sceneType: SceneType) => {
+    if (!doc) return;
+    const lines = doc.transcript.segments.filter((l) => lineIds.includes(l.id));
+    const start = Math.min(...lines.map((l) => l.start ?? 0));
+    const end = Math.max(...lines.map((l) => l.end ?? 0));
+    addScene(lines, start, end, segTypeOf(sceneType), sceneType);
+  };
+
+  const addScene = (
+    lines: EditDoc["transcript"]["segments"],
+    start: number,
+    end: number,
+    type: SegmentType,
+    sceneType?: SceneType,
+  ) => {
+    if (!doc) return;
     const text = lines
       .map((l) => l.text)
       .join(" ")
       .trim();
-    let n = doc.segments.length + 1;
-    while (doc.segments.some((s) => s.id === `S${String(n).padStart(2, "0")}`))
-      n++;
+    // new ids never collide with a scene on the server or on its way there
+    const taken = new Set([
+      ...doc.segments.map((x) => x.id),
+      ...(localView(doc.slug)?.segments ?? []).map((x) => x.id),
+    ]);
+    let n = 1;
+    while (taken.has(`S${String(n).padStart(2, "0")}`)) n++;
     const seg: CreativeSegment = {
       id: `S${String(n).padStart(2, "0")}`,
       transcriptIds: lines.map((l) => l.id),
-      start: +selection.start.toFixed(3),
-      end: +selection.end.toFixed(3),
+      start: +start.toFixed(3),
+      end: +end.toFixed(3),
       text,
       type,
+      ...(sceneType
+        ? { sceneType }
+        : type === "text"
+          ? { sceneType: "captions" as const }
+          : type === "onscreen"
+            ? { sceneType: "captions-ui" as const }
+            : type === "fullscreen"
+              ? { sceneType: "fullscreen" as const }
+              : {}),
+      onScreen: "",
+      plan: { status: "draft" as const },
       major: type !== "sound",
       round: 0,
       concepts: {},
@@ -252,8 +325,65 @@ export const App: React.FC = () => {
         fromServer(r.doc);
         setSegmentId(seg.id);
         setTab("creative");
+        if (view === "plan") focusScene(seg.id);
       })
       .catch((e) => setError(String(e.message)));
+  };
+
+  const saveAndDraft = async (next: EditDoc, segId: string) => {
+    setDocState(next);
+    try {
+      await api.save(next);
+    } catch (e) {
+      if (e instanceof ConflictError) {
+        setDocState(e.doc);
+        setError(e.message);
+        return;
+      }
+      throw e;
+    }
+    const r = await api.drafts(next.slug, segId);
+    fromServer(r.doc);
+  };
+
+  const creativeFor = (seg: CreativeSegment | null) =>
+    doc ? (
+      <CreativePanel
+        doc={doc}
+        segment={seg}
+        fromServer={fromServer}
+        setDoc={setDoc}
+        setError={setError}
+        previewConcept={previewConcept}
+        setPreviewConcept={(c) => {
+          setPreviewConcept(c);
+          if (c && seg)
+            seek(seg.start + Math.min(1, (seg.end - seg.start) / 2));
+        }}
+        extraRefs={extraRefs}
+        onBuilt={(id) => {
+          setBeatId(id);
+          setPreviewConcept(null);
+        }}
+        seek={seek}
+      />
+    ) : null;
+
+  /** One selection for both workspaces: the scene/line range on the timeline, the Player, the scene record. */
+  const selectRange = (r: {
+    segId: string | null;
+    lineIds: string[];
+    start: number;
+    end: number;
+  }) => {
+    setSelection({
+      start: r.start,
+      end: r.end,
+      lineIds: r.lineIds,
+      source: "transcript",
+    });
+    setSegmentId(r.segId);
+    seek(r.start);
   };
 
   if (!slug || !doc) {
@@ -352,19 +482,22 @@ export const App: React.FC = () => {
                 ? "unsaved changes"
                 : "save error"}
         </span>
-        <div className="flow">
-          {[
-            "Select words",
-            "Choose type",
-            "Review A/B/C/D",
-            "Approve",
-            "Build",
-            "Preview",
-            "Export",
-          ].map((s) => (
-            <span key={s}>{s}</span>
-          ))}
-        </div>
+        <nav className="views" data-testid="views">
+          <button
+            className={view === "plan" ? "active" : ""}
+            onClick={() => setView("plan")}
+            data-testid="view-plan"
+          >
+            Scene Planning
+          </button>
+          <button
+            className={view === "timeline" ? "active" : ""}
+            onClick={() => setView("timeline")}
+            data-testid="view-timeline"
+          >
+            Timeline Editor
+          </button>
+        </nav>
       </header>
       <div className="banner-slot">
         {notice && !error ? (
@@ -386,26 +519,44 @@ export const App: React.FC = () => {
           </div>
         ) : null}
       </div>
-      <div className="main">
-        <section className="panel transcript-panel">
-          <TranscriptPanel
-            doc={doc}
-            issues={issues}
-            frame={frame}
-            selection={selection}
-            setSelection={setSelection}
-            seek={seek}
-            setDoc={setDoc}
-            fromServer={fromServer}
-            setIssues={setIssues}
-            onCreateSegment={createSegment}
-            onOpenSegment={(id) => {
-              setSegmentId(id);
-              setTab("creative");
-            }}
-            setError={setError}
-          />
-        </section>
+      <div className={`main view-${view}`}>
+        {view === "plan" ? (
+          <section className="panel planning-panel">
+            <ScenePlanning
+              doc={doc}
+              setDoc={setDoc}
+              fromServer={fromServer}
+              saveAndDraft={saveAndDraft}
+              setError={setError}
+              segmentId={segmentId}
+              focus={focus}
+              onSelectRow={selectRange}
+              onCreateScene={createScene}
+              renderConcepts={(seg) => creativeFor(seg)}
+            />
+          </section>
+        ) : null}
+        {view === "timeline" ? (
+          <section className="panel transcript-panel">
+            <TranscriptPanel
+              doc={doc}
+              issues={issues}
+              frame={frame}
+              selection={selection}
+              setSelection={setSelection}
+              seek={seek}
+              setDoc={setDoc}
+              fromServer={fromServer}
+              setIssues={setIssues}
+              onCreateSegment={createSegment}
+              onOpenSegment={(id) => {
+                setSegmentId(id);
+                setTab("creative");
+              }}
+              setError={setError}
+            />
+          </section>
+        ) : null}
         <section className="panel preview-panel">
           {previewConcept ? (
             <div className="concept-banner">
@@ -488,85 +639,71 @@ export const App: React.FC = () => {
             {fmtTime(frame / fps)} · frame {frame}
           </div>
         </section>
-        <section className="panel inspector">
-          <nav className="tabs">
-            {(
-              [
-                "creative",
-                "properties",
-                "sound",
-                "references",
-                "export",
-              ] as Tab[]
-            ).map((t) => (
-              <button
-                key={t}
-                className={tab === t ? "active" : ""}
-                onClick={() => setTab(t)}
-                data-testid={`tab-${t}`}
-              >
-                {t === "creative" ? "A/B/C/D" : t[0].toUpperCase() + t.slice(1)}
-              </button>
-            ))}
-          </nav>
-          <div className="tab-body">
-            {tab === "creative" ? (
-              <CreativePanel
-                doc={doc}
-                segment={segment}
-                fromServer={fromServer}
-                setDoc={setDoc}
-                setError={setError}
-                previewConcept={previewConcept}
-                setPreviewConcept={(c) => {
-                  setPreviewConcept(c);
-                  if (c && segment)
-                    seek(
-                      segment.start +
-                        Math.min(1, (segment.end - segment.start) / 2),
-                    );
-                }}
-                extraRefs={extraRefs}
-                onBuilt={(id) => {
-                  setBeatId(id);
-                  setPreviewConcept(null);
-                }}
-                seek={seek}
-              />
-            ) : null}
-            {tab === "properties" ? (
-              <PropertiesPanel
-                doc={doc}
-                beatId={beatId}
-                setBeatId={setBeatId}
-                setDoc={setDoc}
-                seek={seek}
-              />
-            ) : null}
-            {tab === "sound" ? (
-              <SoundPanel
-                doc={doc}
-                setDoc={setDoc}
-                fromServer={fromServer}
-                reloadSounds={reloadSounds}
-                setError={setError}
-                sounds={sounds}
-                segmentId={segmentId}
-                seek={seek}
-              />
-            ) : null}
-            {tab === "references" ? (
-              <ReferencesPanel picked={extraRefs} setPicked={setExtraRefs} />
-            ) : null}
-            {tab === "export" ? (
-              <ExportPanel
-                doc={doc}
-                fromServer={fromServer}
-                setError={setError}
-              />
-            ) : null}
-          </div>
-        </section>
+        {view === "timeline" ? (
+          <section className="panel inspector">
+            <nav className="tabs">
+              {(
+                [
+                  "creative",
+                  "properties",
+                  "sound",
+                  "references",
+                  "export",
+                ] as Tab[]
+              ).map((t) => (
+                <button
+                  key={t}
+                  className={tab === t ? "active" : ""}
+                  onClick={() => setTab(t)}
+                  data-testid={`tab-${t}`}
+                >
+                  {t === "creative"
+                    ? "A/B/C/D"
+                    : t[0].toUpperCase() + t.slice(1)}
+                </button>
+              ))}
+            </nav>
+            <div className="tab-body">
+              {tab === "creative" ? creativeFor(segment) : null}
+              {tab === "properties" ? (
+                <PropertiesPanel
+                  onOpenPlan={(id) => {
+                    setView("plan");
+                    setSegmentId(id);
+                    focusScene(id);
+                  }}
+                  doc={doc}
+                  beatId={beatId}
+                  setBeatId={setBeatId}
+                  setDoc={setDoc}
+                  seek={seek}
+                />
+              ) : null}
+              {tab === "sound" ? (
+                <SoundPanel
+                  doc={doc}
+                  setDoc={setDoc}
+                  fromServer={fromServer}
+                  reloadSounds={reloadSounds}
+                  setError={setError}
+                  sounds={sounds}
+                  segmentId={segmentId}
+                  seek={seek}
+                />
+              ) : null}
+              {tab === "references" ? (
+                <ReferencesPanel picked={extraRefs} setPicked={setExtraRefs} />
+              ) : null}
+              {tab === "export" ? (
+                <ExportPanel
+                  doc={doc}
+                  fromServer={fromServer}
+                  setError={setError}
+                />
+              ) : null}
+            </div>
+          </section>
+        ) : null}
       </div>
       <section className="timeline-panel">
         <Timeline
@@ -577,13 +714,19 @@ export const App: React.FC = () => {
           setSelection={setSelection}
           setDoc={setDoc}
           selectedBeat={beatId}
+          selectedSegment={segmentId}
           onSelectBeat={(id) => {
+            // an animation on the timeline opens its scene plan (same record in both workspaces)
             setBeatId(id);
-            setTab("properties");
+            const sid = doc.beats.find((b) => b.id === id)?.segmentId ?? null;
+            if (sid) setSegmentId(sid);
+            if (view === "plan" && sid) focusScene(sid);
+            else setTab("properties");
           }}
           onSelectSegment={(id) => {
             setSegmentId(id);
-            setTab("creative");
+            if (view === "plan") focusScene(id);
+            else setTab("creative");
           }}
           onSelectSfx={(id) => {
             const s = doc.sfx.find((x) => x.id === id);

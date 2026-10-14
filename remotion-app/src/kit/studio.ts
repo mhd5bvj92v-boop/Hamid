@@ -107,3 +107,37 @@ export const docErrors = (doc: EditDoc, extra: TimingRegistry = {}) => {
   }
   return errs;
 };
+
+/**
+ * Change a scene's start/end. The scene is the one record both workspaces edit:
+ * its timeline item moves with it (start offset kept, end kept aligned through
+ * outAt), sounds linked to the item follow automatically, and fixed-time sounds
+ * of the scene shift by the same amount. Nothing else on the timeline changes.
+ */
+export const retimeScene = (doc: EditDoc, segId: string, start: number, end: number): EditDoc => {
+  const seg = doc.segments.find((s) => s.id === segId);
+  if (!seg) return doc;
+  const fps = doc.source.fps;
+  const snap = (t: number) => Math.round(t * fps) / fps;
+  const total = doc.source.durationInFrames / fps;
+  let s = Math.max(0, snap(start));
+  let e = Math.min(total, snap(end));
+  if (e - s < 0.3) {
+    if (start !== seg.start) s = Math.max(0, e - 0.3);
+    else e = Math.min(total, s + 0.3);
+  }
+  const dS = +(s - seg.start).toFixed(4);
+  const dE = +(e - seg.end).toFixed(4);
+  if (!dS && !dE) return doc;
+  return {
+    ...doc,
+    segments: doc.segments.map((x) => (x.id === segId ? { ...x, start: +s.toFixed(4), end: +e.toFixed(4) } : x)),
+    beats: doc.beats.map((b) => {
+      if (b.segmentId !== segId) return b;
+      const props = { ...(b.props as Record<string, unknown>) };
+      if (typeof props.outAt === "number") props.outAt = Math.max(0.3, +((props.outAt as number) + dE - dS).toFixed(4));
+      return { ...b, at: +(b.at + dS).toFixed(4), props } as typeof b;
+    }),
+    sfx: doc.sfx.map((x) => (x.segmentId === segId && "time" in x.link ? { ...x, link: { time: +(x.link.time + dS).toFixed(4) } } : x)),
+  };
+};

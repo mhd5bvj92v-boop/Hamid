@@ -36,7 +36,7 @@ Preserve the full original timeline, duration and synchronised dialogue. A full-
 - present fewer than three genuinely different, library-grounded concepts (A, B, C) for a major visual moment, or omit option D (the user's own idea) and the offer of three new concepts;
 - record an approval the user did not give in their own words.
 
-Options are presented by Claude directly in the conversation, or picked by the user in the Creative Director Studio (`remotion-app/studio/`, our own editor around the Remotion Player); Remotion only previews and renders. Every decision is saved in the project's creative decision log, which is the single project file `remotion-app/src/projects/<slug>/edit.json` that the Player, the previews and the final renderer all read (`scripts/edit_decisions.py`, or the Studio).
+Options are presented by Claude directly in the conversation, or picked by the user in the Creative Director Studio (`remotion-app/studio/`, our own editor around the Remotion Player). The Studio has two connected workspaces over the same `edit.json` and the same Remotion composition: **Scene Planning** (constants for the whole edit; per sentence the scene type Captions Only / Captions + UI / Halfscreen / Fullscreen and what happens on screen; optional A/B/C/D) and the **Timeline Editor** (multi-track timeline, inspector, sound, export). A scene is one record: changing its times, type or words in either view changes it in both. Every decision is saved in the project's creative decision log, which is the single project file `remotion-app/src/projects/<slug>/edit.json` that the Player, the previews and the final renderer all read (`scripts/edit_decisions.py`, or the Studio).
 
 **The user's script is theirs.** Their timestamped script is the default timing source. Import it as written; never rewrite the words or change, round or "fix" a timestamp. Missing or invalid times are flagged for the user to correct. Never present generated timestamps as verified. Don't overwhelm the user: group related decisions, and decide technical details (easing, frames, dB, render settings) yourself.
 
@@ -48,7 +48,7 @@ Options are presented by Claude directly in the conversation, or picked by the u
 5. **No invented data presented as fact.** Charts and numbers use the speaker's numbers or stay clearly illustrative.
 6. Do not start editing a video when the user only asked to build or extend the library. If the user says more references are coming, wait for **"ALL REFERENCES UPLOADED"** before finalising.
 7. **The voice is king.** Dialogue is never altered (0 dB, bit-identical dialogue stem), and no effect or music is louder than the voice while the speaker talks.
-8. **Remotion is the composition engine.** The footage enters every edit through the kit's `SourceFootage` layer: full length, original speed, no trim. Graphics, full-screen scenes and the Studio sound preview are layered on top. Rendering is local; never deploy to AWS/Lambda or add a paid render service.
+8. **Remotion-first: every edit is built and rendered by Remotion.** The footage enters every edit through the kit's `SourceFootage` layer: full length, original speed, no trim. Captions and text animation, on-screen UI, half-screen and full-screen compositions, transitions and effects, and the placement and mix of every sound effect (and music) are layers of the same Remotion composition (`StudioEdit` in the Studio, `Edit-<slug>` on the CLI). **The final MP4 is that Remotion render** (`edit_render.py final`, or the Studio's Export). There is no second rendering system for any animation type. FFmpeg, numpy and the System D scripts are supporting tools only: inspecting assets, transcoding (the Player's preview proxy), planning and analysing the sound (`sfx_plan.py`; `sound_mix.py` mixes the plan offline only to check it with `sound_qc.py`; neither produces the deliverable) and QC (`edit_qc.py` checks the Remotion render: timeline, dialogue untouched, every effect present, no clipping). An edit is done only when it is in the Remotion composition and has rendered successfully: `edit_decisions.py built` renders a still and a clip before it records anything. Rendering is local; never deploy to AWS/Lambda or add a paid render service.
 9. **Only authorised, accessible sound assets.** Index the user's own SFX folders in place. Never delete, overwrite or re-encode them. Never invent a sound asset, never claim a sound was added when it isn't available, never ship synthetic test sounds, and never claim you *listened* to audio. You measure it; the user listens.
 10. **Montserrat is the only sans-serif.** Every sans text (captions, UI, labels, kickers, numerals, body) uses Montserrat. The single expressive accent voice (italic serif, script) may differ.
 
@@ -62,7 +62,7 @@ Full procedure: `references/creative-director.md` (phases, A/B/C/D format, gates
 | 2 Options | A, B, C per major moment from the library + D, real preview frames | chooses, writes D, or asks for three new concepts | `edit_decisions.py propose / decide`, `edit_render.py concept-frames` |
 | 3 Approval | concise, grouped, timecoded storyboard | approves the creative direction | `edit_decisions.py storyboard`, `approve --gate direction` |
 | 4 Animation preview | builds in Remotion, short motion previews with draft sound, applies changes | feedback, change requests | `edit_render.py draft-sound / preview`, `edit_decisions.py feedback`, `approve --gate preview` |
-| 5 Final render | full-resolution picture, mix, QC, export | **explicitly approves the edit** first | `approve --gate final`, `edit_render.py picture`, `sound_mix.py`, `sound_qc.py`, `edit_qc.py` |
+| 5 Final render | the Remotion render of the whole composition (footage + layers + sounds), QC | **explicitly approves the edit** first | `approve --gate final`, `edit_render.py final` (runs `edit_qc.py`) |
 
 ```bash
 python3 scripts/edit_init.py /path/to/my-cut.mp4 --slug my-video          # Phase 1 intake (+ edit.json); --fps N only if approved
@@ -81,13 +81,20 @@ python3 scripts/edit_render.py draft-sound my-video
 python3 scripts/edit_render.py preview my-video --beat b03-horizon         # half-resolution clip with dialogue + draft sound
 # Phase 5, only after the user's explicit final approval:
 python3 scripts/edit_decisions.py approve my-video --gate final --quote "<user's words>"
-python3 scripts/edit_render.py picture my-video                             # refuses without the final approval
-python3 scripts/sound_mix.py work/my-video/sound/cues.json --out work/my-video/sound/final_v1 --passes 1,2,3
-python3 scripts/sound_qc.py work/my-video/sound/final_v1
-python3 scripts/edit_qc.py my-video --final work/my-video/sound/final_v1/final.mp4
+python3 scripts/sound_mix.py work/my-video/sound/cues.json --out work/my-video/sound/final_v1 --passes 1,2,3   # offline check of the sound plan only
+python3 scripts/sound_qc.py work/my-video/sound/final_v1                                                         # analysis of the plan
+python3 scripts/edit_render.py final my-video --session work/my-video/sound/final_v1/session.json
+#   -> work/my-video/renders/final_v1.mp4: THE deliverable, rendered by Remotion (footage + every layer + those
+#      sound placements); refuses without the final approval or while builds wait; runs edit_qc.py on it
 ```
 
-The Studio's Export final MP4 runs the same Phase 5 chain on `edit.json` and is gated the same way. The final export is `sound_mix.py`'s `final.mp4`: the Remotion picture stream copied untouched plus the System D mix, which is built from the **original** dialogue. `sound_qc.py` and `edit_qc.py` (which also checks the recorded final approval) must exit 0 before delivery.
+The Studio's Export final MP4 does the same on `edit.json`: Remotion renders `StudioEdit` with every layer and every sound effect of the SFX track, then `edit_qc.py` checks that render. `edit_qc.py` must exit 0 before delivery (it also checks the recorded final approval and that no build is still waiting for Claude Code).
+
+### Who does what (Remotion-first)
+
+| Claude Code | Remotion | Creative Director Studio |
+|---|---|---|
+| analyses the transcript and video, reads this skill, suggests concepts, interprets the user's instructions, writes and updates Remotion components, implements approved revisions, validates the results (renders + QC) | controls the composition: footage, captions and text animation, on-screen UI, half-screen and full-screen compositions, transitions and effects, sound-effect placement and the final audio mix; renders the previews and the final MP4 | Scene Planning and Timeline Editor over one `edit.json`: plans and selects edits, shows the transcript and timeline, stores decisions, previews the actual Remotion composition (Player), sends approved instructions to Claude Code as requests |
 
 ## Folder map
 
@@ -124,7 +131,7 @@ scripts/                          edit workflow: edit_init, edit_decisions (crea
 templates/                        reference-matched HTML templates (design sandbox; ported to the Remotion kit)
 ```
 
-The Remotion side lives in the repository's `remotion-app/`: the edit kit in `src/kit/` (SourceFootage, TalkingHeadEdit, StudioEdit, CaptionAccent, StatCard, HorizonTitle, UiCard, StatementScene, SoundPreview, the `edit.json` schema in `project.ts`, house motion), one folder per project in `src/projects/<slug>/` (its `edit.json` is the project), and the Creative Director Studio in `studio/` (`npm run studio`, tested by `npm run studio:test`).
+The Remotion side lives in the repository's `remotion-app/`: the edit kit in `src/kit/` (SourceFootage, TalkingHeadEdit, StudioEdit, CaptionAccent, StatCard, HorizonTitle, UiCard, StatementScene, HalfPanel, SoundPreview, kinds Claude Code built for approved concepts in `src/kit/custom/`, the `edit.json` schema in `project.ts`, house motion), one folder per project in `src/projects/<slug>/` (its `edit.json` is the project), and the Creative Director Studio in `studio/` (`npm run studio`, tested by `npm run studio:test`).
 
 ## Progressive disclosure: what to load when
 

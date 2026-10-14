@@ -12,8 +12,9 @@
    edit_render.py sfx (measured sound intents) -> sfx_plan.py -> cue sheet with SYNTHETIC test sounds;
 5. Phase 4: draft sound + a half-resolution motion preview with audio; feedback; the final render is
    REFUSED before the final approval;
-6. Phase 5: final approval -> edit_render.py picture (Remotion) -> sound_mix.py (final.mp4) ->
-   sound_qc.py and edit_qc.py must pass;
+6. Phase 5: final approval -> the sound plan is analysed (sound_mix.py offline + sound_qc.py) ->
+   edit_render.py final: THE deliverable is rendered by Remotion (footage + layers + sound effects) ->
+   edit_qc.py must pass on that render, incl. its mix checks (voice untouched, every effect present);
 7. edit_render.py sound-preview + tsc: the Studio preview compiles;
 8. negative tests: a trimmed head, a sped-up copy, shifted audio and a cut in the middle must FAIL edit_qc;
 9. the original synthetic footage is byte-identical at the end.
@@ -174,7 +175,7 @@ def main():
         step([py, str(HERE / "edit_render.py"), "concept-frames", SLUG, "--moment", "S03", "--app", str(app)], env)
         sheet = work / SLUG / "previews" / "S03_r1_concepts.png"
         from PIL import Image
-        assert sheet.exists() and Image.open(sheet).size[0] > 3 * 540, "concept sheet must show A, B and C side by side"
+        assert sheet.exists() and Image.open(sheet).size[0] > 3 * 540, f"concept sheet must show A, B and C side by side: {Image.open(sheet).size if sheet.exists() else 'missing'} {sorted(p.name for p in sheet.parent.rglob('*'))}"
         say(f"       concept preview frames: {sheet.name} {Image.open(sheet).size}")
         step(ED + ["storyboard", SLUG], env)
         step(ED + ["propose", SLUG, "--file", str(d / "proposals.json")], env)      # "three new concepts" -> round 2
@@ -202,8 +203,8 @@ def main():
             bf = d / f"build_{b['id']}.json"
             bf.write_text(json.dumps({"beat": {k: b[k] for k in ("id", "kind", "at", "props", "refs")}, "notes": "selftest",
                                       "coverage": [{"item": b["reason"], "done": True, "how": b["kind"]}]}))
-            step(ED + ["built", SLUG, "--request", reqs[b["segmentId"]], "--file", str(bf)] + ([] if b["id"] == "b02-stat" else ["--no-render"]), env)
-        step(ED + ["built", SLUG, "--request", reqs["S01"], "--file", str(d / "build_b01-hook.json"), "--no-render"], env, expect=1)
+            step(ED + ["built", SLUG, "--request", reqs[b["segmentId"]], "--file", str(bf)], env)
+        step(ED + ["built", SLUG, "--request", reqs["S01"], "--file", str(d / "build_b01-hook.json")], env, expect=1)
         doc = json.loads((pdir / "edit.json").read_text())
         assert [b["id"] for b in doc["beats"]] == [b["id"] for b in BEATS], doc["beats"]
         v = next(m for m in doc["segments"] if m["id"] == "S02")["versions"][-1]
@@ -258,15 +259,20 @@ def main():
         step(ED + ["approve", SLUG, "--gate", "final", "--quote", "Approved, render the final (selftest)"], env)
         step(ED + ["status", SLUG, "--require", "final"], env)
 
-        say("6. Phase 5: picture (Remotion) -> mix + final (sound_mix) -> QC")
+        say("6. Phase 5: sound plan analysed -> final rendered by Remotion (footage + layers + sound effects) -> QC")
         step([py, str(HERE / "edit_render.py"), "picture", SLUG, "--app", str(app)], env)
         step([py, str(HERE / "video_events.py"), str(work / SLUG / "renders" / "picture.mp4"), "--out", str(snd / "video_events.json")], env)
         step([py, str(HERE / "sound_mix.py"), str(snd / "cues.json"), "--out", str(snd / "final_v1"), "--passes", "1,2,3", "--no-music"], env)
         r = step([py, str(HERE / "sound_qc.py"), str(snd / "final_v1")], env)
-        say("   sound_qc: " + r.stdout.strip().splitlines()[-1])
-        final = snd / "final_v1" / "final.mp4"
-        r = step([py, str(HERE / "edit_qc.py"), SLUG, "--final", str(final), "--app", str(app)], env)
-        say("   edit_qc: " + r.stdout.strip().splitlines()[-1])
+        say("   sound_qc (analysis of the sound plan): " + r.stdout.strip().splitlines()[-1])
+        r = step([py, str(HERE / "edit_render.py"), "final", SLUG, "--session", str(snd / "final_v1" / "session.json"), "--app", str(app)], env)
+        final = work / SLUG / "renders" / "final_v1.mp4"
+        rep = json.loads((final.parent / "edit_qc_report.json").read_text())
+        mix = [x for x in rep["results"] if x["area"] == "mix"]
+        present = [x for x in mix if "present at" in x["msg"]]
+        n_place = len(json.loads((snd / "final_v1" / "session.json").read_text())["placements"])
+        assert rep["errors"] == 0 and present and len(present) == n_place and all(x["level"] == "PASS" for x in mix), rep
+        say(f"   edit_qc on the Remotion render: {rep['errors']} errors, {rep['warnings']} warnings; {len(present)}/{n_place} sound effects present, voice untouched")
 
         say("7. Studio sound preview compiles")
         step([py, str(HERE / "edit_render.py"), "sound-preview", SLUG, "--session", str(snd / "final_v1" / "session.json"), "--app", str(app)], env)
@@ -285,10 +291,12 @@ def main():
                               "[0:v]select='not(between(t,2.4,2.9))',setpts=N/30/TB[v];[0:a]aselect='not(between(t,2.4,2.9))',asetpts=N/SR/TB[a]",
                               "-map", "[v]", "-map", "[a]", *enc],
         }
+        # a render that lost its sound effects (e.g. the original cut re-encoded) must fail the mix checks
+        variants["effects-missing"] = ["-i", str(src), *enc]
         for name, args in variants.items():
             out = bad / f"{name}.mp4"
             subprocess.run(["ffmpeg", "-v", "error", "-y", *args, str(out)], check=True)
-            r = step([py, str(HERE / "edit_qc.py"), SLUG, "--final", str(out), "--app", str(app)], env, expect=1)
+            r = step([py, str(HERE / "edit_qc.py"), SLUG, "--final", str(out), "--app", str(app), "--sfx", str(snd / "final_v1" / "session.json")], env, expect=1)
             errs = sorted({x["area"] for x in json.loads((bad / "edit_qc_report.json").read_text())["results"] if x["level"] == "ERROR"})
             say(f"       {name}: rejected ({', '.join(errs)})")
 

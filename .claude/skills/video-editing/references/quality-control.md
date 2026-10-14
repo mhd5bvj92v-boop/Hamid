@@ -4,8 +4,8 @@ Run this after every render round. QC means **looking at the frames**, not assum
 
 ## Procedure
 
-0. **Prove the timeline first.** `python3 scripts/edit_qc.py <slug> --final <final.mp4>` and `python3 scripts/sound_qc.py <final dir>` must both exit 0 (see the Timeline checklist).
-1. **Extract evidence.** For each beat, pull 3 frames from the *final* video (entering, landed/mid, just before exit): `python3 scripts/compose.py frame work/<slug>/sound/final_vN/final.mp4 --t <t> --out work/<slug>/qc/<beat>-<t>.png`, or render a still straight from Remotion (`edit_render.py still <slug> --t <t>`). For full-screen scenes, add the first and last frame and the first frame after the scene.
+0. **Prove the timeline first.** `python3 scripts/edit_qc.py <slug> --final work/<slug>/renders/final_vN.mp4 --sfx <placements>` (run by `edit_render.py final` and the Studio's Export on the Remotion render) and `python3 scripts/sound_qc.py <plan dir>` must both exit 0 (see the Timeline checklist).
+1. **Extract evidence.** For each beat, pull 3 frames from the *final* video (entering, landed/mid, just before exit): `python3 scripts/compose.py frame work/<slug>/renders/final_vN.mp4 --t <t> --out work/<slug>/qc/<beat>-<t>.png`, or render a still straight from Remotion (`edit_render.py still <slug> --t <t>`). For full-screen scenes, add the first and last frame and the first frame after the scene.
 2. **Compare.** `python3 scripts/compare.py --render <frames> --refs <IDs chosen in the plan> --out work/qc/cmp-<beat>.png`, then open it with Read.
 3. **Check at phone size.** Look at a frame downscaled to 360px width (`compare.py --height 640` approximates this). If you have to squint, it fails.
 4. **Score with the checklists below.** Every "must" item has to pass. For each "should" item that fails, write the reason or a fix.
@@ -86,7 +86,7 @@ Run `python3 scripts/sound_qc.py <render folder> --events <video_events.json>`. 
 - [ ] Music is silent in full-screen and graphic windows.
 - [ ] No clipping (sample peak and true peak). The loudest stack is reported.
 - [ ] The voice stem is bit-identical to the source, the voice is at unity in the mix, and nothing is louder than the voice during speech.
-- [ ] The source audio and library files are unchanged, and `final.mp4` exists with its picture bit-identical to the edited picture.
+- [ ] The source audio and library files are unchanged, and the deliverable is the Remotion render (`renders/final_vN.mp4`): `edit_qc.py` found the voice at unity outside the effects, every planned effect present at its time, and no clipping.
 - [ ] Every placed sound records the variations it was compared against (`auditioned`).
 - [ ] Silence decisions are explicit (`status: silence/rejected` with a reason).
 - [ ] Tell the user that Claude verified the mix by measurement and cannot listen, and ask them to listen.

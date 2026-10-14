@@ -172,7 +172,9 @@ try {
   await page.getByTestId("tab-creative").click();
   await page.getByTestId("set-draft").click();
   await page.getByTestId("draft-choose-C").click();
-  await page.waitForTimeout(1200);
+  // a Quick Draft only counts as built after Remotion rendered a still of it
+  for (let i = 0; i < 120 && docOnDisk().segments.find((x) => x.id === "S01")?.decision?.choice !== "C"; i++) await page.waitForTimeout(250);
+  await page.waitForTimeout(600);
   doc = docOnDisk();
   const beatC = doc.beats.find((b) => b.id === "S01");
   await seekTo(3.8);
@@ -212,7 +214,8 @@ try {
   await page.getByTestId("set-draft").click();
   await page.getByTestId("draft-B").waitFor();
   await page.getByTestId("draft-choose-B").click();
-  await page.waitForTimeout(1500);
+  for (let i = 0; i < 120 && !docOnDisk().segments.find((x) => x.text.startsWith("What is"))?.versions?.length; i++) await page.waitForTimeout(250);
+  await page.waitForTimeout(600);
   doc = docOnDisk();
   const sText = doc.segments.find((s) => s.text.startsWith("What is"));
   check("abcd", sText?.decision?.choice === "B" && sText.decision.source === "draft" && doc.beats.some((b) => b.segmentId === sText.id) && !(doc.requests ?? []).some((r) => r.status === "pending"),
@@ -281,11 +284,9 @@ for b in tl["beats"]:
     out["beats"].append(dict(id=b["id"], start=s/fps, end=e/fps, before=round(before,1), inside=round(inside,1), after=None if after is None else round(after,1)))
 info = json.loads(subprocess.run(["ffprobe","-v","error","-count_frames","-show_entries","stream=codec_type,nb_read_frames,width,height,r_frame_rate:format=duration","-of","json",fin],capture_output=True,text=True).stdout)
 out["probe"] = info
-# SFX onsets in the rendered effect stems vs the Studio's event times
-import glob, os
-stems = sorted(glob.glob(os.path.join(os.path.dirname(fin), "stems", "*.wav")))
-ses = json.load(open(os.path.join(os.path.dirname(fin), "session.json")))
-out["placements"] = [dict(id=p["id"], target=p["target_t"], anchor=p["anchor"]) for p in ses["placements"]]
+# the sound effects Remotion placed in the final render (written by the export) vs the Studio's event times
+ses = json.load(open(fin[:-4] + "_sfx.json"))
+out["placements"] = [dict(id=p["id"], target=p["eventTime"]) for p in ses]
 # the Remotion motion preview carries the SFX: preview audio minus source audio is loud only around each event
 def pcm(p):
     raw = subprocess.run(["ffmpeg","-v","error","-i",p,"-ac","1","-ar","48000","-f","f32le","-"],capture_output=True).stdout
@@ -294,7 +295,7 @@ prev = pcm(${JSON.stringify(path.join(APP, "..", "work", SLUG, "previews", "prev
 srca = pcm(src)
 n = min(len(prev), len(srca)); diff = prev[:n] - srca[:n]
 rms = lambda a, b: float(np.sqrt(np.mean(diff[int(a*48000):int(b*48000)]**2)) + 1e-9)
-events = [p["target_t"] for p in ses["placements"]]
+events = [p["eventTime"] for p in ses]
 quiet = [rms(t, t+0.15) for t in np.arange(0, 7.85, 0.05) if all(abs(t - e) > 0.6 for e in events)]
 out["preview_sfx"] = dict(events=[round(20*np.log10(max(rms(e-0.1+k*0.05, e-0.05+k*0.05) for k in range(6))),1) for e in events], quiet=round(20*np.log10(max(quiet)),1) if quiet else None)
 print(json.dumps(out))
@@ -313,7 +314,7 @@ print(json.dumps(out))
   const studioTimes = Object.fromEntries((await page.$$eval("[data-testid^=sfx-]", (els) => els.filter((e) => e.dataset.time).map((e) => [e.dataset.testid.replace("sfx-", ""), parseFloat(e.dataset.time)]))));
   const offs = m.placements.map((p) => Math.abs(p.target - (studioTimes[p.id] ?? NaN)));
   check(5, m.placements.length >= 3 && offs.every((d) => d < 1e-3),
-    `${m.placements.length} SFX mixed exactly on the Studio's animation event times (max diff ${(Math.max(...offs) * 1000).toFixed(2)} ms); sound_qc measured each anchor on its frame`);
+    `${m.placements.length} SFX placed by Remotion in the final render exactly on the Studio's animation event times (max diff ${(Math.max(...offs) * 1000).toFixed(2)} ms); edit_qc found each one in the render`);
   const ps = m.preview_sfx;
   check(5, ps.events.length >= 3 && ps.quiet !== null && ps.events.every((e) => e > ps.quiet + 10),
     `the Remotion motion preview plays the SFX: preview-minus-original level at each event ${ps.events.join("/")} dBFS vs ${ps.quiet} dBFS away from events`);

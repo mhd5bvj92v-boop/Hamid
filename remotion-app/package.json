@@ -47,6 +47,7 @@
     "test:render": "npm run test-media && npm run render:test && npm run render:footage && npm run render:overlay && npm run verify",
     "studio": "vite --config vite.config.ts",
     "studio:test": "node studio/tests/e2e.mjs",
-    "studio:test:claude": "node studio/tests/claude-workflow.mjs"
+    "studio:test:claude": "node studio/tests/claude-workflow.mjs",
+    "studio:test:plan": "node studio/tests/scene-planning.mjs"
   }
 }
