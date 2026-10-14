@@ -85,8 +85,10 @@ let vite: ViteDevServer | null = null;
 type Kit = typeof import("../../src/kit/studio") & typeof import("../../src/kit/timing");
 const kit = async (): Promise<Kit> => {
   if (!vite) throw new Error("server not ready");
-  const studio = await vite.ssrLoadModule("/@fs" + path.join(APP, "src", "kit", "studio.ts"));
-  const timing = await vite.ssrLoadModule("/@fs" + path.join(APP, "src", "kit", "timing.ts"));
+  // "/@fs/<absolute path>" with forward slashes (Windows: /@fs/C:/Users/...)
+  const id = (f: string) => "/@fs/" + path.join(APP, "src", "kit", f).replace(/\\/g, "/").replace(/^\//, "");
+  const studio = await vite.ssrLoadModule(id("studio.ts"));
+  const timing = await vite.ssrLoadModule(id("timing.ts"));
   return { ...studio, ...timing } as Kit;
 };
 
