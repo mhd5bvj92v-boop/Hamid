@@ -15,12 +15,13 @@
   python3 scripts/edit_render.py picture <slug> --graphics     # beats over black (review / motion measurement)
   python3 scripts/edit_render.py sound-preview <slug> --session work/<slug>/sound/final_v1/session.json
 
-picture is the FINAL render: it refuses to run until the user's explicit final approval is recorded in the
-project's creative decision log (edit_decisions.py approve --gate final). Before that, use still,
-concept-frames and preview. The final deliverable is made by scripts/sound_mix.py from this picture
-(picture stream copied untouched + the System D mix built from the untouched source dialogue), then
-checked by sound_qc.py and edit_qc.py. --scale N renders a master at N x 1080x1920 (e.g. 2 for a
-2160x3840 source); `edit_render.py downscale` makes the 1080x1920 picture from it.
+final and picture refuse to run until the user's explicit final approval is recorded in the project's
+creative decision log (edit_decisions.py approve --gate final). Before that, use still, concept-frames
+and preview. The final deliverable is the Remotion render made by `final`: Remotion places every sound
+effect (from the session's placements) over the untouched dialogue and renders picture + audio in one
+pass; edit_qc.py then checks it. sound_mix.py only plans/analyses the sound (the session.json `final`
+reads); its own mix is never the deliverable. --scale N renders a picture master at N x 1080x1920 (e.g.
+2 for a 2160x3840 source); `edit_render.py downscale` makes the 1080x1920 picture from it.
 """
 import argparse
 import json
