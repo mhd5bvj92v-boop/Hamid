@@ -256,6 +256,8 @@ try {
 
   // ---------------------------------------------------------------- 9 the Studio shows the real rendered result
   await waitText("build-state", /built v1/, 20000);
+  // D was written last: wait until the Studio has picked it up (it polls edit.json every 1.5 s)
+  await page.getByTestId("beat-S03").waitFor({ timeout: 15000 });
   const stillW = await imgOk(page.getByTestId("version-still"));
   const clipHref = await page.getByTestId("version-clip").getAttribute("href");
   const clipFile = path.join(REPO, "work", SLUG, "previews", path.basename(clipHref));
