@@ -10,9 +10,16 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
+import sys
 from fractions import Fraction
 from pathlib import Path
+
+# Windows: files and pipes default to the ANSI code page, but edit.json, the logs and the library are
+# UTF-8. Re-run the script once in Python's UTF-8 mode (nothing happens on macOS/Linux or when it is on).
+if os.name == "nt" and not sys.flags.utf8_mode and sys.argv and sys.argv[0].endswith(".py"):
+    sys.exit(subprocess.call([sys.executable, "-X", "utf8", *sys.argv]))
 
 SKILL_ROOT = Path(__file__).resolve().parent.parent
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,40}$")
@@ -165,7 +172,9 @@ def browser_env(app: Path) -> dict:
 
 
 def run(cmd: list[str], cwd: Path | None = None, env: dict | None = None, log: Path | None = None, check: bool = True) -> subprocess.CompletedProcess:
-    r = subprocess.run(cmd, cwd=cwd, env=env, capture_output=True, text=True)
+    if os.name == "nt" and cmd and cmd[0] in ("npx", "npm"):
+        cmd = [shutil.which(cmd[0]) or cmd[0], *cmd[1:]]  # npx.cmd on Windows: needs its full path without a shell
+    r = subprocess.run(cmd, cwd=cwd, env=env, capture_output=True, text=True, encoding="utf-8", errors="replace")
     if log:
         log.parent.mkdir(parents=True, exist_ok=True)
         log.write_text(f"$ {' '.join(cmd)}\n\n{r.stdout}\n{r.stderr}")

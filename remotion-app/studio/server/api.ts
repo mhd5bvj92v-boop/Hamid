@@ -1,7 +1,7 @@
 // Creative Director Studio API (a Vite plugin: one local server for the UI,
 // the media files and the Remotion renderer). Every route reads or writes the
 // project document remotion-app/src/projects/<slug>/edit.json.
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createReadStream, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
@@ -37,15 +37,41 @@ const body = (req: IncomingMessage) =>
       }
     });
   });
+// The scripts read and write UTF-8 (edit.json, logs); Windows would otherwise use its ANSI code page.
+const childEnv = { ...process.env, PYTHONUTF8: "1", PYTHONIOENCODING: "utf-8" };
 const run = (cmd: string, args: string[], cwd = APP) =>
   new Promise<{ code: number; out: string }>((ok) => {
-    const p = spawn(cmd, args, { cwd, env: process.env });
+    const p = spawn(cmd, args, { cwd, env: childEnv });
     let out = "";
     p.stdout.on("data", (d) => (out += d));
     p.stderr.on("data", (d) => (out += d));
+    p.on("error", (e) => ok({ code: 1, out: String(e.message) }));
     p.on("close", (code) => ok({ code: code ?? 1, out }));
   });
-const py = (script: string, args: string[]) => run("python3", [path.join(SCRIPTS, script), ...args]);
+// Python 3 under its usual name on this system: $PYTHON, else `py -3` / `python` on Windows (where
+// `python3` is often only the Microsoft Store shortcut), else `python3`.
+let python: string[] | null = null;
+const findPython = () => {
+  if (python) return python;
+  const tries = [
+    ...(process.env.PYTHON ? [[process.env.PYTHON]] : []),
+    ...(process.platform === "win32" ? [["py", "-3"], ["python"], ["python3"]] : [["python3"], ["python"]]),
+  ];
+  for (const t of tries) {
+    const r = spawnSync(t[0], [...t.slice(1), "--version"], { encoding: "utf8" });
+    if (r.status === 0 && /^Python 3\./.test(`${r.stdout}${r.stderr}`.trim())) return (python = t);
+  }
+  throw new Error(
+    "Python 3 was not found. Install it from python.org (tick \"Add python.exe to PATH\"), run `python -m pip install numpy pillow`, then restart the Studio. " +
+      "To use a specific Python, set the PYTHON environment variable to its path.",
+  );
+};
+const py = (script: string, args: string[]) => {
+  const [cmd, ...pre] = findPython();
+  return run(cmd, [...pre, path.join(SCRIPTS, script), ...args]);
+};
+// tsx through node itself: `npx` is a .cmd file on Windows, which spawn cannot start without a shell
+const tsx = (args: string[]) => run(process.execPath, [path.join(APP, "node_modules", "tsx", "dist", "cli.mjs"), ...args]);
 /** edit_decisions.py: requests, decisions, reviews (one implementation for the Studio and Claude Code). Text is passed as --opt=value, verbatim. */
 const decisions = async (args: string[]) => {
   const r = await py("edit_decisions.py", args);
@@ -154,7 +180,7 @@ const finalExport = async (j: Job, slug: string, origin: string) => {
   // Remotion-first: the final MP4 is the Remotion composition itself - original footage (dialogue at unity),
   // every animation layer and every sound effect, placed and mixed by Remotion. FFmpeg tools only inspect it.
   j.log.push("1/3 timeline windows (export-sfx, used by the QC)...");
-  const ex = await run("npx", ["--no-install", "tsx", "scripts/export-sfx.ts", slug, path.join(wd, "sound")]);
+  const ex = await tsx(["scripts/export-sfx.ts", slug, path.join(wd, "sound")]);
   if (ex.code) throw new Error("export-sfx failed: " + ex.out);
   const lib = soundMeta(origin);
   const audio = K.resolveAudio(doc, lib);
@@ -548,7 +574,7 @@ const routes: [string, RegExp, (c: Ctx) => Promise<unknown> | unknown][] = [
       throw new Error(`proxy does not match the source timeline (${frames} frames / ${dur.toFixed(3)} s vs ${doc.source.durationInFrames} / ${doc.source.sourceDurationSeconds})`);
     const link = path.join(APP, "public", "projects", slug, "proxy");
     rmSync(link, { force: true, recursive: false });
-    symlinkSync(dir, link, "dir");
+    symlinkSync(path.resolve(dir), link, process.platform === "win32" ? "junction" : "dir"); // a junction needs no admin rights on Windows
     (doc.source as { previewSrc?: string }).previewSrc = `projects/${slug}/proxy/source_proxy.webm`;
     writeDoc(slug, doc);
     return { doc, frames, duration: dur };

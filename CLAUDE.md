@@ -12,3 +12,4 @@ This repository finishes the user's **already-cut talking-head videos** with Cla
 - Only use sound effects the user has authorised and that are actually indexed and accessible. Never claim a sound was added if it wasn't.
 - Studio changes must keep `npm run studio:test`, `npm run studio:test:claude`, `npm run studio:test:plan` (end-to-end in Chromium) and `npm run lint` passing.
 - Remotion's own browser download is blocked in the Claude Code cloud sandbox; the scripts fall back to the local Chromium headless shell automatically.
+- On Windows, run the scripts with `py` (or `python`) where the docs say `python3`: Windows' own `python3` is only a Microsoft Store shortcut. The Studio finds Python itself (`PYTHON` env var, `py -3`, `python`).

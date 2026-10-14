@@ -10,7 +10,13 @@ import json
 import os
 import re
 import subprocess
+import sys
 from pathlib import Path
+
+# Windows: files and pipes default to the ANSI code page, but edit.json, the logs and the library are
+# UTF-8. Re-run the script once in Python's UTF-8 mode (nothing happens on macOS/Linux or when it is on).
+if os.name == "nt" and not sys.flags.utf8_mode and sys.argv and sys.argv[0].endswith(".py"):
+    sys.exit(subprocess.call([sys.executable, "-X", "utf8", *sys.argv]))
 
 import numpy as np
 

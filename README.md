@@ -35,6 +35,18 @@ All choices, concept rounds, feedback and approvals are saved per project in one
 cd remotion-app && npm i && npm run studio      # http://127.0.0.1:3010
 ```
 
+You need Node 18+, Python 3 with `numpy` and `Pillow`, and `ffmpeg`/`ffprobe` on your PATH.
+
+**Windows:** install Python from [python.org](https://www.python.org/downloads/) and tick **"Add python.exe to PATH"** (the `python3` that Windows ships is only a Microsoft Store shortcut, which prints "Python was not found"). Then, in a new terminal:
+
+```powershell
+python -m pip install numpy pillow
+winget install Gyan.FFmpeg          # ffmpeg + ffprobe; open a new terminal afterwards
+cd remotion-app; npm i; npm run studio
+```
+
+The Studio finds Python as `py -3` or `python` (or the path in the `PYTHON` environment variable). In commands in these docs, type `py` (or `python`) where they say `python3`. Your footage is linked with a folder junction (no admin rights needed; local NTFS drives). If that fails, turn on Windows Developer Mode, or import with `edit_init.py ... --copy`.
+
 Two connected workspaces over one `edit.json` and one Remotion composition:
 - **Scene Planning:** set the Constants for the Whole Edit, then plan sentence by sentence: scene type (Captions Only, Captions + UI, Halfscreen, Fullscreen, with examples from your library), what happens on screen, optional "Ask Claude for Ideas" with A/B/C/D, then approve the plans.
 - **Timeline Editor:** the multi-track timeline, Remotion Player, inspector, sound track and export. Retime a scene in either view and the other, its animation and its sounds follow.
