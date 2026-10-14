@@ -41,8 +41,19 @@ def creative_log(app, slug):
     return json.loads(p.read_text()) if p.exists() else None
 
 
+def pending_builds(log):
+    """Segments whose animation is still waiting for Claude Code (an export would silently miss it)."""
+    return [f"{r['segmentId']} ({r['id']} {r['status']})" for r in (log or {}).get("requests", [])
+            if r["type"] in ("implement", "revision") and r["status"] in ("pending", "in_progress")]
+
+
 def require_final_approval(app, pj):
     log = creative_log(app, pj["slug"])
+    if pj["source"].get("scriptOnly"):
+        sys.exit("script-only project: attach the real cut first (edit_init.py <footage> --slug ...); a final picture needs the footage.")
+    if pending_builds(log):
+        sys.exit("cannot render the final picture while animations are still waiting for Claude Code: " + ", ".join(pending_builds(log))
+                 + "\nProcess them (edit_decisions.py pending) or cancel them first.")
     if not log or not any(x["gate"] == "final" for x in log.get("approvals", [])):
         sys.exit("PHASE 5 GATE: the final full-resolution render needs the Creative Director's explicit final approval.\n"
                  "Show the motion previews (edit_render.py preview), collect feedback, and only after the user approves the edit run:\n"
@@ -191,15 +202,14 @@ def cmd_concept_frames(app, pj, a):
     out = wd / "previews" / f"{a.moment}_r{rnd}_concepts.png"
     sheet.save(out)
     # remember the preview in the creative log
-    lp = app / "src" / "projects" / pj["slug"] / "edit.json"
-    if lp.exists():
-        lg = json.loads(lp.read_text())
+    if V.doc_path(app, pj["slug"]).exists():
+        lg = V.load_doc(app, pj["slug"])
         for m in lg.get("segments", []):
             if m["id"] == a.moment and m.get("concepts"):
                 for c, _, _ in tiles:
                     if c["option"] in m["concepts"]:
                         m["concepts"][c["option"]]["preview"] = str(out)
-        lp.write_text(json.dumps(lg, indent=1, ensure_ascii=False) + "\n")
+        V.save_doc(app, pj["slug"], lg)
     print(f"concepts {a.moment} round {rnd}: {', '.join(c['option'] for c, _, _ in tiles)} -> {out}")
 
 
@@ -319,9 +329,13 @@ def main():
     a = ap.parse_args()
     app = V.find_app(a.app)
     pj = V.load_project(app, a.slug, a.work)
-    st = Path(pj["source"]["path"]).stat()     # fast check here; edit_qc.py verifies the full sha256
-    if st.st_size != pj["source"]["size"] or st.st_mtime_ns != pj["source"].get("mtime_ns", st.st_mtime_ns):
-        sys.exit("STOP: the original footage changed since edit_init (size/mtime differ). It must stay untouched.")
+    if pj["source"].get("scriptOnly"):
+        if a.cmd in ("sfx", "draft-sound", "sound-preview", "downscale"):
+            sys.exit(f"script-only project: '{a.cmd}' needs the footage's dialogue. Attach the cut first (edit_init.py <footage> --slug {a.slug}).")
+    else:
+        st = Path(pj["source"]["path"]).stat()     # fast check here; edit_qc.py verifies the full sha256
+        if st.st_size != pj["source"]["size"] or st.st_mtime_ns != pj["source"].get("mtime_ns", st.st_mtime_ns):
+            sys.exit("STOP: the original footage changed since edit_init (size/mtime differ). It must stay untouched.")
     {"sfx": cmd_sfx, "still": cmd_still, "concept-frames": cmd_concept_frames, "draft-sound": cmd_draft_sound, "preview": cmd_preview,
      "picture": cmd_picture, "downscale": cmd_downscale, "sound-preview": cmd_sound_preview}[a.cmd](app, pj, a)
 

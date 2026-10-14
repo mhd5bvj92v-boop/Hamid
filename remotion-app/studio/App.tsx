@@ -15,7 +15,7 @@ import type {
 import { SEGMENT_TYPES, fmtTime, linesInRange } from "../src/kit/project";
 import { StudioEdit, StudioEditProps } from "../src/kit/StudioEdit";
 import { SoundMeta, resolveAudio } from "../src/kit/studio";
-import { api, ProjectInfo } from "./api";
+import { api, ConflictError, ProjectInfo } from "./api";
 import { CreativePanel } from "./components/CreativePanel";
 import { ExportPanel } from "./components/ExportPanel";
 import { PropertiesPanel } from "./components/PropertiesPanel";
@@ -59,8 +59,22 @@ export const App: React.FC = () => {
   const [previewConcept, setPreviewConcept] =
     useState<StudioEditProps["concept"]>(null);
   const [extraRefs, setExtraRefs] = useState<string[]>([]);
+  const [notice, setNotice] = useState<string | null>(null);
   const player = useRef<PlayerRef>(null);
   const saveTimer = useRef<number | null>(null);
+  const live = useRef<{ rev: number; state: string }>({
+    rev: 0,
+    state: "saved",
+  });
+  live.current = { rev: doc?.rev ?? 0, state: saveState };
+  const reloadSounds = useCallback(
+    () =>
+      api
+        .sounds()
+        .then(setSounds)
+        .catch(() => setSounds([])),
+    [],
+  );
 
   useEffect(() => {
     api
@@ -76,6 +90,10 @@ export const App: React.FC = () => {
   useEffect(() => {
     if (!slug) return;
     history.replaceState(null, "", `?project=${slug}`);
+    api
+      .projects()
+      .then(setProjects)
+      .catch(() => undefined);
     api
       .load(slug)
       .then((l) => {
@@ -99,11 +117,42 @@ export const App: React.FC = () => {
         setSaveState(r.errors.length ? "error" : "saved");
         setError(r.errors.length ? r.errors.join("; ") : null);
       } catch (e) {
+        if (e instanceof ConflictError) {
+          // Claude Code (or the CLI) wrote edit.json first: take its version, never overwrite it
+          setDocState(e.doc);
+          setSaveState("saved");
+          setError(e.message);
+          return;
+        }
         setSaveState("error");
         setError(String((e as Error).message));
       }
     }, 450);
   }, []);
+
+  // Pick up what Claude Code writes to edit.json (concepts, builds, request status) while the Studio is open.
+  useEffect(() => {
+    if (!slug) return;
+    const t = window.setInterval(async () => {
+      if (live.current.state !== "saved") return;
+      try {
+        const r = await api.rev(slug);
+        if (r.rev === live.current.rev || live.current.state !== "saved")
+          return;
+        const l = await api.load(slug);
+        if (live.current.state !== "saved") return;
+        setDocState(l.doc);
+        setIssues(l.issues);
+        setNotice(
+          `Updated from edit.json (rev ${l.doc.rev}) — e.g. Claude Code processed a request.`,
+        );
+        window.setTimeout(() => setNotice(null), 6000);
+      } catch {
+        /* server restarting: try again next tick */
+      }
+    }, 1500);
+    return () => window.clearInterval(t);
+  }, [slug]);
   /** Server-side change (drafts, choose, approvals): already saved. */
   const fromServer = useCallback((next: EditDoc) => {
     setDocState(next);
@@ -183,10 +232,13 @@ export const App: React.FC = () => {
       major: type !== "sound",
       round: 0,
       concepts: {},
+      drafts: {},
       history: [],
       decision: null,
       beatId: null,
       requests: [],
+      versions: [],
+      activeVersion: null,
     };
     const next = {
       ...doc,
@@ -195,7 +247,7 @@ export const App: React.FC = () => {
     setDocState(next);
     api
       .save(next)
-      .then(() => api.drafts(next.slug, seg.id))
+      .then(() => api.drafts(next.slug, seg.id)) // instant Quick Drafts; Claude Concepts are requested explicitly
       .then((r) => {
         fromServer(r.doc);
         setSegmentId(seg.id);
@@ -224,8 +276,12 @@ export const App: React.FC = () => {
             >
               <b>{p.slug}</b>
               <span className="muted">
+                {p.scriptOnly ? "script-only · " : ""}
                 {p.duration.toFixed(1)} s · {p.fps} fps · {p.segments} segments
                 · {p.beats} timeline items
+                {p.openRequests
+                  ? ` · ${p.openRequests} waiting for Claude Code`
+                  : ""}
               </span>
             </button>
           ))}
@@ -255,8 +311,18 @@ export const App: React.FC = () => {
           {doc.source.durationInFrames} frames · {doc.source.fps} fps ·
           1080×1920
         </span>
-        <span className="pill">original footage locked</span>
-        {doc.source.previewSrc ? (
+        {doc.source.scriptOnly ? (
+          <span
+            className="pill warn-pill"
+            data-testid="script-only"
+            title="Attach your cut later: python3 .claude/skills/video-editing/scripts/edit_init.py /path/to/my-cut.mp4 --slug <this project>"
+          >
+            script-only · no footage yet
+          </span>
+        ) : (
+          <span className="pill">original footage locked</span>
+        )}
+        {doc.source.scriptOnly ? null : doc.source.previewSrc ? (
           <span
             className="pill"
             title="The Player shows a VP9 proxy of the same footage (same fps and duration); every render uses the original."
@@ -301,6 +367,15 @@ export const App: React.FC = () => {
         </div>
       </header>
       <div className="banner-slot">
+        {notice && !error ? (
+          <div
+            className="notice banner"
+            data-testid="notice"
+            onClick={() => setNotice(null)}
+          >
+            {notice}
+          </div>
+        ) : null}
         {error ? (
           <div
             className="error banner"
@@ -342,7 +417,9 @@ export const App: React.FC = () => {
             </div>
           ) : null}
           <div className="player-wrap" data-testid="player">
-            {!doc.source.previewSrc && !canPlayH264 ? (
+            {!doc.source.scriptOnly &&
+            !doc.source.previewSrc &&
+            !canPlayH264 ? (
               <div className="player-error" data-testid="needs-proxy">
                 <p>
                   This browser cannot decode H.264 video, so the Player cannot
@@ -470,6 +547,9 @@ export const App: React.FC = () => {
               <SoundPanel
                 doc={doc}
                 setDoc={setDoc}
+                fromServer={fromServer}
+                reloadSounds={reloadSounds}
+                setError={setError}
                 sounds={sounds}
                 segmentId={segmentId}
                 seek={seek}
@@ -561,40 +641,94 @@ const NewProject: React.FC<{ onCreated: (slug: string) => void }> = ({
   const [slug, setSlug] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  const [sSlug, setSSlug] = useState("");
+  const [duration, setDuration] = useState("");
+  const [fps, setFps] = useState("30");
   return (
-    <div className="new-project">
-      <h3>Import an already-cut video</h3>
-      <p className="muted">
-        The file is linked, never copied or modified. Its frame rate and
-        duration define the timeline.
-      </p>
-      <input
-        placeholder="/path/to/my-cut.mp4"
-        value={footage}
-        onChange={(e) => setFootage(e.target.value)}
-      />
-      <input
-        placeholder="project-name"
-        value={slug}
-        onChange={(e) => setSlug(e.target.value)}
-      />
-      <button
-        disabled={busy || !footage || !slug}
-        onClick={async () => {
-          setBusy(true);
-          setMsg("");
-          try {
-            await api.create(footage, slug);
-            onCreated(slug);
-          } catch (e) {
-            setMsg(String((e as Error).message));
-          }
-          setBusy(false);
-        }}
-      >
-        {busy ? "Importing…" : "Import video"}
-      </button>
-      {msg ? <pre className="error">{msg}</pre> : null}
-    </div>
+    <>
+      <div className="new-project">
+        <h3>Import an already-cut video</h3>
+        <p className="muted">
+          The file is linked, never copied or modified. Its frame rate and
+          duration define the timeline.
+        </p>
+        <input
+          placeholder="/path/to/my-cut.mp4"
+          value={footage}
+          onChange={(e) => setFootage(e.target.value)}
+        />
+        <input
+          placeholder="project-name"
+          value={slug}
+          onChange={(e) => setSlug(e.target.value)}
+        />
+        <button
+          disabled={busy || !footage || !slug}
+          onClick={async () => {
+            setBusy(true);
+            setMsg("");
+            try {
+              await api.create(footage, slug);
+              onCreated(slug);
+            } catch (e) {
+              setMsg(String((e as Error).message));
+            }
+            setBusy(false);
+          }}
+        >
+          {busy ? "Importing…" : "Import video"}
+        </button>
+        {msg ? <pre className="error">{msg}</pre> : null}
+      </div>
+      <div className="new-project">
+        <h3>Or start from the script only</h3>
+        <p className="muted">
+          No cut yet? Work on your script and the animations first. The Player
+          shows a neutral stand-in; attach the real cut later (decisions are
+          kept). The final export needs the cut.
+        </p>
+        <input
+          placeholder="project-name"
+          value={sSlug}
+          onChange={(e) => setSSlug(e.target.value)}
+          data-testid="so-slug"
+        />
+        <div className="row">
+          <input
+            placeholder="length in seconds (at least the end of your script)"
+            value={duration}
+            onChange={(e) => setDuration(e.target.value)}
+            data-testid="so-duration"
+          />
+          <input
+            placeholder="fps"
+            value={fps}
+            onChange={(e) => setFps(e.target.value)}
+            style={{ width: 90 }}
+          />
+        </div>
+        <button
+          disabled={busy || !sSlug || !(parseFloat(duration) > 0)}
+          data-testid="so-create"
+          onClick={async () => {
+            setBusy(true);
+            setMsg("");
+            try {
+              await api.createScriptOnly(
+                sSlug,
+                parseFloat(duration),
+                parseFloat(fps) || 30,
+              );
+              onCreated(sSlug);
+            } catch (e) {
+              setMsg(String((e as Error).message));
+            }
+            setBusy(false);
+          }}
+        >
+          Create script-only project
+        </button>
+      </div>
+    </>
   );
 };

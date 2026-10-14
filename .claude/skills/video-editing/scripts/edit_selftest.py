@@ -63,7 +63,8 @@ ANALYSIS = {"transcript": "synthetic TTS (selftest)", "notes": "8 s synthetic cu
 
 
 def opt(title, system, kind, refs, desc, props=None):
-    o = {"title": title, "system": system, "kind": kind, "refs": refs, "description": desc, "motion": "house easings", "sound": "per System D"}
+    o = {"title": title, "system": system, "kind": kind, "refs": refs, "description": desc, "motion": "house easings", "sound": "per System D",
+         "enter": "fade-rise with blur clearing", "move": desc, "exit": "fades out with the line"}
     if props:
         o["props"] = props
     return o
@@ -102,11 +103,15 @@ def step(cmd, env=None, cwd=None, expect=0):
     return r
 
 
-def footage(d):
+LINES = [(0.4, "What is the big picture here"), (2.7, "We posted every day"), (5.7, "And that changed everything for us")]
+
+
+def footage(d, lines=None, dur=8):
+    """Synthetic already-cut footage (1080x1920, 30 fps) with TTS dialogue starting at the given times."""
     sr = 48000
     import numpy as np
-    voice = np.zeros(int(8 * sr), np.float32)
-    for start, text in [(0.4, "What is the big picture here"), (2.7, "We posted every day"), (5.7, "And that changed everything for us")]:
+    voice = np.zeros(int(dur * sr), np.float32)
+    for start, text in (lines or LINES):
         f = d / f"v{int(start * 10)}.wav"
         r = subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"flite=text='{text}'", "-ar", str(sr), "-ac", "1", str(f)])
         if r.returncode:
@@ -123,9 +128,9 @@ def footage(d):
     vf = ("[0:v]drawbox=x='200+260*abs(sin(t*1.7))':y=380:w=420:h=560:c=0x9a7a66:t=fill,"   # moving 'speaker' block (face zone)
           "drawbox=x=0:y='1100+300*abs(sin(t*2.3))':w=1080:h=60:c=0x6a5040:t=fill" + txt + ",format=yuv420p[v]")
     out = d / "my-cut.mp4"
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "gradients=s=1080x1920:r=30:d=8:c0=0x3a2a20:c1=0x1d1712:speed=0.02",
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"gradients=s=1080x1920:r=30:d={dur}:c0=0x3a2a20:c1=0x1d1712:speed=0.02",
                     "-i", str(d / "voice.wav"), "-filter_complex", vf, "-map", "[v]", "-map", "1:a", "-c:v", "libx264", "-crf", "16",
-                    "-r", "30", "-c:a", "aac", "-b:a", "256k", "-t", "8", str(out)], check=True)
+                    "-r", "30", "-c:a", "aac", "-b:a", "256k", "-t", str(dur), str(out)], check=True)
     return out
 
 
@@ -185,10 +190,25 @@ def main():
                    "--combine", "B", "--quote", "S02: B but green"], env)
         step(ED + ["approve", SLUG, "--gate", "direction", "--quote", "Approved, go ahead with these (selftest)"], env)
 
-        say("4. approved beats -> timeline + measured sound intents -> draft cue sheet")
+        say("4. Claude Code builds the decisions (implementation requests) -> timeline + measured sound intents -> draft cue sheet")
         doc = json.loads((pdir / "edit.json").read_text())
-        doc.update(beats=BEATS, focus=FOCUS, hookEnd=HOOK_END)
+        reqs = {r["segmentId"]: r["id"] for r in doc["requests"] if r["type"] == "implement" and r["status"] == "pending"}
+        assert set(reqs) == {"S01", "S02", "S03"}, f"every decision must create an implementation request: {reqs}"
+        assert next(r for r in doc["requests"] if r["segmentId"] == "S02")["brief"]["custom"] == "option B's stat card with a green accent", "D must be kept verbatim"
+        doc.update(focus=FOCUS, hookEnd=HOOK_END)
         (pdir / "edit.json").write_text(json.dumps(doc, indent=1))
+        step(ED + ["pending", SLUG], env)
+        for b in BEATS:
+            bf = d / f"build_{b['id']}.json"
+            bf.write_text(json.dumps({"beat": {k: b[k] for k in ("id", "kind", "at", "props", "refs")}, "notes": "selftest",
+                                      "coverage": [{"item": b["reason"], "done": True, "how": b["kind"]}]}))
+            step(ED + ["built", SLUG, "--request", reqs[b["segmentId"]], "--file", str(bf)] + ([] if b["id"] == "b02-stat" else ["--no-render"]), env)
+        step(ED + ["built", SLUG, "--request", reqs["S01"], "--file", str(d / "build_b01-hook.json"), "--no-render"], env, expect=1)
+        doc = json.loads((pdir / "edit.json").read_text())
+        assert [b["id"] for b in doc["beats"]] == [b["id"] for b in BEATS], doc["beats"]
+        v = next(m for m in doc["segments"] if m["id"] == "S02")["versions"][-1]
+        assert v.get("still") and (work / SLUG / "previews" / Path(v["still"]).name).exists(), "built must render a Remotion still of the new version"
+        say("       3 implementation requests built (one rendered as a still + clip); processing one twice was refused")
         step([py, str(HERE / "edit_render.py"), "sfx", SLUG, "--app", str(app)], env)
         lib = d / "SYNTHETIC_TEST_LIBRARY"
         SST.fixtures(lib)

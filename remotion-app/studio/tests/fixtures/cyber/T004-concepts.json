@@ -1,0 +1,42 @@
+{
+ "recommend": "A",
+ "options": {
+  "A": {
+   "title": "Lead-in + serif key phrase",
+   "system": "B",
+   "family": "SERIF-ACCENT-CAPTION",
+   "refs": ["TXT-004"],
+   "styleRef": "TXT-004",
+   "description": "A small sans lead-in \"That is\" sits under your chin and the key phrase \"real protection\" lands below it in a large warm italic serif, the way TXT-004 pairs a quiet line with a spaced serif phrase.",
+   "enter": "The lead-in fades and rises in first; the serif phrase follows 0.3 s later with its blur clearing.",
+   "move": "Nothing moves after landing: the phrase holds still while you say it.",
+   "exit": "Both lines fade out together as the sentence ends.",
+   "sound": "one soft texture as the serif phrase lands"
+  },
+  "B": {
+   "title": "Extended caps PROTECTION",
+   "system": "B",
+   "family": "SERIF-ACCENT-CAPTION",
+   "refs": ["TXT-007"],
+   "styleRef": "TXT-007",
+   "description": "One wide, tracked-out keyword PROTECTION in white caps with a thin \"that is real\" kicker above it, as in TXT-007's GROWTH caption.",
+   "enter": "The kicker fades in; the caps word expands from tight to wide letter spacing while fading in.",
+   "move": "The letter spacing keeps opening very slowly while it is on screen.",
+   "exit": "The word and kicker fade out with a slight upward drift.",
+   "sound": "a short airy whoosh under the letter-spacing expansion"
+  },
+  "C": {
+   "title": "Shield outline draws around the words",
+   "system": "B",
+   "family": "LINE-DRAW",
+   "refs": [],
+   "styleRef": null,
+   "noReference": "Your library has no shield, badge or outline-drawing caption, so there is no honest style example to show for this one.",
+   "description": "\"real protection\" in bold sans under your chin while a thin shield outline draws itself around the two words, closing exactly as you finish the line.",
+   "enter": "The words fade in; the shield outline starts drawing from the top point.",
+   "move": "The outline traces both sides of the shield down to its point around the words.",
+   "exit": "The outline and the words fade out together.",
+   "sound": "a quiet rising texture while the outline draws, ending on a soft click"
+  }
+ }
+}

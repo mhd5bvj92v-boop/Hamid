@@ -6,10 +6,10 @@
 //
 // The text and the timestamps are kept exactly as written. Missing or invalid
 // timestamps are flagged, never guessed or "fixed": the user corrects them.
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { EditDoc, Transcript } from "../src/kit/project";
-import { detectFormat, fmtTime, parseTranscript, validateTranscript } from "../src/kit/project";
+import { detectFormat, fmtTime, normalizeDoc, parseTranscript, validateTranscript } from "../src/kit/project";
 
 const args = process.argv.slice(2);
 const flag = (name: string) => args.includes(name);
@@ -20,7 +20,7 @@ if (!slug || (!file && !flag("--check"))) {
   process.exit(2);
 }
 const docPath = path.resolve(__dirname, "..", "src", "projects", slug, "edit.json");
-const doc = JSON.parse(readFileSync(docPath, "utf8")) as EditDoc;
+const doc = normalizeDoc(JSON.parse(readFileSync(docPath, "utf8")) as EditDoc);
 
 const report = () => {
   const issues = validateTranscript(doc.transcript.segments, doc.source.sourceDurationSeconds);
@@ -47,7 +47,12 @@ if (file) {
   }
   doc.transcript = { origin: "user-script", importedFrom: format, importedAt: new Date().toISOString().slice(0, 19), segments };
   doc.updated = new Date().toISOString().slice(0, 19);
-  writeFileSync(docPath, JSON.stringify(doc, null, 1) + "\n");
+  // atomic, and refused if someone (the Studio) saved in between
+  const disk = JSON.parse(readFileSync(docPath, "utf8")) as EditDoc;
+  if ((disk.rev ?? 0) !== doc.rev) throw new Error("edit.json changed while importing; run again");
+  doc.rev = (doc.rev ?? 0) + 1;
+  writeFileSync(docPath + ".tmp", JSON.stringify(doc, null, 1) + "\n");
+  renameSync(docPath + ".tmp", docPath);
   console.log(`imported ${segments.length} lines (${format}) into ${path.relative(process.cwd(), docPath)}`);
 }
 const issues = report();

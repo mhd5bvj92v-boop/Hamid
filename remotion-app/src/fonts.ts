@@ -10,6 +10,7 @@ import montserrat100 from "@fontsource/montserrat/files/montserrat-latin-100-nor
 import montserrat300 from "@fontsource/montserrat/files/montserrat-latin-300-normal.woff2";
 import montserrat400 from "@fontsource/montserrat/files/montserrat-latin-400-normal.woff2";
 import montserrat800 from "@fontsource/montserrat/files/montserrat-latin-800-normal.woff2";
+import mono700 from "@fontsource/jetbrains-mono/files/jetbrains-mono-latin-700-normal.woff2";
 
 // Fonts are bundled from npm (@fontsource) instead of fetched from Google
 // Fonts at render time, so renders work offline and are reproducible.
@@ -19,6 +20,8 @@ import montserrat800 from "@fontsource/montserrat/files/montserrat-latin-800-nor
 export const SANS = "Montserrat";
 export const SERIF = "Instrument Serif";
 export const PLAYFAIR = "Playfair Display";
+/** Monospace, only where the user asks for it (e.g. a terminal / "typed" look). Not a second sans. */
+export const MONO = "JetBrains Mono";
 
 loadFont({ family: SANS, url: montserrat100, weight: "100" });
 loadFont({ family: SANS, url: montserrat300, weight: "300" });
@@ -31,3 +34,4 @@ loadFont({ family: SERIF, url: instrumentSerifItalic, weight: "400", style: "ita
 loadFont({ family: PLAYFAIR, url: playfair500i, weight: "500", style: "italic" });
 loadFont({ family: PLAYFAIR, url: playfair600i, weight: "600", style: "italic" });
 loadFont({ family: PLAYFAIR, url: playfair700i, weight: "700", style: "italic" });
+loadFont({ family: MONO, url: mono700, weight: "700" });

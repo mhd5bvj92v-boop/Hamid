@@ -47,6 +47,60 @@ def load_project(app: Path, slug: str, work: str | None = None) -> dict:
     return json.loads(pj.read_text())
 
 
+# ------------------------------------------------------------------ the project document (edit.json)
+# Several writers share edit.json: the Studio server, these scripts and Claude Code. Every write is
+# atomic (temp file + rename) and checked against the revision it was read at, so a stale writer is
+# refused instead of silently overwriting newer data.
+
+def doc_path(app: Path, slug: str) -> Path:
+    return app / "src" / "projects" / slug / "edit.json"
+
+
+def normalize_doc(doc: dict) -> dict:
+    """Defaults for older documents (mirrors normalizeDoc in src/kit/project.ts)."""
+    doc.setdefault("requests", []); doc.setdefault("rev", 0)
+    doc.setdefault("nextRequest", len(doc["requests"]) + 1)
+    for k in ("segments", "approvals", "feedback", "keepVisible", "beats", "sfx", "focus"):
+        doc.setdefault(k, [])
+    for s in doc["segments"]:
+        s.setdefault("history", []); s.setdefault("requests", []); s.setdefault("versions", [])
+        cs = [c for c in (s.get("concepts") or {}).values() if c]
+        if cs and all(c.get("author") == "draft" for c in cs):      # Quick Drafts stored as concepts by older versions
+            s["drafts"], s["draftRound"], s["concepts"], s["round"] = s["concepts"], s.get("round", 1), {}, 0
+            if s.get("decision") and not s["decision"].get("source"):
+                s["decision"]["source"] = "draft"
+        if s.get("decision") and not s["decision"].get("source"):
+            s["decision"]["source"] = "own" if s["decision"].get("choice") == "D" else "claude"
+    return doc
+
+
+def load_doc(app: Path, slug: str) -> dict:
+    p = doc_path(app, slug)
+    if not p.exists():
+        raise SystemExit(f"{p} missing - run edit_init.py first")
+    doc = normalize_doc(json.loads(p.read_text()))
+    doc["_base_rev"] = doc["rev"]
+    return doc
+
+
+def save_doc(app: Path, slug: str, doc: dict) -> dict:
+    p = doc_path(app, slug)
+    base = doc.pop("_base_rev", None)
+    cur = json.loads(p.read_text()).get("rev", 0) if p.exists() else 0
+    if base is not None and cur != base:
+        raise SystemExit(f"edit.json changed while this command ran (rev {base} -> {cur}, e.g. the Studio saved); nothing was written. Run the command again.")
+    doc["rev"] = cur + 1
+    tmp = p.with_name(p.name + f".tmp{os.getpid()}")
+    tmp.write_text(json.dumps(doc, indent=1, ensure_ascii=False) + "\n")
+    os.replace(tmp, p)
+    doc["_base_rev"] = doc["rev"]
+    return doc
+
+
+def clean_doc(doc: dict) -> dict:
+    return {k: v for k, v in doc.items() if not k.startswith("_")}
+
+
 def sha256(path: Path) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as f:

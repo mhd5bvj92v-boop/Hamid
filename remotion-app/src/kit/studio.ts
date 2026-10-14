@@ -1,7 +1,7 @@
 // Pure helpers shared by the Studio UI, the StudioEdit composition, the
 // Studio server and the final render. They turn edit.json into what Remotion
 // renders, so preview and export can never disagree.
-import type { Concept, CreativeSegment, EditDoc, SfxFamily, SfxItem } from "./project";
+import type { Concept, ConceptOption, ConceptSet, CreativeSegment, EditDoc, SfxFamily, SfxItem } from "./project";
 import { ANCHOR, GAIN_PRESETS } from "./project";
 import { TimingRegistry, beatWindow, kitTiming } from "./timing";
 import type { Beat, BeatTiming, SfxIntent } from "./types";
@@ -81,10 +81,12 @@ export const resolveAudio = (doc: EditDoc, lib: Record<string, SoundMeta>, extra
   });
 
 /** Beats a render shows: the approved timeline, or one concept for a preview. */
-export const beatsForRender = (doc: EditDoc, concept: { segmentId: string; option: "A" | "B" | "C" } | null, extra: TimingRegistry = {}) => {
+export type ConceptPreviewPick = { segmentId: string; option: ConceptOption; set?: ConceptSet };
+
+export const beatsForRender = (doc: EditDoc, concept: ConceptPreviewPick | null, extra: TimingRegistry = {}) => {
   if (!concept) return doc.beats;
   const seg = doc.segments.find((s) => s.id === concept.segmentId);
-  const c = seg?.concepts[concept.option];
+  const c = concept.set === "draft" ? seg?.drafts?.[concept.option] : seg?.concepts[concept.option];
   if (!seg || !c || !c.kind || !timingOf(c.kind, extra)) return [];
   return [beatFromConcept(seg, c, extra)];
 };

@@ -96,7 +96,7 @@ try {
   // ---------------------------------------------------------------- import video + script
   await page.goto(BASE);
   await page.getByPlaceholder("/path/to/my-cut.mp4").fill(footage);
-  await page.getByPlaceholder("project-name").fill(SLUG);
+  await page.getByPlaceholder("project-name").first().fill(SLUG);
   await page.getByRole("button", { name: "Import video" }).click();
   await page.getByTestId("import-panel").waitFor({ timeout: 60000 });
   const h264 = await page.evaluate(() => document.createElement("video").canPlayType('video/mp4; codecs="avc1.640028"') !== "");
@@ -144,19 +144,20 @@ try {
   // ---------------------------------------------------------------- 2 + 3 segment, A/B/C, previews, choose
   await page.getByTestId("text-T002").click();
   await page.getByTestId("create-onscreen").click();
-  await page.getByTestId("option-A").waitFor({ timeout: 30000 });
+  await page.getByTestId("set-draft").click();
+  await page.getByTestId("draft-A").waitFor({ timeout: 30000 });
   check("abcd", (await page.getByTestId("seg-text").textContent()).includes("We posted every day") && (await page.getByTestId("seg-start").textContent()) === "00:02.70" && (await page.getByTestId("seg-end").textContent()) === "00:04.36",
     "segment panel shows the exact spoken text, 00:02.70 and 00:04.36");
   for (const k of ["A", "B", "C"]) {
-    await page.getByTestId(`render-preview-${k}`).click();
-    await page.getByTestId(`preview-${k}`).waitFor({ timeout: 120000 });
+    await page.getByTestId(`draft-render-${k}`).click();
+    await page.getByTestId(`draft-preview-${k}`).waitFor({ timeout: 120000 });
   }
-  const sizes = await Promise.all(["A", "B", "C"].map((k) => page.getByTestId(`preview-${k}`).evaluate((img) => img.naturalWidth)));
+  const sizes = await Promise.all(["A", "B", "C"].map((k) => page.getByTestId(`draft-preview-${k}`).evaluate((img) => img.naturalWidth)));
   check("abcd", sizes.every((w) => w === 540), `real Remotion previews rendered for A, B, C (renderStill, ${sizes.join("/")} px wide)`);
   await shot("01-options");
   await seekTo(3.8);
   const before = await playerPng();
-  await page.getByTestId("choose-A").click();
+  await page.getByTestId("draft-choose-A").click();
   await page.getByTestId("beat-S01").waitFor({ timeout: 30000 });
   doc = docOnDisk();
   const beatA = doc.beats.find((b) => b.id === "S01");
@@ -169,7 +170,8 @@ try {
   const textA = await playerText();
   check(2, !before.equals(withA) && /We posted every day/.test(textA), `the Remotion Player now shows the animation at 3.8 s (player DOM: "${textA.slice(0, 60)}")`);
   await page.getByTestId("tab-creative").click();
-  await page.getByTestId("choose-C").click();
+  await page.getByTestId("set-draft").click();
+  await page.getByTestId("draft-choose-C").click();
   await page.waitForTimeout(1200);
   doc = docOnDisk();
   const beatC = doc.beats.find((b) => b.id === "S01");
@@ -199,21 +201,22 @@ try {
   await page.getByTestId("tab-creative").click();
   await page.getByTestId("text-T003").click();
   await page.getByTestId("create-fullscreen").click();
-  await page.getByTestId("option-A").waitFor();
-  await page.waitForTimeout(800);
-  await page.getByTestId("choose-A").click();
+  await page.getByTestId("seg-text").filter({ hasText: "And that changed" }).waitFor({ timeout: 30000 });
+  await page.getByTestId("set-draft").click();
+  await page.getByTestId("draft-A").waitFor();
+  await page.getByTestId("draft-choose-A").click();
   await page.getByTestId("beat-S02").waitFor({ timeout: 30000 });
   await page.getByTestId("text-T001").click();
   await page.getByTestId("create-text").click();
-  await page.waitForTimeout(1500);
-  await page.getByTestId("d-text").fill("Use B's script accent, but in amber and a bit later");
-  await page.getByTestId("d-based").selectOption("B");
-  await page.getByTestId("choose-D").click();
+  await page.getByTestId("seg-text").filter({ hasText: "What is the big picture" }).waitFor({ timeout: 30000 });
+  await page.getByTestId("set-draft").click();
+  await page.getByTestId("draft-B").waitFor();
+  await page.getByTestId("draft-choose-B").click();
   await page.waitForTimeout(1500);
   doc = docOnDisk();
   const sText = doc.segments.find((s) => s.text.startsWith("What is"));
-  check("abcd", sText?.decision?.choice === "D" && /amber/.test(sText.decision.custom) && doc.beats.some((b) => b.segmentId === sText.id),
-    `option D recorded with the user's words ("${sText?.decision?.custom}") and built from B on the timeline`);
+  check("abcd", sText?.decision?.choice === "B" && sText.decision.source === "draft" && doc.beats.some((b) => b.segmentId === sText.id) && !(doc.requests ?? []).some((r) => r.status === "pending"),
+    "a Quick Draft (B) is built on the timeline immediately and labelled as a template, with no Claude request (D and Claude Concepts: studio:test:claude)");
 
   // ---------------------------------------------------------------- 5 SFX on the audio track, linked to animation events
   doc = docOnDisk();

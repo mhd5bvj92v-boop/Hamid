@@ -233,8 +233,13 @@ def main():
         apis = app / "studio" / "server" / "api.ts"
         if apis.exists():
             a_src = apis.read_text(encoding="utf-8")
-            if not re.search(r'const finalExport = async[^\n]*\n[^\n]*\n\s*if \(!doc\.approvals\.some\(\(a\) => a\.gate === "final"\)\) throw', a_src):
+            fx = re.search(r"const finalExport = async(.*?)await media\(", a_src, re.S)
+            if not fx or 'if (!doc.approvals.some((a) => a.gate === "final")) throw' not in fx.group(1):
                 err("studio/server/api.ts: the final export no longer refuses to run without the final approval")
+            if not fx or "Animations still waiting for Claude Code" not in fx.group(1):
+                err("studio/server/api.ts: the final export no longer refuses while animations wait for Claude Code")
+            if "doc.requests = disk.requests" not in a_src:
+                err("studio/server/api.ts: saving from the UI may overwrite Claude Code requests")
             if "doc.approvals = disk.approvals" not in a_src:
                 err("studio/server/api.ts: saving from the UI may overwrite approvals (they must only change via edit_decisions.py)")
             if "!b.replace" not in a_src:

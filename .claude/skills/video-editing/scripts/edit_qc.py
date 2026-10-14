@@ -86,6 +86,8 @@ def main():
     a = ap.parse_args()
     app = V.find_app(a.app)
     pj = V.load_project(app, a.slug, a.work)
+    if pj["source"].get("scriptOnly"):
+        sys.exit(f"script-only project {a.slug}: there is no original footage to check an export against. Attach the cut first (edit_init.py <footage> --slug {a.slug}).")
     src = Path(pj["source"]["path"])
     final = Path(a.final).resolve()
     appr = pj["approved"]
@@ -107,6 +109,9 @@ def main():
         add("PASS", "approval", f"final render approved by the Creative Director ({fin[-1]['at']}: \"{fin[-1]['quote']}\")")
     else:
         add("ERROR", "approval", "no final approval in the creative decision log: a final export may only be made after the user explicitly approves the edit")
+    waiting = [f"{r['segmentId']} ({r['id']})" for r in (log or {}).get("requests", []) if r["type"] in ("implement", "revision") and r["status"] in ("pending", "in_progress")]
+    if waiting:
+        add("ERROR", "approval", f"animations still waiting for Claude Code: {', '.join(waiting)} (the export would miss them)")
 
     # ---- spec
     if not final.exists():

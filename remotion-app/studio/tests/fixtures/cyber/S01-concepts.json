@@ -1,0 +1,41 @@
+{
+ "recommend": "A",
+ "options": {
+  "A": {
+   "title": "Flagged login toast",
+   "system": "A",
+   "family": "GLASS-DARK",
+   "refs": ["ONS-041"],
+   "styleRef": "ONS-041",
+   "description": "Dark-glass login notifications stack beside you in the lower UI band, like a real security console. Two calm sign-ins arrive first; on \"suspicious logins\" a third toast drops in with a red status rim and a FLAGGED tag, pushing the others down.",
+   "enter": "Two neutral toasts (\"New sign-in\" with a green dot) slide down from the top of the UI band one after the other, fading in and de-blurring.",
+   "move": "On \"suspicious logins\" a red toast (\"Suspicious sign-in · unknown device\") drops in on top and pushes the stack down; its red rim pulses once and a FLAGGED tag stamps in with a small scale pop.",
+   "exit": "When the line ends the whole stack slides up a little and fades out together; your face is never covered.",
+   "sound": "a soft UI tick per neutral toast, one sharper alert click as the red toast lands"
+  },
+  "B": {
+   "title": "Under-two-seconds timer pill",
+   "system": "A",
+   "family": "NEON-RIM",
+   "refs": ["ONS-056"],
+   "styleRef": "ONS-056",
+   "description": "A single red neon pill beside you turns the claim into a clock: a stopwatch runs and freezes before it reaches 2.0, then the pill reads \"< 2 s · flagged\". It uses only your words (no invented exact time).",
+   "enter": "The pill rises in from slightly below with its blur clearing; the outline is unlit.",
+   "move": "On \"under two seconds\" the red outline traces around the pill while the digits run; the timer freezes short of 2.0 and the label flips to \"< 2 s · flagged\" with one glow pulse.",
+   "exit": "The pill shrinks a little and fades as the next sentence starts.",
+   "sound": "a quiet ticking texture while the timer runs, a click when it freezes"
+  },
+  "C": {
+   "title": "Unknown-location ping",
+   "system": "A",
+   "family": "GLASS-DARK",
+   "refs": ["ONS-079"],
+   "styleRef": "ONS-079",
+   "description": "A small dark map widget shows where sign-ins come from. Your usual location pings softly; then a far-away dot appears, a thin line connects it, and it turns red with a \"suspicious\" label.",
+   "enter": "The map card scales in from 96% with a soft fade; the home dot drops in and starts a calm radar ripple.",
+   "move": "On \"suspicious logins\" a second dot appears far across the map, a line draws to it, and the dot and line turn red while a small label slides out beside it.",
+   "exit": "The ripple stops and the card fades down and out at the end of the line.",
+   "sound": "a low soft ping for the home dot, a sharper ping when the remote dot turns red"
+  }
+ }
+}

@@ -2,7 +2,7 @@ import React from "react";
 import { Audio } from "@remotion/media";
 import { AbsoluteFill, CalculateMetadataFunction, Sequence, useVideoConfig } from "remotion";
 import type { EditDoc } from "./project";
-import { AudioPlacement, beatsForRender } from "./studio";
+import { AudioPlacement, ConceptPreviewPick, beatsForRender } from "./studio";
 import { EditLayers, TalkingHeadEdit } from "./TalkingHeadEdit";
 
 export type StudioEditProps = {
@@ -10,7 +10,7 @@ export type StudioEditProps = {
   doc: EditDoc | null;
   layers: EditLayers;
   /** Render one concept instead of the approved timeline (Creative Director previews). */
-  concept: { segmentId: string; option: "A" | "B" | "C" } | null;
+  concept: ConceptPreviewPick | null;
   /** Resolved sound-effect placements (Player / preview renders). The final mix is made by sound_mix.py. */
   audio: AudioPlacement[] | null;
 };

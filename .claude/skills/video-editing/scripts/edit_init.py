@@ -2,6 +2,8 @@
 """Start a talking-head edit project (non-destructive intake).
 
   python3 scripts/edit_init.py /path/to/my-cut.mp4 --slug my-video [--fps 30] [--fit cover] [--app remotion-app] [--work work]
+  python3 scripts/edit_init.py --script-only --slug my-video --duration 42.5 [--fps 30]   # no footage yet
+  python3 scripts/edit_init.py /path/to/my-cut.mp4 --slug my-video                       # later: attach the cut
 
 What it does (nothing is ever written to or next to the original):
   1. probes the ALREADY-CUT footage: resolution, rotation, frame rate (and VFR), duration, audio;
@@ -18,6 +20,11 @@ The composition is exactly as long as the source (round(duration * fps) frames) 
 frame rate, 1080x1920. The approved frame rate defaults to the source's constant frame rate; a
 variable-frame-rate source needs an explicit --fps. A non-9:16 source needs --fit cover (centre crop),
 which must be approved by the user first. Re-running is safe: existing beats.ts/Edit.tsx are kept.
+
+A script-only project has no footage yet: its timeline length is --duration (at least the end of the
+user's script) at --fps (default 30). The Player shows a neutral stand-in instead of the face, previews
+render without dialogue, and the final export and sound design are refused until the real cut is
+attached by running edit_init.py again with the footage and the same --slug (decisions are kept).
 """
 import argparse
 import datetime
@@ -43,7 +50,7 @@ export const SOURCE: SourceInfo = {{
   fps: {fps},
   durationInFrames: {frames},
   width: 1080,
-  height: 1920,
+  height: 1920,{extra}
 }};
 
 export const SOURCE_SHA256 = "{sha}";
@@ -165,6 +172,8 @@ def main():
     ap.add_argument("--app"); ap.add_argument("--work")
     ap.add_argument("--copy", action="store_true", help="copy the footage into public/ instead of linking (only if symlinks fail)")
     ap.add_argument("--remove", action="store_true", help="remove the Remotion project + link for --slug (never the original or work/)")
+    ap.add_argument("--script-only", action="store_true", help="start without footage (timeline from --duration); attach the cut later")
+    ap.add_argument("--duration", type=float, help="--script-only: timeline length in seconds (at least the end of the script)")
     a = ap.parse_args()
 
     if not V.SLUG_RE.match(a.slug):
@@ -179,8 +188,10 @@ def main():
         write_registry(app)
         print(f"removed Remotion project {a.slug} (src/projects + public link). The original footage and work/ are untouched.")
         return
+    if a.script_only:
+        return script_only(a, app, pdir)
     if not a.footage:
-        sys.exit("footage path required")
+        sys.exit("footage path required (or --script-only --duration S)")
 
     src = Path(a.footage).expanduser().resolve()
     if not src.is_file():
@@ -212,7 +223,7 @@ def main():
     manifest_path = wd / "project.json"
     if manifest_path.exists():
         old = json.loads(manifest_path.read_text())
-        if old["source"]["sha256"] != sha:
+        if old["source"].get("sha256") and old["source"]["sha256"] != sha:
             sys.exit(f"{manifest_path} belongs to a different source file (sha256 differs). Use a new --slug.")
 
     # Remotion's file server refuses symlinked FILES but follows symlinked FOLDERS, and its bundler
@@ -231,26 +242,25 @@ def main():
 
     pdir.mkdir(parents=True, exist_ok=True)
     (pdir / "source.ts").write_text(SOURCE_TS.format(src=json.dumps(rel), sw=info["width"], sh=info["height"], sfps=round(info["fps"] or fps, 6),
-                                                      dur=round(info["duration"], 6), fps=fps, frames=frames, sha=sha))
+                                                      dur=round(info["duration"], 6), fps=fps, frames=frames, sha=sha, extra=""))
     # the single project document (Studio + Player + renderers + scripts)
     doc_path = pdir / "edit.json"
     src_info = {"src": rel, "sourceWidth": info["width"], "sourceHeight": info["height"], "sourceFps": round(info["fps"] or fps, 6),
                 "sourceDurationSeconds": round(info["duration"], 6), "fps": fps, "durationInFrames": frames, "width": 1080, "height": 1920,
                 "sha256": sha}
     if doc_path.exists():
-        doc = json.loads(doc_path.read_text())
+        doc = V.load_doc(app, a.slug)
+        was_script_only = doc["source"].get("scriptOnly")
         doc["source"] = src_info
+        if was_script_only:
+            ends = [x["end"] for x in doc["transcript"]["segments"] if x.get("end") is not None] + [b["at"] for b in doc["beats"]]
+            if ends and max(ends) > info["duration"] + 0.05:
+                print(f"WARN  the script / timeline reaches {max(ends):.2f} s but the attached cut is {info['duration']:.2f} s long: check the timestamps")
+            print("attached the cut to the script-only project (script, segments, decisions and animations kept)")
+        V.save_doc(app, a.slug, doc)
     else:
-        doc = {"version": 1, "slug": a.slug, "source": src_info, "transcript": {"origin": "none", "segments": []}, "segments": [],
-               "beats": [], "sfx": [], "focus": [], "hookEnd": None, "approvals": [], "feedback": [], "keepVisible": []}
-    doc_path.write_text(json.dumps(doc, indent=1, ensure_ascii=False) + "\n")
-    created = []
-    for name, text in (("beats.ts", BEATS_TS.format(slug=a.slug)), ("concepts.ts", CONCEPTS_TS.format(slug=a.slug)), ("sound-preview.ts", SOUND_TS),
-                       ("Edit.tsx", EDIT_TSX.format(slug=a.slug)),
-                       ("index.tsx", INDEX_TSX.format(ident=ident(a.slug), comp=V.comp_id(a.slug), slug=a.slug))):
-        if not (pdir / name).exists():
-            (pdir / name).write_text(text)
-            created.append(name)
+        doc_path.write_text(json.dumps(new_doc(a.slug, src_info), indent=1, ensure_ascii=False) + "\n")
+    write_project_files(app, a.slug, pdir)
     projects = write_registry(app)
 
     manifest = {
@@ -272,13 +282,62 @@ def main():
     if a.fit == "cover":
         print("NOTE: --fit cover centre-crops the source to 9:16 (approved reframe).")
     print(f"linked  public/{rel} -> {src} ({manifest['remotion']['linked']}; resolves: {link.resolve() == src})")
-    print(f"project src/projects/{a.slug}/ ({'created ' + ', '.join(created) if created else 'existing files kept'}; source.ts regenerated)")
+    print(f"project src/projects/{a.slug}/ (edit.json + source.ts written; beats.ts, Edit.tsx... kept if present)")
     print(f"studio  composition {V.comp_id(a.slug)} ({len(projects)} project(s) registered)")
     print(f"work    {wd}  (manifest: project.json)")
     # Creative Director workflow: CREATIVE-LOG.md, generated from edit.json
     import subprocess
     r = subprocess.run([sys.executable, str(Path(__file__).with_name("edit_decisions.py")), "init", a.slug, "--app", str(app)]
                        + (["--work", a.work] if a.work else []), capture_output=True, text=True)
+    print("log     " + (r.stdout.strip() or r.stderr.strip()))
+
+
+def new_doc(slug, src_info):
+    return {"version": 1, "slug": slug, "rev": 0, "source": src_info, "transcript": {"origin": "none", "segments": []}, "segments": [],
+            "beats": [], "sfx": [], "focus": [], "hookEnd": None, "approvals": [], "feedback": [], "keepVisible": [],
+            "requests": [], "nextRequest": 1}
+
+
+def write_project_files(app, slug, pdir):
+    for name, text in (("beats.ts", BEATS_TS.format(slug=slug)), ("concepts.ts", CONCEPTS_TS.format(slug=slug)), ("sound-preview.ts", SOUND_TS),
+                       ("Edit.tsx", EDIT_TSX.format(slug=slug)),
+                       ("index.tsx", INDEX_TSX.format(ident=ident(slug), comp=V.comp_id(slug), slug=slug))):
+        if not (pdir / name).exists():
+            (pdir / name).write_text(text)
+
+
+def script_only(a, app, pdir):
+    """A project without footage: the user's script and the creative work can start before the cut is ready."""
+    if a.footage:
+        sys.exit("--script-only takes no footage (attach it later with: edit_init.py <footage> --slug ...)")
+    if not a.duration or a.duration <= 0:
+        sys.exit("--script-only needs --duration (seconds; at least the end of your script)")
+    if (pdir / "edit.json").exists():
+        sys.exit(f"project {a.slug} already exists")
+    fps = round(a.fps or 30.0, 3)
+    frames = int(round(a.duration * fps))
+    src_info = {"src": "", "sourceWidth": 1080, "sourceHeight": 1920, "sourceFps": fps, "sourceDurationSeconds": round(frames / fps, 6), "fps": fps,
+                "durationInFrames": frames, "width": 1080, "height": 1920, "sha256": "", "scriptOnly": True}
+    wd = V.work_dir(app, a.slug, a.work)
+    for sub in ("frames", "plan", "sound", "renders", "qc", "previews"):
+        (wd / sub).mkdir(parents=True, exist_ok=True)
+    pdir.mkdir(parents=True, exist_ok=True)
+    (pdir / "source.ts").write_text(SOURCE_TS.format(src='""', sw=1080, sh=1920, sfps=fps, dur=src_info["sourceDurationSeconds"], fps=fps, frames=frames,
+                                                      sha="", extra="\n  scriptOnly: true,"))
+    (pdir / "edit.json").write_text(json.dumps(new_doc(a.slug, src_info), indent=1, ensure_ascii=False) + "\n")
+    write_project_files(app, a.slug, pdir)
+    write_registry(app)
+    manifest = {"slug": a.slug, "created": datetime.datetime.now().isoformat(timespec="seconds"),
+                "source": {"path": None, "sha256": None, "scriptOnly": True},
+                "approved": {"fps": fps, "fps_from": "user" if a.fps else "default", "width": 1080, "height": 1920, "fit": "none (script-only)",
+                             "durationInFrames": frames, "duration": frames / fps},
+                "remotion": {"app": str(app), "composition": V.comp_id(a.slug), "project_dir": str(pdir), "public_src": "", "linked": "none"},
+                "work": str(wd)}
+    (wd / "project.json").write_text(json.dumps(manifest, indent=1))
+    print(f"script-only project {a.slug}: {frames} frames @ {fps} fps ({frames / fps:.2f} s), no footage yet")
+    print(f"attach the cut later: python3 scripts/edit_init.py /path/to/my-cut.mp4 --slug {a.slug}")
+    import subprocess
+    r = subprocess.run([sys.executable, str(Path(__file__).with_name("edit_decisions.py")), "init", a.slug, "--app", str(app)], capture_output=True, text=True)
     print("log     " + (r.stdout.strip() or r.stderr.strip()))
 
 

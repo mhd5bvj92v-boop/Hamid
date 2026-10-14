@@ -1,0 +1,55 @@
+{
+ "beat": {
+  "kind": "LoginAlertStack",
+  "at": 4.1,
+  "props": {
+   "calm": [
+    {
+     "title": "New sign-in",
+     "sub": "your laptop"
+    },
+    {
+     "title": "New sign-in",
+     "sub": "your phone"
+    }
+   ],
+   "alert": {
+    "title": "Suspicious sign-in",
+    "sub": "unknown device",
+    "tag": "FLAGGED"
+   },
+   "inAt": 0.1,
+   "stagger": 0.25,
+   "alertAt": 1.1,
+   "outAt": 3.2,
+   "alertScale": 1.3,
+   "calmOutAt": 2.55
+  },
+  "refs": [
+   "ONS-041"
+  ]
+ },
+ "notes": "Revision of v1 (REQ feedback): new optional props alertScale and calmOutAt on LoginAlertStack; their defaults keep v1 rendering exactly as before, so v1 can still be restored.",
+ "coverage": [
+  {
+   "item": "make the red alert bigger",
+   "done": true,
+   "how": "alertScale 1.3: the red toast (text, dot, tag, rim) is 30% larger"
+  },
+  {
+   "item": "the two green toasts leave first",
+   "done": true,
+   "how": "calmOutAt 2.55 s: the green toasts fade up and out 0.65 s before the alert"
+  },
+  {
+   "item": "the red one is alone on screen for a moment before it goes",
+   "done": true,
+   "how": "from 6.95 s to 7.30 s only the red toast is visible; it exits at outAt 3.2 s (7.30-7.60 s)"
+  },
+  {
+   "item": "everything else of concept A unchanged (enter, drop-in on 'suspicious logins', pulse, FLAGGED stamp, timing on the segment)",
+   "done": true,
+   "how": "same props otherwise"
+  }
+ ]
+}

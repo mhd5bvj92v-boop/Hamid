@@ -61,6 +61,19 @@ export const SourceFootage: React.FC<Props> = ({ source, focus = [] }) => {
     blur = Math.max(blur, (w.blur ?? 6) * k);
   }
 
+  if (source.scriptOnly || !source.src) {
+    // Script-only project: no footage attached yet. A neutral stand-in keeps
+    // the face zone visible for layout; the final export is refused.
+    return (
+      <AbsoluteFill style={{ background: "linear-gradient(180deg, #2a2522 0%, #15120f 100%)" }}>
+        <div style={{ position: "absolute", left: "26%", top: "17%", width: "48%", height: "30%", borderRadius: 48, background: "rgba(255,255,255,0.06)", border: "3px dashed rgba(255,255,255,0.18)" }} />
+        <div style={{ position: "absolute", left: 0, right: 0, top: "33%", textAlign: "center", fontFamily: "Montserrat", fontWeight: 600, fontSize: 30, letterSpacing: 4, color: "rgba(255,255,255,0.35)" }}>
+          SCRIPT-ONLY · NO FOOTAGE YET
+        </div>
+      </AbsoluteFill>
+    );
+  }
+
   return (
     <AbsoluteFill style={{ backgroundColor: "black" }}>
       <Video

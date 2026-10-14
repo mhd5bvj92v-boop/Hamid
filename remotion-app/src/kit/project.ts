@@ -46,6 +46,10 @@ export const ANCHOR: Record<SfxFamily, "peak" | "onset"> = { whoosh: "peak", tex
 
 export type ConceptSfx = { family: SfxFamily; label: string; at: "start" | "end" | number; roles?: string[] };
 
+export type ConceptOption = "A" | "B" | "C";
+/** "claude" = Claude Concepts (proposed by Claude Code with the skill); "draft" = Quick Drafts (instant, from kit templates). */
+export type ConceptSet = "claude" | "draft";
+
 export type Concept = {
   title: string;
   /** A on-screen, B text, C full-screen, D sound. */
@@ -60,20 +64,109 @@ export type Concept = {
   description: string;
   motion?: string;
   sound?: string;
-  /** "claude" = proposed by Claude with the skill; "draft" = auto-drafted by the Studio from the kit + library. */
+  /** "claude" = proposed by Claude Code with the skill; "draft" = Quick Draft generated instantly from a kit template. */
   author: "claude" | "draft";
   preview?: string;
+  /** Claude Concepts: how elements enter, what moves, how elements exit. */
+  enter?: string;
+  move?: string;
+  exit?: string;
+  /** The reference ID shown as STYLE REFERENCE (one of refs), or null = no matching reference in the library. */
+  styleRef?: string | null;
+  /** Why no library reference fits (when styleRef is null). */
+  noReference?: string;
+  /** The animation category the concept was written for. */
+  category?: SegmentType;
+  /** The concept request that produced it. */
+  requestId?: string;
+};
+
+/** One item of an implementation checklist: every instruction is either done or explicitly not done (with the reason). */
+export type Coverage = { item: string; done: boolean; how?: string; why?: string };
+
+/** A built version of a segment's animation (the timeline item + its sounds), kept so it can be restored. */
+export type BuildVersion = {
+  v: number;
+  at: string;
+  /** What it was built from: a Quick Draft template, a Claude Concept, the user's own idea (D), or a revision. */
+  source: "draft" | "claude" | "own" | "revision";
+  requestId: string | null;
+  beat: KitBeat & { segmentId?: string };
+  sfx: SfxItem[];
+  status: "built" | "partial";
+  notes?: string;
+  coverage?: Coverage[];
+  /** Remotion renders of this version (served from work/<slug>/previews). */
+  still?: string;
+  clip?: string;
+};
+
+export type RequestType = "concepts" | "implement" | "revision";
+export type RequestStatus = "pending" | "in_progress" | "completed" | "partial" | "failed" | "cancelled";
+
+/** Snapshot of everything Claude Code needs to process a request (taken when it is created). */
+export type RequestBrief = {
+  project: string;
+  segmentId: string;
+  text: string;
+  start: number;
+  end: number;
+  category: SegmentType;
+  categoryLabel: string;
+  context: { before: { id: string; start: number | null; end: number | null; text: string }[]; after: { id: string; start: number | null; end: number | null; text: string }[] };
+  decisions: { segmentId: string; start: number; end: number; type: SegmentType; choice: string; title?: string; built: boolean }[];
+  timeline: { id: string; kind: string; at: number; segmentId?: string }[];
+  references: { suggested: { id: string; title: string; family: string; file: string }[]; previous: string[] };
+  /** implement / revision */
+  choice?: "A" | "B" | "C" | "D";
+  conceptSet?: ConceptSet;
+  concept?: Concept;
+  /** The user's own idea (D), exactly as typed. */
+  custom?: string;
+  combine?: string[];
+  basedOn?: ConceptOption;
+  refs?: string[];
+  uploads?: string[];
+  /** revision: the user's feedback, exactly as typed, and the version it applies to. */
+  feedback?: string;
+  version?: number;
+  currentBeat?: KitBeat;
+  note?: string;
+};
+
+/** A task for Claude Code, stored in edit.json (processed with edit_decisions.py; there is no automatic Claude API). */
+export type ClaudeRequest = {
+  /** REQ-0001...: stable, never reused within a project. */
+  id: string;
+  type: RequestType;
+  segmentId: string;
+  status: RequestStatus;
+  created: string;
+  updated: string;
+  claimedAt?: string;
+  completedAt?: string;
+  /** Short result ("round 2: A/B/C", "v2 built (CyberAlert)") or the reason it failed / was cancelled. */
+  result?: string;
+  error?: string;
+  brief: RequestBrief;
 };
 
 export type Decision = {
   choice: "A" | "B" | "C" | "D" | "none";
   round: number;
   decided: string;
+  /** Which set A/B/C came from (Claude Concepts or Quick Drafts); "own" for D. */
+  source?: ConceptSet | "own";
+  /** D: the user's own idea, stored exactly as typed. */
   custom?: string;
   combine?: string[];
+  basedOn?: ConceptOption;
   refs?: string[];
+  uploads?: string[];
   quote?: string;
   note?: string;
+  /** The implementation request created for this decision (Claude Concepts and D). */
+  requestId?: string;
 };
 
 export type CreativeSegment = {
@@ -86,13 +179,23 @@ export type CreativeSegment = {
   type: SegmentType;
   major: boolean;
   round: number;
-  concepts: Partial<Record<"A" | "B" | "C", Concept>>;
-  recommend?: "A" | "B" | "C";
+  /** Claude Concepts only (author "claude"). */
+  concepts: Partial<Record<ConceptOption, Concept>>;
+  recommend?: ConceptOption;
   history: { round: number; concepts: CreativeSegment["concepts"]; replaced: string }[];
+  /** Quick Drafts (author "draft"): instant template variants, kept apart from Claude Concepts. */
+  drafts?: Partial<Record<ConceptOption, Concept>>;
+  draftRound?: number;
   decision: Decision | null;
   /** Timeline item built from the decision (visual types). */
   beatId: string | null;
+  /** Legacy free-text notes (older projects); requests now live in EditDoc.requests. */
   requests: { at: string; note: string }[];
+  /** Built versions of this segment's animation (restore any of them). */
+  versions?: BuildVersion[];
+  activeVersion?: number | null;
+  /** The user's review of the active version. */
+  review?: { status: "approved" | "changes-requested"; version: number | null; at: string; note?: string } | null;
 };
 
 export type SfxItem = {
@@ -124,7 +227,52 @@ export type EditDoc = {
   hookEnd: number | null;
   approvals: Approval[];
   feedback: { at: string; quote: string; changes: string[] }[];
+  /** Tasks for Claude Code (concepts, implementations, revisions). */
+  requests?: ClaudeRequest[];
+  nextRequest?: number;
+  /** Incremented on every write (Studio, CLI): stale writes are refused instead of overwriting newer data. */
+  rev?: number;
   updated?: string;
+};
+
+export const OPEN_REQUEST: RequestStatus[] = ["pending", "in_progress"];
+
+/** Defaults for older documents; Quick Drafts that older versions stored as concepts move to drafts. */
+export const normalizeDoc = (doc: EditDoc): EditDoc => {
+  doc.requests ??= [];
+  doc.nextRequest ??= doc.requests.length + 1;
+  doc.rev ??= 0;
+  for (const s of doc.segments) {
+    s.history ??= [];
+    s.requests ??= [];
+    s.versions ??= [];
+    const cs = Object.values(s.concepts ?? {});
+    if (cs.length && cs.every((c) => c?.author === "draft")) {
+      s.drafts = s.concepts;
+      s.draftRound = s.round;
+      s.concepts = {};
+      s.round = 0;
+      if (s.decision && !s.decision.source) s.decision.source = "draft";
+    }
+    if (s.decision && !s.decision.source) s.decision.source = s.decision.choice === "D" ? "own" : "claude";
+  }
+  return doc;
+};
+
+/** The newest request of the given types for a segment. */
+export const latestRequest = (doc: EditDoc, segmentId: string, types: RequestType[]) =>
+  [...(doc.requests ?? [])].reverse().find((r) => r.segmentId === segmentId && types.includes(r.type)) ?? null;
+
+export type BuildState = "none" | "pending" | "in_progress" | "built" | "partial" | "failed";
+
+/** Where a segment's animation stands: waiting for Claude Code, built (which version), or failed. */
+export const buildState = (doc: EditDoc, seg: CreativeSegment): { state: BuildState; request: ClaudeRequest | null; version: BuildVersion | null } => {
+  const req = latestRequest(doc, seg.id, ["implement", "revision"]);
+  const version = (seg.versions ?? []).find((v) => v.v === seg.activeVersion) ?? null;
+  if (req && (req.status === "pending" || req.status === "in_progress")) return { state: req.status, request: req, version };
+  if (req && req.status === "failed") return { state: "failed", request: req, version };
+  if (version) return { state: version.status, request: req, version };
+  return { state: "none", request: req, version: null };
 };
 
 // ------------------------------------------------------------------ timecodes

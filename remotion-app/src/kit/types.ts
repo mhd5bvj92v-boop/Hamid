@@ -21,6 +21,13 @@ export type SourceInfo = {
    * used ONLY by the Remotion Player for interactive preview. Renders always use `src`.
    */
   readonly previewSrc?: string;
+  /**
+   * Script-only project: no footage has been attached yet. The timeline length
+   * comes from the user's choice (at least the end of their script); the base
+   * layer is a neutral placeholder and the final export is refused until the
+   * real cut is attached (edit_init.py <footage> --slug <same slug>).
+   */
+  readonly scriptOnly?: boolean;
 };
 
 /** Sound intent, in the format scripts/sfx_plan.py reads (times are beat-relative seconds). */

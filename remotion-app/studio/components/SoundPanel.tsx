@@ -2,11 +2,21 @@ import React from "react";
 import type { EditDoc, SfxFamily, SfxItem } from "../../src/kit/project";
 import { GAIN_PRESETS, fmtTime } from "../../src/kit/project";
 import { SoundMeta, sfxEventTime } from "../../src/kit/studio";
+import { api } from "../api";
 
-type Props = { doc: EditDoc; setDoc: (d: EditDoc) => void; sounds: SoundMeta[]; segmentId: string | null; seek: (t: number) => void };
+type Props = {
+  doc: EditDoc;
+  setDoc: (d: EditDoc) => void;
+  fromServer: (d: EditDoc) => void;
+  reloadSounds: () => Promise<void>;
+  setError: (e: string | null) => void;
+  sounds: SoundMeta[];
+  segmentId: string | null;
+  seek: (t: number) => void;
+};
 const CATS: Record<SfxFamily, string[]> = { whoosh: ["WSH"], texture: ["POP", "UI", "SCI", "MEC", "TEX"], riser: ["RIS"], hit: ["HIT"] };
 
-export const SoundPanel: React.FC<Props> = ({ doc, setDoc, sounds, segmentId, seek }) => {
+export const SoundPanel: React.FC<Props> = ({ doc, setDoc, fromServer, reloadSounds, setError, sounds, segmentId, seek }) => {
   const fps = doc.source.fps;
   const items = doc.sfx.filter((s) => !segmentId || s.segmentId === segmentId || !s.segmentId);
   const upd = (id: string, patch: Partial<SfxItem>) => setDoc({ ...doc, sfx: doc.sfx.map((s) => (s.id === id ? { ...s, ...patch } : s)) });
@@ -19,10 +29,34 @@ export const SoundPanel: React.FC<Props> = ({ doc, setDoc, sounds, segmentId, se
       </p>
       {!sounds.length ? (
         <div className="warn" data-testid="no-sounds">
-          No sound effects are indexed yet. Index your authorised SFX folder (python3 scripts/sfx_index.py scan /path/to/SFX); until then sounds stay unassigned and nothing is
-          added to the mix.
+          Your sound library is empty: no sound effects are indexed. Index your authorised SFX folder (python3 .claude/skills/video-editing/scripts/sfx_index.py scan /path/to/SFX),
+          then press “Re-read library” here (no rebuild or restart needed). Until then the sound effects below stay unassigned and nothing is added to the mix.
         </div>
       ) : null}
+      <div className="row">
+        <span className="small" data-testid="sfx-missing">
+          {doc.sfx.filter((s) => !s.sound).length} of {doc.sfx.length} sound effects have no sound asset · {sounds.length} sounds indexed
+        </span>
+        <button className="ghost small" onClick={() => reloadSounds()} data-testid="reload-sounds">
+          ↻ Re-read library
+        </button>
+        <button
+          className="ghost small"
+          disabled={!sounds.length || !doc.sfx.some((s) => !s.sound)}
+          data-testid="assign-sounds"
+          onClick={() =>
+            api
+              .assignSounds(doc.slug)
+              .then((r) => {
+                fromServer(r.doc);
+                setError(`${r.assigned} sound(s) assigned from your library; ${r.missing} still without a fitting sound.`);
+              })
+              .catch((e) => setError(String(e.message)))
+          }
+        >
+          Assign indexed sounds to the empty ones
+        </button>
+      </div>
       {segmentId ? <p className="muted small">Showing segment {segmentId} (and unlinked sounds).</p> : null}
       {items.map((s) => {
         const t = sfxEventTime(doc, s);
@@ -39,6 +73,7 @@ export const SoundPanel: React.FC<Props> = ({ doc, setDoc, sounds, segmentId, se
               </button>
             </div>
             <div className="row">
+              {!s.sound ? <span className="missing-asset">missing sound asset</span> : null}
               <select value={s.sound ?? ""} onChange={(e) => upd(s.id, { sound: e.target.value || null })} data-testid={`sfx-sound-${s.id}`}>
                 <option value="">— no sound assigned —</option>
                 {sounds

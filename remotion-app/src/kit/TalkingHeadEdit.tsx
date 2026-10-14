@@ -5,6 +5,7 @@ import { HorizonTitle } from "./beats/HorizonTitle";
 import { StatCard } from "./beats/StatCard";
 import { StatementScene } from "./beats/StatementScene";
 import { UiCard } from "./beats/UiCard";
+import { customComponents } from "./custom/components";
 import { SoundPreview, SoundPreviewData } from "./SoundPreview";
 import { FocusWindow, SourceFootage } from "./SourceFootage";
 import { TimingRegistry, beatWindow, kitTiming } from "./timing";
@@ -19,6 +20,8 @@ export const kitComponents: ComponentRegistry = {
   HorizonTitle,
   UiCard,
   StatementScene,
+  // kinds Claude Code built for approved concepts (src/kit/custom/)
+  ...customComponents,
 };
 
 export type EditLayers = "all" | "graphics";

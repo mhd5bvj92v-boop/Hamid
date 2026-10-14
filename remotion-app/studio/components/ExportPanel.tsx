@@ -22,6 +22,7 @@ export const ExportPanel: React.FC<{ doc: EditDoc; fromServer: (d: EditDoc) => v
       setError(String((e as Error).message));
     }
   };
+  const waiting = (doc.requests ?? []).filter((r) => (r.type === "implement" || r.type === "revision") && (r.status === "pending" || r.status === "in_progress"));
   const start = async (type: "preview" | "final") => {
     try {
       const r = await api.render(doc.slug, type);
@@ -79,7 +80,23 @@ export const ExportPanel: React.FC<{ doc: EditDoc; fromServer: (d: EditDoc) => v
       </div>
       <h3>Final export</h3>
       <p className="muted small">Full-resolution Remotion render of edit.json → System D mix (original dialogue untouched) → sound QC → timeline QC. Only after your final approval.</p>
-      <button className="primary" disabled={!has("final") || job?.status === "running"} onClick={() => start("final")} data-testid="export-final">
+      {doc.source.scriptOnly ? (
+        <p className="warn small" data-testid="export-blocked">
+          Script-only project: attach your cut first (python3 .claude/skills/video-editing/scripts/edit_init.py /path/to/my-cut.mp4 --slug {doc.slug}). The final export needs the
+          original footage and dialogue.
+        </p>
+      ) : null}
+      {waiting.length ? (
+        <p className="warn small" data-testid="export-waiting">
+          Still waiting for Claude Code: {waiting.map((r) => `${r.segmentId} (${r.id}, ${r.type})`).join(", ")}. The export would miss these animations; process or cancel them first.
+        </p>
+      ) : null}
+      <button
+        className="primary"
+        disabled={!has("final") || job?.status === "running" || !!doc.source.scriptOnly || waiting.length > 0}
+        onClick={() => start("final")}
+        data-testid="export-final"
+      >
         Export final MP4
       </button>
       {job ? (

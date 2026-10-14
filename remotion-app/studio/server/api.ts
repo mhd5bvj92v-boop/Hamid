@@ -2,14 +2,13 @@
 // the media files and the Remotion renderer). Every route reads or writes the
 // project document remotion-app/src/projects/<slug>/edit.json.
 import { spawn } from "node:child_process";
-import { createReadStream, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { createReadStream, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
-import type { Plugin } from "vite";
-import type { Concept, CreativeSegment, EditDoc, SfxItem } from "../../src/kit/project";
-import { ANCHOR, GAIN_PRESETS, detectFormat, parseTranscript, validateTranscript } from "../../src/kit/project";
-import { SoundMeta, beatFromConcept, docErrors, resolveAudio, sfxEventTime, sfxForBeat } from "../../src/kit/studio";
-import { beatWindow, kitTiming } from "../../src/kit/timing";
+import type { Plugin, ViteDevServer } from "vite";
+import type { Concept, ConceptOption, CreativeSegment, EditDoc, SfxItem } from "../../src/kit/project";
+import { ANCHOR, GAIN_PRESETS, OPEN_REQUEST, detectFormat, normalizeDoc, parseTranscript, validateTranscript } from "../../src/kit/project";
+import type { SoundMeta } from "../../src/kit/studio";
 import { draftConcepts } from "./drafts";
 import { APP, getBundle, media, still } from "./render";
 
@@ -45,12 +44,37 @@ const run = (cmd: string, args: string[], cwd = APP) =>
     p.on("close", (code) => ok({ code: code ?? 1, out }));
   });
 const py = (script: string, args: string[]) => run("python3", [path.join(SCRIPTS, script), ...args]);
+/** edit_decisions.py: requests, decisions, reviews (one implementation for the Studio and Claude Code). Text is passed as --opt=value, verbatim. */
+const decisions = async (args: string[]) => {
+  const r = await py("edit_decisions.py", args);
+  if (r.code) throw new Error(r.out.trim().split("\n").filter((l) => !l.startsWith("WARN")).slice(-3).join(" "));
+  return r.out.trim();
+};
+
+// The kit's timing registry grows when Claude Code adds kinds (src/kit/custom/): load it through
+// Vite on every use, so the server always knows the current kinds (no restart needed).
+let vite: ViteDevServer | null = null;
+type Kit = typeof import("../../src/kit/studio") & typeof import("../../src/kit/timing");
+const kit = async (): Promise<Kit> => {
+  if (!vite) throw new Error("server not ready");
+  const studio = await vite.ssrLoadModule("/@fs" + path.join(APP, "src", "kit", "studio.ts"));
+  const timing = await vite.ssrLoadModule("/@fs" + path.join(APP, "src", "kit", "timing.ts"));
+  return { ...studio, ...timing } as Kit;
+};
 
 const docPath = (slug: string) => path.join(PROJECTS, slug, "edit.json");
-const readDoc = (slug: string): EditDoc => JSON.parse(readFileSync(docPath(slug), "utf8"));
+const readDoc = (slug: string): EditDoc => normalizeDoc(JSON.parse(readFileSync(docPath(slug), "utf8")));
+const diskRev = (slug: string) => (JSON.parse(readFileSync(docPath(slug), "utf8")) as EditDoc).rev ?? 0;
+class Conflict extends Error {}
+/** Atomic, and refused if edit.json changed since `doc` was read (Claude Code / the CLI write the same file). */
 const writeDoc = (slug: string, doc: EditDoc) => {
+  const cur = diskRev(slug);
+  if ((doc.rev ?? 0) !== cur) throw new Conflict(`edit.json changed outside the Studio (rev ${doc.rev} -> ${cur}), e.g. Claude Code processed a request`);
+  doc.rev = cur + 1;
   doc.updated = now();
-  writeFileSync(docPath(slug), JSON.stringify(doc, null, 1) + "\n");
+  const tmp = docPath(slug) + `.tmp${process.pid}`;
+  writeFileSync(tmp, JSON.stringify(doc, null, 1) + "\n");
+  renameSync(tmp, docPath(slug));
 };
 const manifest = (slug: string) => {
   const p = path.join(APP, "..", "work", slug, "project.json");
@@ -117,8 +141,12 @@ const nextVersion = (dir: string, prefix: string) => {
 
 const finalExport = async (j: Job, slug: string, origin: string) => {
   const doc = readDoc(slug);
+  const K = await kit();
+  if (doc.source.scriptOnly) throw new Error("Script-only project: attach your cut first (the final export needs the original footage and dialogue).");
   if (!doc.approvals.some((a) => a.gate === "final")) throw new Error("PHASE 5 GATE: the final export needs the Creative Director's explicit final approval (Approve final).");
-  const errs = docErrors(doc);
+  const waiting = (doc.requests ?? []).filter((r) => (r.type === "implement" || r.type === "revision") && OPEN_REQUEST.includes(r.status));
+  if (waiting.length) throw new Error(`Animations still waiting for Claude Code: ${waiting.map((r) => `${r.segmentId} (${r.id})`).join(", ")}. Process or cancel them first.`);
+  const errs = K.docErrors(doc);
   if (errs.length) throw new Error(errs.join("; "));
   const wd = workDir(slug);
   const picture = path.join(wd, "renders", "picture.mp4");
@@ -137,7 +165,7 @@ const finalExport = async (j: Job, slug: string, origin: string) => {
   const cues = doc.sfx
     .filter((s) => s.enabled && s.sound)
     .flatMap((s) => {
-      const t = sfxEventTime(doc, s);
+      const t = K.sfxEventTime(doc, s);
       if (t === null) return [];
       const p = GAIN_PRESETS[s.family];
       const outside = s.gainDb < p.min - 1e-6 || s.gainDb > p.max + 1e-6;
@@ -175,30 +203,43 @@ const routes: [string, RegExp, (c: Ctx) => Promise<unknown> | unknown][] = [
     existsSync(PROJECTS)
       ? readdirSync(PROJECTS).filter((d) => existsSync(docPath(d))).map((slug) => {
           const d = readDoc(slug);
-          return { slug, duration: d.source.sourceDurationSeconds, fps: d.source.fps, segments: d.segments.length, beats: d.beats.length };
+          return { slug, duration: d.source.sourceDurationSeconds, fps: d.source.fps, segments: d.segments.length, beats: d.beats.length,
+            scriptOnly: !!d.source.scriptOnly, openRequests: (d.requests ?? []).filter((r) => OPEN_REQUEST.includes(r.status)).length };
         })
       : []],
   ["POST", /^\/api\/projects$/, async ({ req }) => {
     const b = await body(req);
-    const args = [String(b.footage), "--slug", String(b.slug)];
+    const args = b.scriptOnly ? ["--script-only", "--slug", String(b.slug), "--duration", String(b.duration)] : [String(b.footage), "--slug", String(b.slug)];
     if (b.fps) args.push("--fps", String(b.fps));
     if (b.fit) args.push("--fit", "cover");
     const r = await py("edit_init.py", args);
     if (r.code) throw new Error(r.out);
     return { out: r.out, doc: readDoc(String(b.slug)) };
   }],
-  ["GET", /^\/api\/project\/([\w-]+)$/, ({ m }) => {
+  ["GET", /^\/api\/project\/([\w-]+)$/, async ({ m }) => {
     const doc = readDoc(m[1]);
-    return { doc, issues: validateTranscript(doc.transcript.segments, doc.source.sourceDurationSeconds), errors: docErrors(doc), manifest: manifest(m[1]) };
+    return { doc, issues: validateTranscript(doc.transcript.segments, doc.source.sourceDurationSeconds), errors: (await kit()).docErrors(doc), manifest: manifest(m[1]) };
   }],
-  ["PUT", /^\/api\/project\/([\w-]+)$/, async ({ req, m }) => {
-    const doc = (await body(req)) as unknown as EditDoc;
+  // the Studio polls this to pick up what Claude Code wrote (no reload needed)
+  ["GET", /^\/api\/project\/([\w-]+)\/rev$/, ({ m }) => {
+    const d = readDoc(m[1]);
+    return { rev: d.rev ?? 0, updated: d.updated, open: (d.requests ?? []).filter((r) => OPEN_REQUEST.includes(r.status)).length };
+  }],
+  ["PUT", /^\/api\/project\/([\w-]+)$/, async ({ req, res, m }) => {
+    const doc = normalizeDoc((await body(req)) as unknown as EditDoc);
     const disk = readDoc(m[1]);
-    // the source and the approvals are not editable from the UI
+    if ((doc.rev ?? 0) !== (disk.rev ?? 0)) {
+      // someone else (Claude Code, the CLI) wrote edit.json since this copy was loaded: never overwrite it
+      send(res, 409, { error: "edit.json was changed outside the Studio (for example Claude Code processed a request). The Studio reloaded it; redo your last change if it is missing.", doc: disk });
+      return undefined;
+    }
+    // the source, approvals and requests are not editable from the UI (approve/request actions change them)
     doc.source = disk.source;
     doc.approvals = disk.approvals;
+    doc.requests = disk.requests;
+    doc.nextRequest = disk.nextRequest;
     writeDoc(m[1], doc);
-    return { ok: true, updated: doc.updated, errors: docErrors(doc), issues: validateTranscript(doc.transcript.segments, doc.source.sourceDurationSeconds) };
+    return { ok: true, rev: doc.rev, updated: doc.updated, errors: (await kit()).docErrors(doc), issues: validateTranscript(doc.transcript.segments, doc.source.sourceDurationSeconds) };
   }],
   ["POST", /^\/api\/project\/([\w-]+)\/transcript$/, async ({ req, m }) => {
     const b = await body(req);
@@ -237,84 +278,177 @@ const routes: [string, RegExp, (c: Ctx) => Promise<unknown> | unknown][] = [
     serveFile(req, res, s.path);
     return undefined;
   }],
+  // Quick Drafts: instant template variants (author "draft"), kept apart from Claude Concepts
   ["POST", /^\/api\/project\/([\w-]+)\/drafts$/, async ({ req, m }) => {
     const b = await body(req);
     const doc = readDoc(m[1]);
     const seg = doc.segments.find((s) => s.id === b.segmentId);
     if (!seg) throw new Error("unknown segment");
     const d = draftConcepts(seg);
-    if (Object.keys(seg.concepts).length) {
-      seg.history.push({ round: seg.round, concepts: seg.concepts, replaced: now() });
-      seg.round += 1;
-      seg.decision = null;
-      if (doc.approvals.some((a) => a.gate === "direction")) doc.approvals = doc.approvals.filter((a) => a.gate !== "direction" && a.gate !== "preview" && a.gate !== "final");
-    } else seg.round = 1;
-    seg.concepts = { A: d.A, B: d.B, C: d.C };
-    seg.recommend = d.recommend;
+    seg.draftRound = (seg.draftRound ?? 0) + 1;
+    seg.drafts = { A: d.A, B: d.B, C: d.C };
     writeDoc(m[1], doc);
     await syncLog(m[1]);
-    return { doc };
+    return { doc: readDoc(m[1]) };
   }],
-  ["POST", /^\/api\/project\/([\w-]+)\/request$/, async ({ req, m }) => {
+  // "Generate with Claude" / "Regenerate concepts": a pending request in edit.json for Claude Code (no API call)
+  ["POST", /^\/api\/project\/([\w-]+)\/claude-request$/, async ({ req, m }) => {
     const b = await body(req);
+    const out = await decisions(["request", m[1], `--segment=${String(b.segmentId)}`, ...(b.note ? [`--note=${String(b.note)}`] : [])]);
+    return { doc: readDoc(m[1]), out };
+  }],
+  ["POST", /^\/api\/project\/([\w-]+)\/cancel-request$/, async ({ req, m }) => {
+    const b = await body(req);
+    const out = await decisions(["cancel", m[1], `--request=${String(b.requestId)}`, `--reason=${String(b.reason ?? "cancelled in the Studio")}`]);
+    return { doc: readDoc(m[1]), out };
+  }],
+  ["POST", /^\/api\/project\/([\w-]+)\/review$/, async ({ req, m }) => {
+    const b = await body(req);
+    const args = ["review", m[1], `--segment=${String(b.segmentId)}`];
+    if (b.action === "approve") args.push("--approve", ...(b.note ? [`--note=${String(b.note)}`] : []));
+    else if (b.action === "changes") args.push(`--changes=${String(b.feedback ?? "")}`);
+    else throw new Error("action must be approve or changes");
+    const out = await decisions(args);
+    return { doc: readDoc(m[1]), out };
+  }],
+  ["POST", /^\/api\/project\/([\w-]+)\/restore$/, async ({ req, m }) => {
+    const b = await body(req);
+    const out = await decisions(["restore", m[1], `--segment=${String(b.segmentId)}`, `--version=${Number(b.version)}`]);
+    return { doc: readDoc(m[1]), out };
+  }],
+  // extra reference images for D (kept in work/<slug>/refs, never in git)
+  ["POST", /^\/api\/project\/([\w-]+)\/upload$/, async ({ req, m }) => {
+    const b = await body(req);
+    const name = String(b.name ?? "image").replace(/[^\w.-]+/g, "_").slice(-80);
+    if (!/\.(png|jpe?g|webp|gif)$/i.test(name)) throw new Error("images only (png, jpg, webp, gif)");
+    const dir = path.join(workDir(m[1]), "refs");
+    mkdirSync(dir, { recursive: true });
+    const file = path.join(dir, `${Date.now()}_${name}`);
+    writeFileSync(file, Buffer.from(String(b.data ?? ""), "base64"));
+    return { path: file, url: `/api/file/${m[1]}/refs/${path.basename(file)}` };
+  }],
+  // sounds indexed after the animation was built: fill the SFX that still have none (nothing is invented)
+  ["POST", /^\/api\/project\/([\w-]+)\/assign-sounds$/, async ({ m }) => {
     const doc = readDoc(m[1]);
-    const seg = doc.segments.find((s) => s.id === b.segmentId);
-    if (!seg) throw new Error("unknown segment");
-    seg.requests.push({ at: now(), note: String(b.note ?? "three new concepts") });
-    writeDoc(m[1], doc);
-    return { doc };
+    let n = 0;
+    for (const s of doc.sfx) {
+      if (s.sound) continue;
+      const id = pickSound(s.family);
+      if (id) {
+        s.sound = id;
+        n++;
+      }
+    }
+    if (n) writeDoc(m[1], doc);
+    return { doc: readDoc(m[1]), assigned: n, missing: doc.sfx.filter((s) => !s.sound).length };
   }],
   ["POST", /^\/api\/project\/([\w-]+)\/concept-preview$/, async ({ req, m }) => {
     const b = await body(req);
     const slug = m[1];
     const doc = readDoc(slug);
+    const K = await kit();
+    const set = b.set === "draft" ? "draft" : "claude";
     const seg = doc.segments.find((s) => s.id === b.segmentId);
-    const opt = String(b.option) as "A" | "B" | "C";
-    const c = seg?.concepts[opt];
-    if (!seg || !c?.kind) throw new Error("no visual concept to preview");
-    const beat = beatFromConcept(seg, c);
-    const w = beatWindow(beat, kitTiming, doc.source.fps);
+    const opt = String(b.option) as ConceptOption;
+    const c = set === "draft" ? seg?.drafts?.[opt] : seg?.concepts[opt];
+    if (!seg || !c?.kind || !(c.kind in K.kitTiming)) throw new Error("this concept has no Remotion component yet: it can be previewed after it is built");
+    const beat = K.beatFromConcept(seg, c);
+    const w = K.beatWindow(beat, K.kitTiming, doc.source.fps);
     const frame = Math.min(doc.source.durationInFrames - 1, w.from + w.durationInFrames - Math.max(2, Math.round(0.65 * doc.source.fps)));
     const dir = path.join(workDir(slug), "previews");
     mkdirSync(dir, { recursive: true });
-    const name = `${seg.id}_${opt}_r${seg.round}_${Date.now() % 100000}.png`;
-    await still({ doc, layers: "all", concept: { segmentId: seg.id, option: opt }, audio: null }, frame, path.join(dir, name), 0.5);
+    const name = `${seg.id}_${set}_${opt}_${Date.now() % 100000}.png`;
+    await still({ doc, layers: "all", concept: { segmentId: seg.id, option: opt, set }, audio: null }, frame, path.join(dir, name), 0.5);
     const fresh = readDoc(slug);
     const s2 = fresh.segments.find((s) => s.id === seg.id)!;
-    if (s2.concepts[opt]) s2.concepts[opt]!.preview = `/api/file/${slug}/previews/${name}`;
+    const c2 = set === "draft" ? s2.drafts?.[opt] : s2.concepts[opt];
+    if (c2) c2.preview = `/api/file/${slug}/previews/${name}`;
     writeDoc(slug, fresh);
-    return { doc: fresh, url: `/api/file/${slug}/previews/${name}`, frame };
+    return { doc: readDoc(slug), url: `/api/file/${slug}/previews/${name}`, frame };
+  }],
+  // A still of the segment's current timeline item (e.g. a Quick Draft), rendered by Remotion
+  ["POST", /^\/api\/project\/([\w-]+)\/render-version$/, async ({ req, m }) => {
+    const b = await body(req);
+    const slug = m[1];
+    const doc = readDoc(slug);
+    const K = await kit();
+    const seg = doc.segments.find((s) => s.id === b.segmentId);
+    const beat = doc.beats.find((x) => x.segmentId === seg?.id);
+    const ver = seg?.versions?.find((v) => v.v === seg.activeVersion);
+    if (!seg || !beat || !ver) throw new Error("nothing built on this segment yet");
+    const w = K.beatWindow(beat, K.kitTiming, doc.source.fps);
+    const frame = Math.min(doc.source.durationInFrames - 1, w.from + w.durationInFrames - Math.max(2, Math.round(0.65 * doc.source.fps)));
+    const name = `${seg.id}_v${ver.v}_${Date.now() % 100000}.png`;
+    await still({ doc, layers: "all", concept: null, audio: null }, frame, path.join(workDir(slug), "previews", name), 0.5);
+    const fresh = readDoc(slug);
+    const v2 = fresh.segments.find((s) => s.id === seg.id)?.versions?.find((v) => v.v === ver.v);
+    if (v2) v2.still = `/api/file/${slug}/previews/${name}`;
+    writeDoc(slug, fresh);
+    return { doc: readDoc(slug) };
   }],
   ["POST", /^\/api\/project\/([\w-]+)\/choose$/, async ({ req, m }) => {
     const b = await body(req);
     const slug = m[1];
+    const option = String(b.option) as ConceptOption | "D";
+    const set = option === "D" ? "own" : b.set === "draft" ? "draft" : "claude";
+    if (set !== "draft") {
+      // Claude Concepts and D: save the decision and create an implementation request for Claude Code
+      if (option === "D" && !String(b.custom ?? "").trim()) throw new Error("describe your own idea (D)");
+      const args = ["decide", slug, `--moments=${String(b.segmentId)}`, `--choice=${option}`];
+      if (option === "D") {
+        args.push(`--custom=${String(b.custom)}`); // exactly as typed
+        if ((b.combine as string[] | undefined)?.length) args.push(`--combine=${(b.combine as string[]).join(",")}`);
+        if (b.basedOn) args.push(`--based-on=${String(b.basedOn)}`);
+        if ((b.refs as string[] | undefined)?.length) args.push(`--refs=${(b.refs as string[]).join(",")}`);
+        if ((b.uploads as string[] | undefined)?.length) args.push(`--uploads=${(b.uploads as string[]).join(",")}`);
+      }
+      if (b.quote) args.push(`--quote=${String(b.quote)}`);
+      const out = await decisions(args);
+      await syncLog(slug);
+      return { doc: readDoc(slug), built: false, awaitingClaude: true, out };
+    }
+    // Quick Draft: a template the kit already has, built on the timeline immediately
     const doc = readDoc(slug);
+    const K = await kit();
     const seg = doc.segments.find((s) => s.id === b.segmentId) as CreativeSegment | undefined;
     if (!seg) throw new Error("unknown segment");
-    const option = String(b.option) as "A" | "B" | "C" | "D";
-    const basedOn = (option === "D" ? b.basedOn : option) as "A" | "B" | "C" | undefined;
-    if (option === "D" && !String(b.custom ?? "").trim()) throw new Error("describe your own idea (D)");
-    seg.decision = { choice: option, round: seg.round, decided: now(), quote: b.quote ? String(b.quote) : undefined, ...(option === "D" ? { custom: String(b.custom), combine: (b.combine as string[]) ?? undefined, refs: (b.refs as string[]) ?? undefined } : {}) };
-    // remove the segment's previous timeline item and its sounds
+    const concept: Concept | undefined = seg.drafts?.[option as ConceptOption];
+    if (!concept) throw new Error(`no Quick Draft ${option}`);
+    const prev = seg.decision;
+    if (prev && (prev.choice !== option || prev.source !== "draft") && doc.approvals.some((a) => a.gate === "direction"))
+      doc.approvals = doc.approvals.filter((a) => a.gate !== "direction" && a.gate !== "preview" && a.gate !== "final");
+    for (const r of doc.requests ?? [])
+      if (r.segmentId === seg.id && (r.type === "implement" || r.type === "revision") && OPEN_REQUEST.includes(r.status)) {
+        r.status = "cancelled";
+        r.result = "superseded: a Quick Draft was chosen in the Studio";
+        r.updated = now();
+      }
+    seg.decision = { choice: option as ConceptOption, round: seg.draftRound ?? 1, decided: now(), source: "draft", quote: b.quote ? String(b.quote) : undefined };
     doc.beats = doc.beats.filter((x) => x.segmentId !== seg.id);
     doc.sfx = doc.sfx.filter((s) => s.segmentId !== seg.id);
-    seg.beatId = null;
-    const concept: Concept | undefined = basedOn ? seg.concepts[basedOn] : undefined;
-    if (concept?.kind) {
-      const beat = beatFromConcept(seg, concept);
-      doc.beats.push(beat as never);
-      seg.beatId = beat.id;
-      const sfx = sfxForBeat(beat, doc.source.fps).map((s) => ({ ...s, sound: pickSound(s.family) }));
-      doc.sfx.push(...sfx);
-    } else if (concept?.sfx) {
-      const items: SfxItem[] = concept.sfx.map((c, i) => ({ id: `${seg.id}-snd${i + 1}`, family: c.family, link: { time: c.at === "start" ? seg.start : c.at === "end" ? seg.end : seg.start + c.at },
+    let beat = null;
+    let sfx: SfxItem[] = [];
+    if (concept.kind) {
+      beat = K.beatFromConcept(seg, concept);
+      sfx = K.sfxForBeat(beat, doc.source.fps).map((s) => ({ ...s, sound: pickSound(s.family) }));
+    } else if (concept.sfx) {
+      sfx = concept.sfx.map((c, i) => ({ id: `${seg.id}-snd${i + 1}`, family: c.family, link: { time: c.at === "start" ? seg.start : c.at === "end" ? seg.end : seg.start + c.at },
         sound: pickSound(c.family, c.roles), gainDb: GAIN_PRESETS[c.family].db, offsetFrames: 0, enabled: true, label: c.label, segmentId: seg.id }));
-      doc.sfx.push(...items);
+    }
+    if (beat) doc.beats.push(beat as never);
+    doc.sfx.push(...sfx);
+    seg.beatId = beat?.id ?? null;
+    if (beat) {
+      seg.versions ??= [];
+      const v = seg.versions.length + 1;
+      seg.versions.push({ v, at: now(), source: "draft", requestId: null, beat: beat as never, sfx, status: "built", notes: `Quick Draft ${option}: ${concept.title} (template)` });
+      seg.activeVersion = v;
+      seg.review = null;
     }
     doc.beats.sort((a, b2) => a.at - b2.at);
     writeDoc(slug, doc);
     await syncLog(slug);
-    return { doc, built: Boolean(concept?.kind || concept?.sfx), awaitingClaude: option === "D" && !basedOn };
+    return { doc: readDoc(slug), built: Boolean(beat || sfx.length), awaitingClaude: false };
   }],
   ["POST", /^\/api\/project\/([\w-]+)\/approve$/, async ({ req, m }) => {
     const b = await body(req);
@@ -341,7 +475,7 @@ const routes: [string, RegExp, (c: Ctx) => Promise<unknown> | unknown][] = [
           await finalExport(j, slug, origin);
         } else {
           const doc = readDoc(slug);
-          const audio = resolveAudio(doc, soundMeta(origin));
+          const audio = (await kit()).resolveAudio(doc, soundMeta(origin));
           const dir = path.join(workDir(slug), "previews");
           const v = nextVersion(dir, "preview_v");
           const out = path.join(dir, `preview_v${v}.mp4`);
@@ -364,6 +498,7 @@ const routes: [string, RegExp, (c: Ctx) => Promise<unknown> | unknown][] = [
     // Player-only preview proxy: VP9/Opus WebM, same frame rate, same duration, every frame kept.
     const slug = m[1];
     const doc = readDoc(slug);
+    if (doc.source.scriptOnly) throw new Error("script-only project: there is no footage to make a proxy of yet");
     const src = manifest(slug).source.path as string;
     const dir = path.join(workDir(slug), "proxy");
     mkdirSync(dir, { recursive: true });
@@ -399,6 +534,7 @@ const routes: [string, RegExp, (c: Ctx) => Promise<unknown> | unknown][] = [
 export const studioApi = (): Plugin => ({
   name: "creative-director-studio-api",
   configureServer(server) {
+    vite = server;
     // a failing background render must not take the Studio down
     if (!process.listenerCount("unhandledRejection")) {
       process.on("unhandledRejection", (e) => server.config.logger.error(`[studio] background error: ${String((e as Error)?.message ?? e)}`));
@@ -415,7 +551,7 @@ export const studioApi = (): Plugin => ({
         const out = await hit[2]({ req, res, m, origin });
         if (out !== undefined && !res.writableEnded) send(res, 200, out);
       } catch (e) {
-        if (!res.writableEnded) send(res, 400, { error: String((e as Error).message ?? e) });
+        if (!res.writableEnded) send(res, e instanceof Conflict ? 409 : 400, { error: String((e as Error).message ?? e) });
       }
     });
   },
