@@ -715,6 +715,9 @@ GUIDE = {
     AssetScene stages one full-screen (props.asset = the file); custom kinds render <AssetMedia src={{props.asset}} />
     from src/kit/Asset.tsx. Pass every asset file in the beat props. If assets are still missing, ask the user for
     them (Studio: the scene's 3D assets box, or a file path for {ed} asset) - do not build without them.
+    STYLE: 60-30-10 palette from the constants (usePalette(): c60 base ~60 %, c30 support ~30 %, c10 accent ~10 %,
+    plus neutrals only); wrap the scene in <CameraMove dur=...> (camera from the constants) - nothing static; keep
+    text and key elements inside the safe area (8 % margins, top 12 %, bottom 20 % free). preview measures palette and motion.
     LOOK: read references/premium-motion.md and build from src/kit/premium.tsx (glass, rim light, grain, light sweep,
     bloom, light rays, dust, vignette, line icons, tilt-in). Flat boxes, letter tiles, emoji and tiny elements are not acceptable.
  3b. PREVIEW AND COMPARE (required, usually 2-3 rounds): write build.json, then run
@@ -886,6 +889,39 @@ def check_assets_used(seg, needs, b):
     return [f"the user's assets {unused} are not in the beat props: build with them (e.g. AssetScene props.asset = \"{use[unused[0]]['file']}\"), never redraw them with shapes"] if unused else []
 
 
+def style_report(constants, stills, fullscreen):
+    """60-30-10 palette shares and camera motion, measured on the preview frames (full-screen scenes)."""
+    if not fullscreen:
+        return {"note": "overlay: palette/camera measured by eye on the sheet (the footage fills most of the frame)"}
+    import numpy as np
+    from PIL import Image
+    hx = lambda h: np.array([int(h[i:i + 2], 16) for i in (1, 3, 5)], float)
+    pal = {"60": hx(constants.get("color60", "#0A0F1F")), "30": hx(constants.get("color30", "#1E2A44")), "10": hx(constants.get("accentColor", "#2F6BFF"))}
+    im = np.asarray(Image.open(stills["landed"]).convert("RGB").resize((180, 320)), float).reshape(-1, 3)
+    d = np.stack([np.linalg.norm(im - c, axis=1) for c in pal.values()], 1)
+    sat = im.max(1) - im.min(1)
+    neutral = (sat < 28) & (d.min(1) > 40)          # white type, greys, pure black
+    near = d.min(1) <= 70
+    lab = d.argmin(1)
+    counted = near & ~neutral
+    tot = max(1, counted.sum())
+    shares = {k: round(100 * float(((lab == i) & counted).sum()) / tot) for i, k in enumerate(pal)}
+    off = round(100 * float((~near & ~neutral).sum()) / max(1, (~neutral).sum()))
+    a = np.asarray(Image.open(stills["middle"]).convert("L").resize((180, 320)), float)
+    b = np.asarray(Image.open(stills["landed"]).convert("L").resize((180, 320)), float)
+    motion = round(float(np.abs(a - b).mean()), 2)
+    issues = []
+    if shares["60"] < 45:
+        issues.append(f"base colour only {shares['60']} % (60-30-10 wants ~60 %)")
+    if shares["10"] > 20:
+        issues.append(f"accent {shares['10']} % (should be ~10 %: use it only for the one thing to look at)")
+    if off > 15:
+        issues.append(f"{off} % of the coloured pixels are off-palette")
+    if motion < 0.8:
+        issues.append("the frame barely changes between middle and landed: add the camera move (<CameraMove>) or living motion")
+    return {"shares": shares, "offPalette": off, "motion": motion, "issues": issues}
+
+
 def cmd_preview(app, slug, a):
     """Render key frames of a candidate build and put them next to the style reference: look at it, fix, repeat."""
     import edit_render as ER
@@ -932,10 +968,15 @@ def cmd_preview(app, slug, a):
                          "--out", str(sheet), "--height", "760"], capture_output=True, text=True)
     if cp.returncode:
         raise SystemExit(f"compare sheet failed: {cp.stderr[-400:]}")
-    r.setdefault("previews", []).append({"n": n, "hash": beat_hash(beat), "sheet": f"/api/file/{slug}/previews/{sheet.name}", "at": now()})
+    rep = style_report(log.get("constants") or {}, dict(zip(frames, stills)), chk["window"].get("fullscreen", False))
+    r.setdefault("previews", []).append({"n": n, "hash": beat_hash(beat), "sheet": f"/api/file/{slug}/previews/{sheet.name}", "at": now(), "style": rep})
     save(app, slug, log)
     print(f"preview {n} of {r['id']}: {sheet}")
     print(f"  frames: {', '.join(f'{k} {v}' for k, v in frames.items())}; style reference: {', '.join(refs) or 'none'}{' + the user uploads' if uploads else ''}")
+    if rep.get("shares"):
+        print(f"  60-30-10: base {rep['shares']['60']} % / support {rep['shares']['30']} % / accent {rep['shares']['10']} %, off-palette {rep['offPalette']} %; camera/motion {rep['motion']}")
+    for i in rep.get("issues", []):
+        print("FIX  ", i)
     print("NOW: open the sheet (Read) and compare honestly. List every visible quality of the reference your render lacks: light and glow,\n"
           "depth and layering, texture (grain, glass, noise), scale in the frame, typography (size, weight, spacing), colour, composition,\n"
           "motion cues. Fix them and preview again. Build only when it holds up next to the reference.")
@@ -970,6 +1011,8 @@ def cmd_built(app, slug, a):
         errs.append(f"preview it first: {ED} preview {slug} --request {r['id']} --file <build.json>, open the comparison sheet and fix what the reference has and yours lacks")
     elif pv[-1]["hash"] != beat_hash(beat):
         errs.append(f"this beat differs from preview {pv[-1]['n']}: preview this exact version and look at it before building")
+    for i in ((pv[-1].get("style") or {}).get("issues") or []) if pv else []:
+        print("WARN  style:", i, "- fix it and preview again, or explain it in match")
     match = data.get("match")
     if not isinstance(match, list) or len(match) < 4:
         errs.append("match missing: list at least 4 visible qualities of the style reference (light, depth, glow, texture, scale in frame, type, colour, composition), each done:true (how) or done:false (why)")

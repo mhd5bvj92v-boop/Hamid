@@ -39,6 +39,12 @@ The UI card's `look: "glass"` (`UiCard`) is the reference implementation of thes
 - **Colour:** one accent hue plus neutrals. Light comes from the accent (rim, glow, rays); surfaces are deep, desaturated versions of it, never grey boxes.
 - **Contrast through light, not outlines.** Prefer a glow, a gradient edge or a rim to a 1 px coloured border.
 
+## 3b. The edit's style: 60-30-10, camera, framing (from the Constants for the Whole Edit)
+
+- **60-30-10 colour:** `usePalette()` (`src/kit/style.tsx`) gives `c60` (base: backgrounds, large surfaces, ~60 %), `c30` (support: panels, secondary shapes, ~30 %) and `c10` (accent: the one thing to look at, ~10 %). Use nothing else but neutrals (white type, black, greys). `preview` measures the shares on full-screen scenes and flags a weak base, an accent over 20 % or off-palette colour.
+- **Camera:** wrap every scene's world in `<CameraMove dur={...}>`. It uses the edit's camera (push-in / drift / orbit / dynamic, subtle / medium / strong) unless the plan asks for another move. Nothing is static; `preview` flags frames that barely change.
+- **Framing:** subjects and text sit inside the safe area: 8 % side margins, top 12 % and bottom 20 % free (platform UI), never cut by the frame edge unless on purpose. The subject is centred on a thirds line or dead centre, never drifting into a corner by accident.
+
 ## 4. Motion
 
 - One clear camera move per scene: a slow push-in (3-6 %), a drift, or a tilt-in. Nothing static.

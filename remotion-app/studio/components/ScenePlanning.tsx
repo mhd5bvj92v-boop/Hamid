@@ -157,7 +157,31 @@ const Constants: React.FC<{ doc: EditDoc; setDoc: (d: EditDoc) => void }> = ({
           </select>
         </label>
         <label>
-          Accent colour
+          60 % base colour
+          <span className="row tight">
+            <input
+              type="color"
+              value={c.color60}
+              onChange={(e) => set({ color60: e.target.value })}
+              data-testid="const-color60"
+            />
+            <code>{c.color60}</code>
+          </span>
+        </label>
+        <label>
+          30 % support colour
+          <span className="row tight">
+            <input
+              type="color"
+              value={c.color30}
+              onChange={(e) => set({ color30: e.target.value })}
+              data-testid="const-color30"
+            />
+            <code>{c.color30}</code>
+          </span>
+        </label>
+        <label>
+          10 % accent colour
           <span className="row tight">
             <input
               type="color"
@@ -169,15 +193,29 @@ const Constants: React.FC<{ doc: EditDoc; setDoc: (d: EditDoc) => void }> = ({
           </span>
         </label>
         <label>
-          Second colour
-          <span className="row tight">
-            <input
-              type="color"
-              value={c.secondaryColor}
-              onChange={(e) => set({ secondaryColor: e.target.value })}
-            />
-            <code>{c.secondaryColor}</code>
-          </span>
+          Camera
+          <select
+            value={c.camera}
+            onChange={(e) => set({ camera: e.target.value as EditConstants["camera"] })}
+            data-testid="const-camera"
+          >
+            <option value="push-in">slow push-in</option>
+            <option value="drift">drift</option>
+            <option value="orbit">orbit (3D)</option>
+            <option value="dynamic">dynamic (punch-in, then drift)</option>
+            <option value="static">static</option>
+          </select>
+        </label>
+        <label>
+          Camera strength
+          <select
+            value={c.cameraIntensity}
+            onChange={(e) => set({ cameraIntensity: e.target.value as EditConstants["cameraIntensity"] })}
+          >
+            <option value="subtle">subtle</option>
+            <option value="medium">medium</option>
+            <option value="strong">strong</option>
+          </select>
         </label>
         <label>
           Interface style

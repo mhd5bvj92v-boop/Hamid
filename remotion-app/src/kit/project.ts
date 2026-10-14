@@ -69,8 +69,17 @@ export type EditConstants = {
   captionStyle: string;
   captionPosition: "under-chin" | "lower-third" | "center";
   captionCase: "as-spoken" | "sentence" | "upper";
+  /** 10 % of the 60-30-10 palette: the accent (key word, active element, glow). */
   accentColor: string;
+  /** Legacy second accent (kept for older projects; the palette is color60 / color30 / accentColor). */
   secondaryColor: string;
+  /** 60 %: the base colour (backgrounds, large surfaces). */
+  color60: string;
+  /** 30 %: the support colour (panels, secondary shapes). */
+  color30: string;
+  /** Camera move every scene uses unless its plan says otherwise. */
+  camera: "push-in" | "drift" | "orbit" | "dynamic" | "static";
+  cameraIntensity: "subtle" | "medium" | "strong";
   accentFont: "Instrument Serif" | "Playfair Display" | "JetBrains Mono" | "none";
   uiStyle: "dark-glass" | "light-glass" | "neon-rim" | "editorial";
   transitions: string;
@@ -84,6 +93,10 @@ export const DEFAULT_CONSTANTS: EditConstants = {
   captionCase: "as-spoken",
   accentColor: "#2F6BFF",
   secondaryColor: "#F2A14A",
+  color60: "#0A0F1F",
+  color30: "#1E2A44",
+  camera: "push-in",
+  cameraIntensity: "medium",
   accentFont: "Instrument Serif",
   uiStyle: "dark-glass",
   transitions: "fade-rise with blur clearing in; quick fade out; hard cuts in and out of full-screen scenes",

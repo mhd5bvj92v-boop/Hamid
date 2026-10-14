@@ -28,7 +28,7 @@ export const StudioEdit: React.FC<StudioEditProps> = ({ doc, layers, concept, au
   const beats = beatsForRender(doc, concept);
   return (
     <AbsoluteFill>
-      <TalkingHeadEdit source={doc.source} beats={beats} focus={concept ? [] : doc.focus} layers={layers} sound={null} />
+      <TalkingHeadEdit source={doc.source} beats={beats} focus={concept ? [] : doc.focus} layers={layers} sound={null} constants={doc.constants} />
       {(audio ?? []).map((p) => (
         <Sequence key={p.id} name={`SFX ${p.id} (${p.family})`} from={Math.round(p.start * fps)} premountFor={fps}>
           <Audio src={p.src} trimBefore={Math.round(p.clipIn * fps)} volume={undb(p.gainDb)} />

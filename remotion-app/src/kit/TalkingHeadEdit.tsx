@@ -10,6 +10,8 @@ import { UiCard } from "./beats/UiCard";
 import { customComponents } from "./custom/components";
 import { SoundPreview, SoundPreviewData } from "./SoundPreview";
 import { FocusWindow, SourceFootage } from "./SourceFootage";
+import type { EditConstants } from "./project";
+import { EditStyleProvider } from "./style";
 import { TimingRegistry, beatWindow, kitTiming } from "./timing";
 import type { Beat, SourceInfo } from "./types";
 
@@ -37,6 +39,8 @@ export type TalkingHeadEditProps = {
   readonly layers?: EditLayers;
   readonly focus?: readonly FocusWindow[];
   readonly sound?: SoundPreviewData | null;
+  /** The edit's constants (60-30-10 palette, camera): every component reads them with useEditStyle(). */
+  readonly constants?: Partial<EditConstants> | null;
   /** Project-specific beat kinds (component + pure timing). */
   readonly extraComponents?: ComponentRegistry;
   readonly extraTiming?: TimingRegistry;
@@ -58,6 +62,7 @@ export const TalkingHeadEdit: React.FC<TalkingHeadEditProps> = ({
   sound,
   extraComponents = {},
   extraTiming = {},
+  constants = null,
 }) => {
   const { fps, durationInFrames } = useVideoConfig();
   if (fps !== source.fps || durationInFrames !== source.durationInFrames) {
@@ -69,30 +74,32 @@ export const TalkingHeadEdit: React.FC<TalkingHeadEditProps> = ({
   const timing = { ...kitTiming, ...extraTiming };
 
   return (
-    <AbsoluteFill style={{ backgroundColor: "black" }}>
-      {layers === "all" ? (
-        <SourceFootage source={source} focus={focus} />
-      ) : null}
-      {beats.map((beat) => {
-        const Component = components[beat.kind];
-        if (!Component)
-          throw new Error(
-            `No component for beat kind "${beat.kind}" (beat ${beat.id}).`,
+    <EditStyleProvider constants={constants}>
+      <AbsoluteFill style={{ backgroundColor: "black" }}>
+        {layers === "all" ? (
+          <SourceFootage source={source} focus={focus} />
+        ) : null}
+        {beats.map((beat) => {
+          const Component = components[beat.kind];
+          if (!Component)
+            throw new Error(
+              `No component for beat kind "${beat.kind}" (beat ${beat.id}).`,
+            );
+          const w = beatWindow(beat, timing, fps);
+          return (
+            <Sequence
+              key={beat.id}
+              name={`${beat.id} · ${w.system}${w.fullscreen ? " full-screen" : ""}`}
+              from={w.from}
+              durationInFrames={w.durationInFrames}
+              premountFor={fps}
+            >
+              <Component {...(beat.props as object)} />
+            </Sequence>
           );
-        const w = beatWindow(beat, timing, fps);
-        return (
-          <Sequence
-            key={beat.id}
-            name={`${beat.id} · ${w.system}${w.fullscreen ? " full-screen" : ""}`}
-            from={w.from}
-            durationInFrames={w.durationInFrames}
-            premountFor={fps}
-          >
-            <Component {...(beat.props as object)} />
-          </Sequence>
-        );
-      })}
-      {layers === "all" && sound ? <SoundPreview data={sound} /> : null}
-    </AbsoluteFill>
+        })}
+        {layers === "all" && sound ? <SoundPreview data={sound} /> : null}
+      </AbsoluteFill>
+    </EditStyleProvider>
   );
 };
