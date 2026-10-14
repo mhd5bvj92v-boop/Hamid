@@ -240,25 +240,26 @@ def main():
     # Remotion's file server refuses symlinked FILES but follows symlinked FOLDERS, and its bundler
     # forwards folder links instead of copying them: link the original's folder (read-only use),
     # so multi-GB footage is never copied. --copy copies the file instead (last resort).
+    # Only the footage entry is replaced: the scene assets the user provided (public/projects/<slug>/assets) stay.
     drop_links(pub)
-    if pub.exists() or pub.is_symlink():
-        shutil.rmtree(pub) if pub.is_dir() and not pub.is_symlink() else pub.unlink()
-    pub.mkdir(parents=True)
+    if pub.is_symlink() or (pub.exists() and not pub.is_dir()):
+        pub.unlink()
+    shutil.rmtree(pub / "footage", ignore_errors=True)
+    pub.mkdir(parents=True, exist_ok=True)
     if a.copy:
         (pub / "footage").mkdir()
         shutil.copy2(src, pub / "footage" / src.name)
     else:
         try:
             os.symlink(src.parent, pub / "footage", target_is_directory=True)
-        except OSError:
+        except OSError as e:
             if os.name != "nt":
                 raise
-            # Windows: folder symlinks need admin rights or Developer Mode; a junction does not (local NTFS drives)
-            import _winapi
-            try:
-                _winapi.CreateJunction(str(src.parent), str(pub / "footage"))
-            except OSError as e:
-                sys.exit(f"could not link {src.parent} into the app ({e}). Turn on Windows Developer Mode, or re-run with --copy.")
+            # Windows allows symbolic links only with Developer Mode (or admin rights). A junction would not
+            # help: Remotion re-creates every link in public/ as a symbolic link each time it bundles a render.
+            sys.exit(f"Windows blocked the link to your video's folder ({e.strerror or e}).\n"
+                     "Turn on Developer Mode once: Settings > System > For developers > Developer Mode (On), then import again.\n"
+                     "(Or re-run with --copy to copy the video into the app instead.)")
     rel = f"projects/{a.slug}/footage/{src.name}"
     link = pub / "footage" / src.name
 

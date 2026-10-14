@@ -130,6 +130,9 @@ export const api = {
   restore: (slug: string, segmentId: string, version: number) => call<DocResult>("POST", `/api/project/${slug}/restore`, { segmentId, version }),
   renderVersion: (slug: string, segmentId: string) => call<DocResult>("POST", `/api/project/${slug}/render-version`, { segmentId }),
   upload: (slug: string, name: string, data: string) => call<{ path: string; url: string }>("POST", `/api/project/${slug}/upload`, { name, data }),
+  /** The user's 3D / realistic asset for a scene (a concept's need id, or none for their own asset). */
+  uploadAsset: (slug: string, segmentId: string, name: string, data: string, needId?: string, note?: string) =>
+    call<{ doc: EditDoc; out: string }>("POST", `/api/project/${slug}/asset`, { segmentId, name, data, needId, note }),
   approvePlans: (slug: string, segmentIds: string[], quote: string) => call<DocResult>("POST", `/api/project/${slug}/plan-approve`, { segmentIds, quote }),
   approve: (slug: string, gate: string, quote: string) => call<DocResult>("POST", `/api/project/${slug}/approve`, { gate, quote }),
   feedback: (slug: string, quote: string, changes: string[]) => call<DocResult>("POST", `/api/project/${slug}/feedback`, { quote, changes }),

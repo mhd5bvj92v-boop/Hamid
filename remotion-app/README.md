@@ -52,6 +52,7 @@ npm run studio           # Creative Director Studio (the editor)
 npm run studio:test      # its end-to-end test (Chromium, synthetic footage)
 npm run studio:test:claude  # Claude Concepts workflow (requests -> CLI -> builds -> revision -> render)
 npm run studio:test:plan    # Scene Planning <-> Timeline Editor sync + every editing category rendered by Remotion
+npm run studio:test:assets  # 3D assets: asked for on the card, uploaded in the Studio, build waits for them, Remotion renders them
 npm run test-media       # generate the synthetic test footage and marker sound (public/test-media/)
 npm run render:test      # -> out/test-composition.mp4
 npm run render:footage   # -> out/footage-composite.mp4

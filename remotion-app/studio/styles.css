@@ -279,3 +279,14 @@ h3 { font-size: 12px; margin: 14px 0 6px; text-transform: uppercase; letter-spac
 .bs-pill-built { border-color: #1f5a43 !important; color: var(--ok) !important; }
 .bs-pill-pending, .bs-pill-in_progress, .bs-pill-partial { border-color: #6e5420 !important; color: #ffd98a !important; }
 .flag { color: var(--warn); }
+
+/* 3D assets the user provides for a scene (Concept.assets) */
+.asset-needs { margin: 8px 0; padding: 8px 10px; border: 1px dashed #6e5420; border-radius: 8px; background: #1f1a10; font-size: 12px; }
+.asset-needs ul { margin: 4px 0 0; padding-left: 16px; }
+.assets-panel { margin: 10px 0; padding: 10px 12px; border: 1px solid var(--line-2); border-radius: 10px; }
+.assets-panel h3 { margin: 0 0 4px; font-size: 13px; }
+.asset-row { display: flex; gap: 10px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line-2); }
+.asset-row .asset-text { flex: 1; min-width: 0; font-size: 12px; }
+.asset-thumb { width: 56px; height: 56px; object-fit: contain; border-radius: 6px; border: 1px solid var(--line-2); background: repeating-conic-gradient(#222 0 25%, #2c2c2c 0 50%) 0 0 / 12px 12px; }
+.asset-thumb.empty { display: grid; place-items: center; color: #ffd98a; font-weight: 700; }
+.assets-panel .row input:not([type="file"]) { flex: 1; min-width: 0; }

@@ -251,7 +251,8 @@ def main():
                 err("studio/server/api.ts: saving from the UI may overwrite approvals (they must only change via edit_decisions.py)")
             if "!b.replace" not in a_src:
                 err("studio/server/api.ts: importing a script may silently replace the user's timestamped script")
-        for f in ("beats/HalfPanel.tsx", "beats/halfPanel.timing.ts", "patch.ts", "custom/timing.ts", "custom/components.ts"):
+        for f in ("beats/HalfPanel.tsx", "beats/halfPanel.timing.ts", "patch.ts", "custom/timing.ts", "custom/components.ts",
+                  "Asset.tsx", "beats/AssetScene.tsx", "beats/assetScene.timing.ts"):
             if not (kit / f).exists():
                 err(f"kit file missing: remotion-app/src/kit/{f}")
         if not (app / "studio" / "components" / "ScenePlanning.tsx").exists():
@@ -263,8 +264,13 @@ def main():
             err("edit_decisions.py built must always render with Remotion before recording an edit as done")
         if "Remotion-first" not in skill:
             err("SKILL.md lost the Remotion-first rule")
+        dsrc = (root / "scripts" / "edit_decisions.py").read_text(encoding="utf-8")
+        if "def cmd_asset" not in dsrc or "needs the user's 3D assets" not in dsrc or "are not in the beat props" not in dsrc:
+            err("edit_decisions.py lost the 3D asset workflow (asset command, build waits for and must use the user's assets)")
+        if "come from the user, never from code shapes" not in skill:
+            err("SKILL.md lost the rule that realistic / 3D objects come from the user's assets")
         pj = json.loads((app / "package.json").read_text(encoding="utf-8"))
-        for sc in ("studio", "studio:test", "studio:test:claude", "studio:test:plan"):
+        for sc in ("studio", "studio:test", "studio:test:claude", "studio:test:plan", "studio:test:assets"):
             if sc not in pj.get("scripts", {}):
                 err(f"remotion-app/package.json lost the '{sc}' script")
         if not (app / "scripts" / "export-sfx.ts").exists():

@@ -140,6 +140,24 @@ export type Concept = {
   category?: SegmentType;
   /** The concept request that produced it. */
   requestId?: string;
+  /**
+   * 3D / realistic assets this concept needs from the user (hands, a product, a planet...): Claude never
+   * draws those with code shapes. The build waits until the user has provided every required one.
+   */
+  assets?: AssetNeed[];
+};
+
+/** An asset Claude asks the user for: what it shows and how to deliver it (format, angle, length...). */
+export type AssetNeed = { id: string; what: string; spec: string; required?: boolean };
+/** An asset the user provided for a scene: a copy in public/projects/<slug>/assets (the original is never touched). */
+export type ProvidedAsset = {
+  /** staticFile() path, e.g. "projects/my-video/assets/S04_A1_sphere.png". */
+  file: string;
+  name: string;
+  kind: "image" | "video";
+  at: string;
+  what?: string;
+  note?: string;
 };
 
 /** One item of an implementation checklist: every instruction is either done or explicitly not done (with the reason). */
@@ -264,6 +282,8 @@ export type CreativeSegment = {
   sceneType?: SceneType;
   onScreen?: string;
   plan?: ScenePlan;
+  /** 3D / realistic assets the user provided for this scene, by need id (A1...) or their own (U1...). */
+  assets?: Record<string, ProvidedAsset>;
 };
 
 export type SfxItem = {

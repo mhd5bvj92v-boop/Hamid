@@ -12,7 +12,7 @@ import type { SoundMeta } from "../../src/kit/studio";
 import type { DocPatch } from "../../src/kit/patch";
 import { applyPatch } from "../../src/kit/patch";
 import { draftConcepts } from "./drafts";
-import { APP, getBundle, media, still } from "./render";
+import { APP, getBundle, invalidateBundle, media, still } from "./render";
 
 const SKILL = path.resolve(APP, "..", ".claude", "skills", "video-editing");
 const SCRIPTS = path.join(SKILL, "scripts");
@@ -264,7 +264,7 @@ const routes: [string, RegExp, (c: Ctx) => Promise<unknown> | unknown][] = [
     }
     // Scene fields owned by server actions and Claude Code (concepts, drafts, decisions, builds, plan
     // approvals) always come from disk: a UI save never undoes them. The UI owns times, type, words and plan text.
-    const OWNED = ["concepts", "recommend", "history", "round", "drafts", "draftRound", "decision", "versions", "activeVersion", "review", "plan", "requests", "beatId"] as const;
+    const OWNED = ["concepts", "recommend", "history", "round", "drafts", "draftRound", "decision", "versions", "activeVersion", "review", "plan", "requests", "beatId", "assets"] as const;
     const onDisk = new Map(disk.segments.map((x) => [x.id, x]));
     doc.segments = doc.segments.map((x) => {
       const d = onDisk.get(x.id);
@@ -380,6 +380,26 @@ const routes: [string, RegExp, (c: Ctx) => Promise<unknown> | unknown][] = [
     const file = path.join(dir, `${Date.now()}_${name}`);
     writeFileSync(file, Buffer.from(String(b.data ?? ""), "base64"));
     return { path: file, url: `/api/file/${m[1]}/refs/${path.basename(file)}` };
+  }],
+  // the user's 3D / realistic asset for a scene (Concept.assets need, or their own): the same command Claude Code uses
+  ["POST", /^\/api\/project\/([\w-]+)\/asset$/, async ({ req, m }) => {
+    const b = await body(req);
+    const name = String(b.name ?? "asset").replace(/[^\w.-]+/g, "_").slice(-80);
+    if (!/\.(png|webp|jpe?g|webm|mp4|m4v|mov)$/i.test(name)) throw new Error("3D assets: PNG / WebP / JPG images or WebM / MP4 / MOV videos");
+    const dir = path.join(workDir(m[1]), "incoming", String(Date.now()));
+    mkdirSync(dir, { recursive: true });
+    const tmp = path.join(dir, name); // keeps the user's file name
+    writeFileSync(tmp, Buffer.from(String(b.data ?? ""), "base64"));
+    const args = ["asset", m[1], `--segment=${String(b.segmentId)}`, `--file=${tmp}`];
+    if (b.needId) args.push(`--need=${String(b.needId)}`);
+    if (b.note) args.push(`--note=${String(b.note)}`);
+    try {
+      const out = await decisions(args);
+      invalidateBundle(); // the next Remotion render bundles public/ again, with the new asset
+      return { doc: readDoc(m[1]), out };
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   }],
   // sounds indexed after the animation was built: fill the SFX that still have none (nothing is invented)
   ["POST", /^\/api\/project\/([\w-]+)\/assign-sounds$/, async ({ m }) => {
@@ -576,7 +596,14 @@ const routes: [string, RegExp, (c: Ctx) => Promise<unknown> | unknown][] = [
       throw new Error(`proxy does not match the source timeline (${frames} frames / ${dur.toFixed(3)} s vs ${doc.source.durationInFrames} / ${doc.source.sourceDurationSeconds})`);
     const link = path.join(APP, "public", "projects", slug, "proxy");
     rmSync(link, { force: true, recursive: false });
-    symlinkSync(path.resolve(dir), link, process.platform === "win32" ? "junction" : "dir"); // a junction needs no admin rights on Windows
+    try {
+      symlinkSync(path.resolve(dir), link, "dir");
+    } catch (e) {
+      // Windows: symbolic links need Developer Mode (a junction would not help: Remotion re-creates links in public/ as symlinks when it bundles)
+      if (process.platform === "win32")
+        throw new Error("Windows blocked the preview link. Turn on Developer Mode once (Settings > System > For developers > Developer Mode), then try again.");
+      throw e;
+    }
     (doc.source as { previewSrc?: string }).previewSrc = `projects/${slug}/proxy/source_proxy.webm`;
     writeDoc(slug, doc);
     return { doc, frames, duration: dur };

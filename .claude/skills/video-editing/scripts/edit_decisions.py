@@ -28,13 +28,19 @@ Requests for Claude Code (written by the Studio or by these commands; processed 
   edit_decisions.py review <slug> --segment S02 --approve [--note "..."] | --changes "<the user's feedback>"
   edit_decisions.py plan-approve <slug> --segments S01,S02 --quote "..."   # Scene Planning: approved plans -> build requests
   edit_decisions.py restore <slug> --segment S02 --version 1
+  edit_decisions.py asset <slug> --segment S04 [--need A1] --file /path/render.png [--note "..."]
+                                                           # the user's 3D / realistic asset for a scene (copied into the app)
 
 concepts.json (Claude Concepts for one segment; the moments form {"moments": {"S02": {...}}} also works):
   {"recommend": "B", "options": {
      "A": {"title": "...", "system": "A", "description": "...", "enter": "...", "move": "...", "exit": "...",
            "refs": ["ONS-024"], "styleRef": "ONS-024", "family": "LIVE-UI", "sound": "...",
            "kind": "<optional existing kind>", "props": {...optional}},
-     "B": {..., "refs": [], "styleRef": null, "noReference": "nothing in the library shows ..."}, "C": {...}}}
+     "B": {..., "refs": [], "styleRef": null, "noReference": "nothing in the library shows ..."},
+     "C": {..., "assets": [{"id": "A1", "what": "two hands holding a glowing glass sphere",
+                            "spec": "PNG, transparent background, front view, at least 1600 px tall"}]}}}
+  "assets": realistic / 3D objects are never drawn with code shapes; the concept asks the user for them and
+  the build waits until every required asset is provided (Studio upload or the asset command).
 build.json (one implementation or revision):
   {"beat": {"kind": "CyberAlert", "props": {...}, "at": 3.5}, "notes": "...",
    "coverage": [{"item": "enter: ...", "done": true, "how": "..."}, {"item": "...", "done": false, "why": "..."}]}
@@ -69,6 +75,9 @@ CAT_LABEL = {"text": "Text Animation", "onscreen": "On-Screen Visual", "fullscre
 CAT_SYSTEM = {"text": "B", "onscreen": "A", "fullscreen": "C", "sound": "D"}
 CAT_REF = {"text": "TXT", "onscreen": "ONS", "fullscreen": "FUL"}
 SCENE_LABEL = {"captions": "Captions Only", "captions-ui": "Captions + UI", "halfscreen": "Halfscreen", "fullscreen": "Fullscreen"}
+IMG_EXT = (".png", ".webp", ".jpg", ".jpeg")
+VID_EXT = (".webm", ".mp4", ".m4v", ".mov")
+ASSET_ID = re.compile(r"^[A-Za-z0-9_-]{1,24}$")
 SCENE_OF_TYPE = {"text": "captions", "onscreen": "captions-ui", "fullscreen": "fullscreen"}
 
 
@@ -309,6 +318,25 @@ def take(req, types):
         raise SystemExit(f"{req['id']} is already {req['status']} ({req.get('result') or req.get('error') or ''}) - it is not processed twice")
 
 
+def asset_needs(log, seg, req=None):
+    """The 3D / realistic assets the scene's build needs (from the concept being built) and which required ones are missing."""
+    c = (req or {}).get("brief", {}).get("concept") if req else None
+    if c is None:
+        d = seg.get("decision") or {}
+        if d.get("choice") in OPTIONS and d.get("source") == "claude":
+            c = (seg.get("concepts") or {}).get(d["choice"])
+    needs = list((c or {}).get("assets") or [])
+    have = seg.get("assets") or {}
+    return needs, [n["id"] for n in needs if n.get("required", True) and n["id"] not in have]
+
+
+def assets_to_use(seg, needs):
+    """Provided assets the build must use: the concept's needs, and for the user's own idea (D) their own assets (U1...)."""
+    ids = {n["id"] for n in needs}
+    own = (seg.get("decision") or {}).get("choice") == "D"
+    return {k: v for k, v in (seg.get("assets") or {}).items() if k in ids or (own and re.match(r"^U\d+$", k))}
+
+
 # ------------------------------------------------------------------ commands: decisions
 def cmd_init(app, slug, a):
     jp, _ = log_paths(app, slug)
@@ -371,6 +399,16 @@ def check_options(mid, opts, lib, category=None):
                 errs.append(f"{mid}:{k} styleRef {sr} must be one of its refs {o.get('refs')}")
             elif sr in lib and not (V.SKILL_ROOT / lib[sr]["file"]).exists():
                 errs.append(f"{mid}:{k} styleRef {sr}: image file {lib[sr]['file']} is missing")
+        assets = o.get("assets") or []
+        if not isinstance(assets, list):
+            errs.append(f"{mid}:{k} assets must be a list of {{id, what, spec}}")
+            assets = []
+        ids = [x.get("id") for x in assets if isinstance(x, dict)]
+        for x in assets:
+            if not isinstance(x, dict) or not ASSET_ID.match(str(x.get("id") or "")) or not str(x.get("what") or "").strip() or not str(x.get("spec") or "").strip():
+                errs.append(f"{mid}:{k} each asset needs id (A1...), what (what it shows) and spec (format, angle, size or length)")
+        if len(set(ids)) != len(ids):
+            errs.append(f"{mid}:{k} asset ids must be unique")
     if errs:
         return errs, warns
     # genuinely different: no two options may share system + kind + primary reference + props,
@@ -630,15 +668,17 @@ def cmd_pending(app, slug, a):
     rows = []
     for s in ([slug] if slug else projects(app)):
         log = load(app, s)
-        rows += [(s, r) for r in open_requests(log)]
+        rows += [(s, r, log) for r in open_requests(log)]
     if not rows:
         print("no open requests for Claude Code" + (f" in {slug}" if slug else ""))
         return
     print(f"{len(rows)} open request(s) for Claude Code (oldest first):")
-    for s, r in sorted(rows, key=lambda x: x[1]["created"]):
+    for s, r, log in sorted(rows, key=lambda x: x[1]["created"]):
         b = r["brief"]
-        print(f"  {r['id']}  {s}  {r['segmentId']}  {r['type']:9} {r['status']:11} {tc(b['start'])}-{tc(b['end'])} \"{b['text'][:60]}\" ({b['categoryLabel']})")
-    s, r = sorted(rows, key=lambda x: x[1]["created"])[0]
+        miss = asset_needs(log, seg_by_id(log, r["segmentId"]), r)[1] if r["type"] in ("implement", "revision") else []
+        print(f"  {r['id']}  {s}  {r['segmentId']}  {r['type']:9} {r['status']:11} {tc(b['start'])}-{tc(b['end'])} \"{b['text'][:60]}\" ({b['categoryLabel']})"
+              + (f"  WAITING FOR THE USER'S ASSETS: {', '.join(miss)}" if miss else ""))
+    s, r, _ = sorted(rows, key=lambda x: x[1]["created"])[0]
     print(f"\nnext: {ED} show {s} --request {r['id']}")
 
 
@@ -652,6 +692,10 @@ GUIDE = {
     enter / move / exit, refs + styleRef (the reference image the Studio shows as STYLE REFERENCE; styleRef null +
     noReference when nothing fits - never an unrelated image), family, sound idea. Optional kind/props if an existing
     kit kind already implements it.
+    REALISTIC / 3D OBJECTS (hands, people, products, devices, planets, buildings, sculptures, creatures...) are never
+    drawn with code shapes - that looks cheap. List each one under "assets": [{{"id": "A1", "what": "...", "spec":
+    "PNG, transparent background, front view, soft top light, at least 1600 px tall" or "WebM with alpha, 3 s, slow
+    turn"}}]; the user provides it. Type, UI, charts, lines, light, particles and gradients are built in Remotion code.
  4. Save them to a JSON file and run:
       {ed} propose {slug} --request {rid} --file <concepts.json>
     Validation runs before anything is written; the request is completed and the Studio shows the concepts.""",
@@ -662,6 +706,10 @@ GUIDE = {
  2. Build it in Remotion. Reuse a kit kind only if it really does what was approved; otherwise write a new kind in
     remotion-app/src/kit/custom/ (<name>.timing.ts + <Name>.tsx) and register it in custom/timing.ts and
     custom/components.ts. Never substitute a generic template for an approved custom concept.
+    3D / REALISTIC ASSETS (listed above): build with the user's files, never redraw them with shapes. The kit kind
+    AssetScene stages one full-screen (props.asset = the file); custom kinds render <AssetMedia src={{props.asset}} />
+    from src/kit/Asset.tsx. Pass every asset file in the beat props. If assets are still missing, ask the user for
+    them (Studio: the scene's 3D assets box, or a file path for {ed} asset) - do not build without them.
  3. Time it on the segment ({start:.2f}-{end:.2f} s). Do not touch other timeline items or the footage.
  4. Write build.json {{"beat": {{"kind", "props", "at"}}, "notes", "coverage": [...]}} - one coverage item per element
     of the concept (enter, move, exit, typography, colours...) and per instruction of D, each done:true with how,
@@ -705,6 +753,21 @@ def cmd_show(app, slug, a):
         c = b["concept"]
         print(f"\napproved concept {b.get('choice')}: {c['title']} [{c['system']}]\n  {c['description']}\n  enter: {c.get('enter')}\n  move:  {c.get('move')}\n  exit:  {c.get('exit')}"
               f"\n  refs: {', '.join(c.get('refs') or []) or '-'}  style reference: {c.get('styleRef') or 'none'}  sound: {c.get('sound', '-')}")
+    seg = seg_by_id(log, r["segmentId"])
+    needs, missing = asset_needs(log, seg, r)
+    have = seg.get("assets") or {}
+    if needs or have:
+        print("\n3D / REALISTIC ASSETS (use these files; never draw these objects with code shapes):")
+        for n in needs:
+            got = have.get(n["id"])
+            print(f"  {n['id']}  {n['what']}  [{n['spec']}]  ->  " + (f"PROVIDED: {got['file']} ({got['kind']})" if got else ("MISSING" if n.get("required", True) else "optional, not provided")))
+        for k, v in have.items():
+            if k not in {n["id"] for n in needs}:
+                print(f"  {k}  the user's own asset ({'use it' if (seg.get('decision') or {}).get('choice') == 'D' else 'optional'}): {v['file']} ({v['kind']})"
+                      + (f" - {v['note']}" if v.get("note") else ""))
+        if missing and r["type"] != "concepts":
+            print(f"WAITING FOR THE USER: {', '.join(missing)} not provided yet. Ask them to upload it in the Studio (the scene's 3D assets"
+                  f" box) or to give you the file path, then: {ED} asset {slug} --segment {seg['id']} --need <id> --file <path>. Do not build before.")
     print("\nsuggested references (keyword match; open the images before using them):")
     for x in b["references"]["suggested"]:
         print(f"  {x['id']}  {x['family']:16} {x['title'][:60]}  {x['file']}")
@@ -791,10 +854,18 @@ def cmd_built(app, slug, a):
     r = find_request(log, a.request)
     take(r, ("implement", "revision"))
     seg = seg_by_id(log, r["segmentId"])
+    needs, missing = asset_needs(log, seg, r)
+    if missing:
+        raise SystemExit(f"{r['id']} needs the user's 3D assets {missing} first ({'; '.join(n['what'] for n in needs if n['id'] in missing)}). "
+                         f"Ask them to upload them in the Studio or give you the files, then: {ED} asset {slug} --segment {seg['id']} --need <id> --file <path>. Nothing was written.")
     data = json.loads(Path(a.file).read_text())
     b = data.get("beat") or {}
     cov = data.get("coverage")
     errs = []
+    use = assets_to_use(seg, needs)
+    unused = [k for k, v in use.items() if v["file"] not in json.dumps(b.get("props") or {})]
+    if unused:
+        errs.append(f"the user's assets {unused} are not in the beat props: build with them (e.g. AssetScene props.asset = \"{use[unused[0]]['file']}\"), never redraw them with shapes")
     if not isinstance(cov, list) or not cov:
         errs.append("coverage missing: list every element of the concept / every instruction of D / every feedback point, each done:true (how) or done:false (why)")
     else:
@@ -926,10 +997,53 @@ def cmd_restore(app, slug, a):
     print(f"{seg['id']}: v{ver['v']} restored on the timeline (other items unchanged)")
 
 
+def cmd_asset(app, slug, a):
+    """The user's 3D / realistic asset for a scene: copied into public/projects/<slug>/assets (the original is never touched)."""
+    import shutil
+    import subprocess
+    log = load(app, slug)
+    seg = seg_by_id(log, a.segment)
+    src = Path(a.file).expanduser()
+    if not src.is_file():
+        raise SystemExit(f"{src}: file not found")
+    ext = src.suffix.lower()
+    if ext not in IMG_EXT + VID_EXT:
+        raise SystemExit(f"{src.name}: use a PNG/WebP (transparent background) or JPG image, or a WebM (with alpha), MP4 or MOV video")
+    needs, _ = asset_needs(log, seg)
+    have = seg.setdefault("assets", {})
+    nid = a.need or next(f"U{i}" for i in range(1, 1000) if f"U{i}" not in have)
+    if not ASSET_ID.match(nid):
+        raise SystemExit("--need: letters, digits, - and _ only (e.g. A1)")
+    if a.need and needs and nid not in {n["id"] for n in needs} and not re.match(r"^U\d+$", nid):
+        print(f"WARN  {nid} is not one of the concept's asset needs ({', '.join(n['id'] for n in needs)}); stored as the user's own asset")
+    out_dir = app / "public" / "projects" / slug / "assets"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    stem = re.sub(r"[^\w.-]+", "_", src.stem)[:60]
+    if ext == ".mov":
+        # ProRes / MOV does not play in the browser Player: a WebM with alpha (VP9) keeps transparency and plays everywhere
+        dest = out_dir / f"{seg['id']}_{nid}_{stem}.webm"
+        r = subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(src), "-c:v", "libvpx-vp9", "-pix_fmt", "yuva420p", "-b:v", "0", "-crf", "22",
+                            "-auto-alt-ref", "0", "-an", str(dest)], capture_output=True, text=True)
+        if r.returncode:
+            raise SystemExit(f"could not convert {src.name} to WebM: {r.stderr[-500:]}")
+    else:
+        dest = out_dir / f"{seg['id']}_{nid}_{stem}{ext}"
+        shutil.copy2(src, dest)
+    old = have.get(nid)
+    if old and Path(app / "public" / old["file"]) != dest:
+        (app / "public" / old["file"]).unlink(missing_ok=True)
+    what = next((n["what"] for n in needs if n["id"] == nid), None)
+    have[nid] = {"file": f"projects/{slug}/assets/{dest.name}", "name": src.name, "kind": "video" if dest.suffix in VID_EXT else "image", "at": now(),
+                 **({"what": what} if what else {}), **({"note": a.note} if a.note else {})}
+    save(app, slug, log)
+    _, missing = asset_needs(log, seg)
+    print(f"{seg['id']} asset {nid}: {src.name} -> {have[nid]['file']}" + (f"  (still missing: {', '.join(missing)})" if missing else ""))
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("cmd", choices=["init", "analyze", "propose", "decide", "approve", "feedback", "status", "storyboard",
-                                    "request", "pending", "show", "claim", "built", "fail", "cancel", "review", "restore", "plan-approve"])
+                                    "request", "pending", "show", "claim", "built", "fail", "cancel", "review", "restore", "plan-approve", "asset"])
     ap.add_argument("slug", nargs="?")
     ap.add_argument("--file"); ap.add_argument("--moments"); ap.add_argument("--choice")
     ap.add_argument("--set", choices=["claude", "draft"], default="claude", help="decide: which A/B/C (Claude Concepts; Quick Drafts are chosen in the Studio)")
@@ -940,13 +1054,14 @@ def main():
     ap.add_argument("--require", choices=GATES, help="status: exit 1 unless this gate is approved")
     ap.add_argument("--request"); ap.add_argument("--segment"); ap.add_argument("--segments"); ap.add_argument("--reason"); ap.add_argument("--version", type=int)
     ap.add_argument("--approve", action="store_true"); ap.add_argument("--changes")
+    ap.add_argument("--need", help="asset: the concept's asset id (A1...); omit for the user's own asset (U1...)")
     ap.add_argument("--json", action="store_true", help="show: also print the brief as JSON")
     ap.add_argument("--app"); ap.add_argument("--work")
     a = ap.parse_args()
     app = V.find_app(a.app)
     if a.cmd not in ("pending", "status") and not a.slug:
         sys.exit(f"{a.cmd}: project slug required")
-    if a.cmd in ("analyze", "propose", "built") and not a.file:
+    if a.cmd in ("analyze", "propose", "built", "asset") and not a.file:
         sys.exit("--file required")
     if a.cmd == "decide" and not (a.moments and a.choice):
         sys.exit("--moments and --choice required")
@@ -954,7 +1069,7 @@ def main():
         sys.exit("--gate required")
     if a.cmd in ("show", "claim", "built", "fail", "cancel") and not a.request:
         sys.exit("--request REQ-#### required")
-    if a.cmd in ("request", "review", "restore") and not a.segment:
+    if a.cmd in ("request", "review", "restore", "asset") and not a.segment:
         sys.exit("--segment required")
     if a.cmd == "plan-approve" and not a.segments:
         sys.exit("--segments S01,S02 required")
@@ -964,7 +1079,7 @@ def main():
      "feedback": cmd_feedback, "status": cmd_status, "storyboard": cmd_storyboard, "request": cmd_request, "pending": cmd_pending,
      "show": cmd_show, "claim": cmd_claim, "built": cmd_built, "fail": cmd_fail,
      "cancel": lambda ap_, s, x: cmd_fail(ap_, s, x, status="cancelled"), "review": cmd_review, "restore": cmd_restore,
-     "plan-approve": cmd_plan_approve}[a.cmd](app, a.slug, a)
+     "plan-approve": cmd_plan_approve, "asset": cmd_asset}[a.cmd](app, a.slug, a)
 
 
 if __name__ == "__main__":

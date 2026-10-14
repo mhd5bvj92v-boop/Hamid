@@ -38,6 +38,10 @@ const newestSrc = (dir: string): number => {
 
 let cached: { url: string; at: number } | null = null;
 let building: Promise<string> | null = null;
+/** public/ changed (a new asset): the next render bundles again, so it contains the new file. */
+export const invalidateBundle = () => {
+  cached = null;
+};
 
 export const getBundle = async (log: (s: string) => void = () => {}) => {
   const src = newestSrc(path.join(APP, "src"));

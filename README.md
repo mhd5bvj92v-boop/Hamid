@@ -45,13 +45,16 @@ winget install Gyan.FFmpeg          # ffmpeg + ffprobe; open a new terminal afte
 cd remotion-app; npm i; npm run studio
 ```
 
-The Studio finds Python as `py -3` or `python` (or the path in the `PYTHON` environment variable). In commands in these docs, type `py` (or `python`) where they say `python3`. Your footage is linked with a folder junction (no admin rights needed; local NTFS drives). If that fails, turn on Windows Developer Mode, or import with `edit_init.py ... --copy`.
+The Studio finds Python as `py -3` or `python` (or the path in the `PYTHON` environment variable). In commands in these docs, type `py` (or `python`) where they say `python3`.
+
+**Turn on Windows Developer Mode once** (Settings → System → For developers → Developer Mode). Your video is linked into the app, never copied, and Remotion re-creates that link every time it renders; Windows only allows that with Developer Mode. Without it, importing a video tells you to turn it on. The alternative is `edit_init.py ... --copy`, which copies the video into the app.
 
 Two connected workspaces over one `edit.json` and one Remotion composition:
 - **Scene Planning:** set the Constants for the Whole Edit, then plan sentence by sentence: scene type (Captions Only, Captions + UI, Halfscreen, Fullscreen, with examples from your library), what happens on screen, optional "Ask Claude for Ideas" with A/B/C/D, then approve the plans.
 - **Timeline Editor:** the multi-track timeline, Remotion Player, inspector, sound track and export. Retime a scene in either view and the other, its animation and its sounds follow.
+- **3D assets:** realistic objects (hands, products, planets...) are never drawn with code. When a concept needs one, its card says what to make ("PNG, transparent background, front view..."), and the scene gets an upload box. Claude builds only once you've added it, and stages your render with Remotion (spotlight, glow, shadow, motion, headline). You can add your own assets to idea D too. Images: PNG/WebP with transparency; video: WebM with alpha, MP4 or MOV.
 
-Claude Code processes your requests in a Claude Code session (no automatic Claude connection): `python3 .claude/skills/video-editing/scripts/edit_decisions.py pending`. It writes the Remotion components; nothing counts as built until Remotion has rendered it. **Everything you export is rendered by Remotion**: your original footage and dialogue (unchanged), every animation layer and every sound effect, then QC. Quick Drafts are instant template versions, labelled as such. Details: `.claude/skills/video-editing/references/remotion.md` §8. Tests: `npm run studio:test`, `studio:test:claude`, `studio:test:plan`.
+Claude Code processes your requests in a Claude Code session (no automatic Claude connection): `python3 .claude/skills/video-editing/scripts/edit_decisions.py pending`. It writes the Remotion components; nothing counts as built until Remotion has rendered it. **Everything you export is rendered by Remotion**: your original footage and dialogue (unchanged), every animation layer and every sound effect, then QC. Quick Drafts are instant template versions, labelled as such. Details: `.claude/skills/video-editing/references/remotion.md` §8. Tests: `npm run studio:test`, `studio:test:claude`, `studio:test:plan`, `studio:test:assets`.
 
 ## The workflow in short
 

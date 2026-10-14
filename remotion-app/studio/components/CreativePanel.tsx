@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import type {
+  AssetNeed,
   ClaudeRequest,
   Concept,
   ConceptOption,
@@ -44,6 +45,19 @@ const STATUS_TEXT: Record<string, string> = {
   failed: "failed",
   cancelled: "cancelled",
 };
+
+const readB64 = (f: File) =>
+  new Promise<string>((ok) => {
+    const fr = new FileReader();
+    fr.onload = () => ok(String(fr.result).split(",")[1] ?? "");
+    fr.readAsDataURL(f);
+  });
+
+/** The 3D / realistic assets the scene's chosen Claude Concept needs (none for Quick Drafts and D). */
+const neededAssets = (seg: CreativeSegment): AssetNeed[] =>
+  seg.decision?.source === "claude" && seg.decision.choice !== "none" && seg.decision.choice !== "D"
+    ? (seg.concepts[seg.decision.choice]?.assets ?? [])
+    : [];
 
 const ClaudeNote: React.FC<{ slug: string; req: ClaudeRequest }> = ({
   slug,
@@ -248,6 +262,15 @@ export const CreativePanel: React.FC<Props> = (p) => {
           setFeedback={setFeedback}
           generate={generate}
           seek={p.seek}
+        />
+      ) : null}
+      {visual ? (
+        <AssetsPanel
+          doc={doc}
+          seg={seg}
+          busy={busy}
+          wrap={wrap}
+          fromServer={p.fromServer}
         />
       ) : null}
 
@@ -647,6 +670,18 @@ const ClaudeCard: React.FC<{
             Also from: {c.refs.filter((r) => r !== c.styleRef).join(", ")}
           </p>
         ) : null}
+        {c.assets?.length ? (
+          <div className="asset-needs" data-testid={`needs-${k}`}>
+            <b>Needs your 3D asset{c.assets.length > 1 ? "s" : ""}:</b>
+            <ul>
+              {c.assets.map((n) => (
+                <li key={n.id}>
+                  <b>{n.id}</b> {n.what} <span className="muted">— {n.spec}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
         <button
           className="primary small"
           onClick={onChoose}
@@ -966,6 +1001,82 @@ const BuildPanel: React.FC<{
           ))}
         </div>
       ) : null}
+    </div>
+  );
+};
+
+/** The scene's 3D / realistic assets: what the chosen concept needs, what the user provided, and their own extra assets. */
+const AssetsPanel: React.FC<{
+  doc: EditDoc;
+  seg: CreativeSegment;
+  busy: string | null;
+  wrap: Wrap;
+  fromServer: (d: EditDoc) => void;
+}> = ({ doc, seg, busy, wrap, fromServer }) => {
+  const [note, setNote] = useState("");
+  const needs = neededAssets(seg);
+  const have = seg.assets ?? {};
+  const own = Object.entries(have).filter(([id]) => !needs.some((n) => n.id === id));
+  if (!seg.decision || seg.decision.choice === "none") return null;
+  if (!needs.length && !own.length && seg.decision.source === "draft") return null;
+  const missing = needs.filter((n) => n.required !== false && !have[n.id]);
+  const upload = (files: FileList | null, needId?: string) => {
+    const f = files?.[0];
+    if (!f) return;
+    wrap(`asset-${needId ?? "own"}`, async () => {
+      const r = await api.uploadAsset(doc.slug, seg.id, f.name, await readB64(f), needId, needId ? undefined : note || undefined);
+      fromServer(r.doc);
+      setNote("");
+    });
+  };
+  const thumb = (file: string, kind: string) =>
+    kind === "video" ? <video src={`/${file}`} muted loop autoPlay playsInline className="asset-thumb" /> : <img src={`/${file}`} alt="" className="asset-thumb" />;
+  return (
+    <div className="assets-panel" data-testid="assets-panel">
+      <h3>3D assets for this scene</h3>
+      <p className="muted small">
+        Realistic objects (hands, products, devices, planets…) come from you: Claude never draws them with code shapes. Use a PNG / WebP
+        with a transparent background, or a video: WebM with alpha, MP4 or MOV.
+      </p>
+      {missing.length ? (
+        <p className="warn small" data-testid="assets-missing">
+          Claude Code can't build this scene until you add: {missing.map((n) => `${n.id} (${n.what})`).join(", ")}.
+        </p>
+      ) : null}
+      {needs.map((n) => {
+        const got = have[n.id];
+        return (
+          <div key={n.id} className={`asset-row${got ? " ok" : ""}`} data-testid={`asset-need-${n.id}`}>
+            {got ? thumb(got.file, got.kind) : <div className="asset-thumb empty">?</div>}
+            <div className="asset-text">
+              <b>{n.id}</b> {n.what}
+              <div className="muted small">{n.spec}</div>
+              <div className="small">{got ? `✓ ${got.name}` : n.required === false ? "optional" : "missing"}</div>
+            </div>
+            <label className="file small">
+              {got ? "Replace" : "Upload"}
+              <input type="file" accept="image/png,image/webp,image/jpeg,video/webm,video/mp4,video/quicktime" disabled={!!busy} data-testid={`asset-upload-${n.id}`} onChange={(e) => upload(e.target.files, n.id)} />
+            </label>
+          </div>
+        );
+      })}
+      {own.map(([id, a]) => (
+        <div key={id} className="asset-row ok" data-testid={`asset-own-${id}`}>
+          {thumb(a.file, a.kind)}
+          <div className="asset-text">
+            <b>{id}</b> your own asset · {a.name}
+            {a.note ? <div className="muted small">{a.note}</div> : null}
+          </div>
+        </div>
+      ))}
+      <div className="row small">
+        <input placeholder="What is it? (optional, e.g. my product, front view)" value={note} onChange={(e) => setNote(e.target.value)} data-testid="asset-own-note" />
+        <label className="file small">
+          Add my own asset
+          <input type="file" accept="image/png,image/webp,image/jpeg,video/webm,video/mp4,video/quicktime" disabled={!!busy} data-testid="asset-upload-own" onChange={(e) => upload(e.target.files)} />
+        </label>
+      </div>
+      {busy?.startsWith("asset-") ? <p className="muted small">Uploading…</p> : null}
     </div>
   );
 };
