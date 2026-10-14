@@ -3,24 +3,93 @@
   "kind": "LoginAlertStack",
   "at": 4.1,
   "props": {
-   "calm": [{"title": "New sign-in", "sub": "your laptop"}, {"title": "New sign-in", "sub": "your phone"}],
-   "alert": {"title": "Suspicious sign-in", "sub": "unknown device", "tag": "FLAGGED"},
+   "calm": [
+    {
+     "title": "New sign-in",
+     "sub": "your laptop"
+    },
+    {
+     "title": "New sign-in",
+     "sub": "your phone"
+    }
+   ],
+   "alert": {
+    "title": "Suspicious sign-in",
+    "sub": "unknown device",
+    "tag": "FLAGGED"
+   },
    "inAt": 0.1,
    "stagger": 0.25,
    "alertAt": 1.1,
    "outAt": 3.2
   },
-  "refs": ["ONS-041"]
+  "refs": [
+   "ONS-041"
+  ]
  },
  "notes": "New kind LoginAlertStack (src/kit/custom/), built for Claude Concept A. Toast texts are illustrative UI labels, not data. The alert lands on \"suspicious logins\" (about 1.1 s into the line).",
  "coverage": [
-  {"item": "enter: two neutral toasts with a green dot slide down one after the other, fading in and de-blurring", "done": true, "how": "calmPose: 0.34 s outCubic slide from -26 px, blur 7 -> 0, 0.25 s stagger"},
-  {"item": "move: the red 'Suspicious sign-in' toast drops in on top on \"suspicious logins\" and pushes the stack down", "done": true, "how": "alertPose.push moves the calm toasts down by one toast height; alertAt 1.1 s"},
-  {"item": "move: the red rim pulses once", "done": true, "how": "one 0.7 s sine glow on the red rim after landing"},
-  {"item": "move: a FLAGGED tag stamps in with a small scale pop", "done": true, "how": "tag scales 1.45 -> 1 and fades in 0.42 s after the drop"},
-  {"item": "exit: the whole stack slides up a little and fades out together at the end of the line", "done": true, "how": "shared exit at outAt 3.2 s: -18 px and fade over 0.3 s; ends at 7.70 s"},
-  {"item": "placement: lower UI band beside the speaker, face never covered", "done": true, "how": "centred at 70% of the height (UI band 58-85%)"},
-  {"item": "style: dark-glass toasts as in ONS-041", "done": true, "how": "kit dark-glass surface, hairline border, status dots"},
-  {"item": "sound: soft UI tick per neutral toast, sharper alert click on the red toast", "done": true, "how": "sound intents 'toasts' and 'alert' become SFX items on the SFX track; the sound library is empty, so they have no sound asset yet (shown as missing)"}
+  {
+   "item": "enter: two neutral toasts with a green dot slide down one after the other, fading in and de-blurring",
+   "done": true,
+   "how": "calmPose: 0.34 s outCubic slide from -26 px, blur 7 -> 0, 0.25 s stagger"
+  },
+  {
+   "item": "move: the red 'Suspicious sign-in' toast drops in on top on \"suspicious logins\" and pushes the stack down",
+   "done": true,
+   "how": "alertPose.push moves the calm toasts down by one toast height; alertAt 1.1 s"
+  },
+  {
+   "item": "move: the red rim pulses once",
+   "done": true,
+   "how": "one 0.7 s sine glow on the red rim after landing"
+  },
+  {
+   "item": "move: a FLAGGED tag stamps in with a small scale pop",
+   "done": true,
+   "how": "tag scales 1.45 -> 1 and fades in 0.42 s after the drop"
+  },
+  {
+   "item": "exit: the whole stack slides up a little and fades out together at the end of the line",
+   "done": true,
+   "how": "shared exit at outAt 3.2 s: -18 px and fade over 0.3 s; ends at 7.70 s"
+  },
+  {
+   "item": "placement: lower UI band beside the speaker, face never covered",
+   "done": true,
+   "how": "centred at 70% of the height (UI band 58-85%)"
+  },
+  {
+   "item": "style: dark-glass toasts as in ONS-041",
+   "done": true,
+   "how": "kit dark-glass surface, hairline border, status dots"
+  },
+  {
+   "item": "sound: soft UI tick per neutral toast, sharper alert click on the red toast",
+   "done": true,
+   "how": "sound intents 'toasts' and 'alert' become SFX items on the SFX track; the sound library is empty, so they have no sound asset yet (shown as missing)"
+  }
+ ],
+ "match": [
+  {
+   "quality": "dark glass toast cards stacked with even spacing (ONS-041)",
+   "done": true,
+   "how": "three glass toasts, 18 px gap, rounded 22 px"
+  },
+  {
+   "quality": "one status colour per toast (blue / green / red dot)",
+   "done": true,
+   "how": "calm toasts blue, the flagged one red with a glowing dot"
+  },
+  {
+   "quality": "bold title + muted second line typography",
+   "done": true,
+   "how": "Montserrat 600 title, 400 subline at 60 % white"
+  },
+  {
+   "quality": "soft deep shadow under each card",
+   "done": true,
+   "how": "layered box-shadow"
+  }
  ]
 }

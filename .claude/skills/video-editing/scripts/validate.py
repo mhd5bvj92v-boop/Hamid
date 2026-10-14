@@ -252,7 +252,7 @@ def main():
             if "!b.replace" not in a_src:
                 err("studio/server/api.ts: importing a script may silently replace the user's timestamped script")
         for f in ("beats/HalfPanel.tsx", "beats/halfPanel.timing.ts", "patch.ts", "custom/timing.ts", "custom/components.ts",
-                  "Asset.tsx", "beats/AssetScene.tsx", "beats/assetScene.timing.ts"):
+                  "Asset.tsx", "beats/AssetScene.tsx", "beats/assetScene.timing.ts", "premium.tsx"):
             if not (kit / f).exists():
                 err(f"kit file missing: remotion-app/src/kit/{f}")
         if not (app / "studio" / "components" / "ScenePlanning.tsx").exists():
@@ -267,6 +267,10 @@ def main():
         dsrc = (root / "scripts" / "edit_decisions.py").read_text(encoding="utf-8")
         if "def cmd_asset" not in dsrc or "needs the user's 3D assets" not in dsrc or "are not in the beat props" not in dsrc:
             err("edit_decisions.py lost the 3D asset workflow (asset command, build waits for and must use the user's assets)")
+        if "def cmd_preview" not in dsrc or "preview it first" not in dsrc or "match missing" not in dsrc:
+            err("edit_decisions.py lost the quality gate (preview next to the style reference + match list before built)")
+        if not (root / "references" / "premium-motion.md").exists() or "hold up next to its style reference" not in skill:
+            err("the premium motion standard is missing (references/premium-motion.md, SKILL.md rule 12)")
         if "come from the user, never from code shapes" not in skill:
             err("SKILL.md lost the rule that realistic / 3D objects come from the user's assets")
         pj = json.loads((app / "package.json").read_text(encoding="utf-8"))

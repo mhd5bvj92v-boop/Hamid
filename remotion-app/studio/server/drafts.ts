@@ -104,15 +104,15 @@ export const draftConcepts = (seg: CreativeSegment): { A: Concept; B: Concept; C
           title: "Single highlighted chip", system: "A", kind: "UiCard", refs: ["ONS-001", "ONS-016"], family: "LIVE-UI",
           description: `one dark-glass chip "${key}" lights up blue beside you`,
           motion: "fade-rise, then the accent border lights", sound: "UI click + sci-fi click on the light",
-          props: { variant: "rows", rows: [{ title: key, sub: lead || undefined }], active: 0, anchor: { x: 0.5, y: 0.72 } },
+          props: { variant: "rows", look: "glass", rows: [{ title: key, sub: lead || undefined }], active: 0, anchor: { x: 0.5, y: 0.72 } },
         });
     return {
       recommend: num ? "C" : "A",
       A: draft({
-        title: "Network chips", system: "A", kind: "UiCard", refs: ["ONS-001"], family: "LIVE-UI",
-        description: `${parts.length} dark-glass chips appear one by one beside you: ${parts.map((p) => `"${p}"`).join(", ")}`,
-        motion: "staggered fade-rise-deblur, 100 ms apart", sound: "one UI click per chip",
-        props: { variant: "rows", rows: parts.map((p) => ({ title: p })), stagger: 0.12 },
+        title: "Glass card", system: "A", kind: "UiCard", refs: ["ONS-024", "ONS-001"], family: "GLASS-DARK",
+        description: `a frosted-glass card with a blue rim light tilts in beside you; ${parts.length} rows light up one by one: ${parts.map((p) => `"${p}"`).join(", ")}`,
+        motion: "3D tilt-in with blur to sharp, light sweep, rows stagger 120 ms apart, the first row glows", sound: "one UI click per row",
+        props: { variant: "rows", look: "glass", rows: parts.map((p) => ({ title: p })), active: 0, stagger: 0.12 },
       }),
       B: draft({
         title: "Inbox cards", system: "A", kind: "UiCard", refs: ["ONS-003"], family: "LIVE-UI",

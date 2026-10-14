@@ -22,6 +22,7 @@ Requests for Claude Code (written by the Studio or by these commands; processed 
   edit_decisions.py show <slug> --request REQ-0003         # the full brief + what to do + the exact command to finish
   edit_decisions.py claim <slug> --request REQ-0003        # pending -> in_progress (refused if already taken or done)
   edit_decisions.py request <slug> --segment S02 [--note "..."]   # ask for three (new) Claude Concepts
+  edit_decisions.py preview <slug> --request REQ-0004 --file build.json # render key frames + a sheet next to the style reference (repeat)
   edit_decisions.py built <slug> --request REQ-0004 --file build.json   # implementation / revision done (renders it with Remotion)
   edit_decisions.py fail <slug> --request REQ-0004 --reason "..."
   edit_decisions.py cancel <slug> --request REQ-0004 --reason "..."
@@ -43,7 +44,10 @@ concepts.json (Claude Concepts for one segment; the moments form {"moments": {"S
   the build waits until every required asset is provided (Studio upload or the asset command).
 build.json (one implementation or revision):
   {"beat": {"kind": "CyberAlert", "props": {...}, "at": 3.5}, "notes": "...",
-   "coverage": [{"item": "enter: ...", "done": true, "how": "..."}, {"item": "...", "done": false, "why": "..."}]}
+   "coverage": [{"item": "enter: ...", "done": true, "how": "..."}, {"item": "...", "done": false, "why": "..."}],
+   "match": [{"quality": "blue rim light along the bottom edge (ONS-024)", "done": true, "how": "..."}, ...]}
+  built only accepts the exact beat you last previewed, and a "match" list (>= 4 visible qualities of the
+  style reference: light, depth, glow, texture, scale in frame, type, colour, composition; done or why not).
 
 Request IDs (REQ-0001...) are stable and never reused. Completed, partial and cancelled requests are final:
 processing one again is refused, so nothing is built twice. Every write to edit.json is atomic and refused
@@ -57,6 +61,7 @@ implementation is still waiting for Claude Code.
 import argparse
 import copy
 import datetime
+import hashlib
 import json
 import os
 import re
@@ -710,10 +715,17 @@ GUIDE = {
     AssetScene stages one full-screen (props.asset = the file); custom kinds render <AssetMedia src={{props.asset}} />
     from src/kit/Asset.tsx. Pass every asset file in the beat props. If assets are still missing, ask the user for
     them (Studio: the scene's 3D assets box, or a file path for {ed} asset) - do not build without them.
+    LOOK: read references/premium-motion.md and build from src/kit/premium.tsx (glass, rim light, grain, light sweep,
+    bloom, light rays, dust, vignette, line icons, tilt-in). Flat boxes, letter tiles, emoji and tiny elements are not acceptable.
+ 3b. PREVIEW AND COMPARE (required, usually 2-3 rounds): write build.json, then run
+      {ed} preview {slug} --request {rid} --file <build.json>
+    Open the comparison sheet it prints (Read) and list what the style reference has that your frames lack. Fix it, preview
+    again, and repeat until your frames hold up next to the reference.
  3. Time it on the segment ({start:.2f}-{end:.2f} s). Do not touch other timeline items or the footage.
  4. Write build.json {{"beat": {{"kind", "props", "at"}}, "notes", "coverage": [...]}} - one coverage item per element
     of the concept (enter, move, exit, typography, colours...) and per instruction of D, each done:true with how,
-    or done:false with why. Then run:
+    or done:false with why, plus "match": at least 4 visible qualities of the style reference and how you matched them
+    (or why not). built accepts only the beat you last previewed. Then run:
       {ed} built {slug} --request {rid} --file <build.json>
     It validates the item, renders a Remotion still + clip, adds it to the timeline as a new version (the previous
     one can be restored) and marks the request completed (or partial if anything is not done).""",
@@ -721,7 +733,8 @@ GUIDE = {
  1. Read the user's feedback (verbatim) and the current version below. Apply every point.
  2. Change props, or the component. If you change a component, keep earlier versions rendering as they did
     (add a prop with a default, or create a new kind) so 'restore' still shows what the user saw.
- 3. Write build.json (as for an implementation; coverage = one item per feedback point) and run:
+ 3. Preview and compare as for an implementation ({ed} preview {slug} --request {rid} --file <build.json>, open the sheet,
+    fix, repeat). Write build.json (coverage = one item per feedback point, plus "match") and run:
       {ed} built {slug} --request {rid} --file <build.json>""",
 }
 
@@ -849,6 +862,85 @@ def beat_check(app, slug, sid, beat):
         raise SystemExit(f"beat-check failed to run:\n{r.stdout}\n{r.stderr}")
 
 
+def make_beat(seg, r, b):
+    return {"id": b.get("id") or seg["id"], "kind": b.get("kind"), "at": b.get("at", seg["start"]), "props": b.get("props") or {},
+            "reason": b.get("reason") or f"{seg.get('type')}: \"{seg['text']}\" ({r['type']} {r['id']})",
+            "refs": b.get("refs") or (r["brief"].get("concept") or {}).get("refs") or r["brief"].get("refs") or [], "segmentId": seg["id"]}
+
+
+def beat_hash(beat):
+    return hashlib.sha1(json.dumps({k: beat.get(k) for k in ("kind", "at", "props")}, sort_keys=True).encode()).hexdigest()[:12]
+
+
+def style_refs(log, seg, r):
+    """What the build must hold up against: the concept's style reference (+ its refs) or the user's references/uploads (D)."""
+    c = r["brief"].get("concept") or {}
+    refs = [x for x in [c.get("styleRef"), *(c.get("refs") or []), *(r["brief"].get("refs") or [])] if x]
+    uploads = [u for u in (r["brief"].get("uploads") or []) if Path(u).exists()]
+    return list(dict.fromkeys(refs))[:2], uploads[:2]
+
+
+def check_assets_used(seg, needs, b):
+    use = assets_to_use(seg, needs)
+    unused = [k for k, v in use.items() if v["file"] not in json.dumps(b.get("props") or {})]
+    return [f"the user's assets {unused} are not in the beat props: build with them (e.g. AssetScene props.asset = \"{use[unused[0]]['file']}\"), never redraw them with shapes"] if unused else []
+
+
+def cmd_preview(app, slug, a):
+    """Render key frames of a candidate build and put them next to the style reference: look at it, fix, repeat."""
+    import edit_render as ER
+    log = load(app, slug)
+    r = find_request(log, a.request)
+    take(r, ("implement", "revision"))
+    seg = seg_by_id(log, r["segmentId"])
+    needs, missing = asset_needs(log, seg, r)
+    if missing:
+        raise SystemExit(f"{r['id']} needs the user's 3D assets {missing} first; nothing was rendered")
+    data = json.loads(Path(a.file).read_text())
+    beat = make_beat(seg, r, data.get("beat") or {})
+    errs = check_assets_used(seg, needs, data.get("beat") or {})
+    chk = beat_check(app, slug, seg["id"], beat)
+    errs += chk["errors"]
+    if errs:
+        for e in errs:
+            print("ERROR", e)
+        raise SystemExit(1)
+    candidate = copy.deepcopy(log)
+    candidate["beats"] = sorted([x for x in candidate["beats"] if x.get("segmentId") != seg["id"]] + [beat], key=lambda x: x["at"])
+    pj = V.load_project(app, slug)
+    prev = Path(pj["work"]) / "previews"
+    prev.mkdir(parents=True, exist_ok=True)
+    n = len(r.get("previews") or []) + 1
+    w = chk["window"]
+    fps = log["source"]["fps"]
+    frames = {"entering": w["from"] + round(0.3 * fps), "middle": w["from"] + w["durationInFrames"] // 2,
+              "landed": w["from"] + w["durationInFrames"] - max(2, round(0.65 * fps))}
+    props = prev / f"_{seg['id']}_try{n}_props.json"
+    props.write_text(json.dumps({"doc": V.clean_doc(candidate), "layers": "all", "concept": None, "audio": None}))
+    serve = ER.bundle(app, pj)
+    stills = []
+    for name, f in frames.items():
+        out = prev / f"{seg['id']}_try{n}_{name}.png"
+        ER.npx(app, ["remotion", "still", serve, "StudioEdit", str(out), f"--frame={min(f, log['source']['durationInFrames'] - 1)}", f"--props={props}",
+                     "--image-format=png", "--scale=0.5"], prev / f"{seg['id']}_try{n}_{name}.log")
+        stills.append(str(out))
+    props.unlink()
+    refs, uploads = style_refs(log, seg, r)
+    sheet = prev / f"{seg['id']}_try{n}_compare.png"
+    import subprocess
+    cp = subprocess.run([sys.executable, str(Path(__file__).with_name("compare.py")), "--render", *stills, *uploads, *(["--refs", *refs] if refs else []),
+                         "--out", str(sheet), "--height", "760"], capture_output=True, text=True)
+    if cp.returncode:
+        raise SystemExit(f"compare sheet failed: {cp.stderr[-400:]}")
+    r.setdefault("previews", []).append({"n": n, "hash": beat_hash(beat), "sheet": f"/api/file/{slug}/previews/{sheet.name}", "at": now()})
+    save(app, slug, log)
+    print(f"preview {n} of {r['id']}: {sheet}")
+    print(f"  frames: {', '.join(f'{k} {v}' for k, v in frames.items())}; style reference: {', '.join(refs) or 'none'}{' + the user uploads' if uploads else ''}")
+    print("NOW: open the sheet (Read) and compare honestly. List every visible quality of the reference your render lacks: light and glow,\n"
+          "depth and layering, texture (grain, glass, noise), scale in the frame, typography (size, weight, spacing), colour, composition,\n"
+          "motion cues. Fix them and preview again. Build only when it holds up next to the reference.")
+
+
 def cmd_built(app, slug, a):
     log = load(app, slug)
     r = find_request(log, a.request)
@@ -862,10 +954,7 @@ def cmd_built(app, slug, a):
     b = data.get("beat") or {}
     cov = data.get("coverage")
     errs = []
-    use = assets_to_use(seg, needs)
-    unused = [k for k, v in use.items() if v["file"] not in json.dumps(b.get("props") or {})]
-    if unused:
-        errs.append(f"the user's assets {unused} are not in the beat props: build with them (e.g. AssetScene props.asset = \"{use[unused[0]]['file']}\"), never redraw them with shapes")
+    errs += check_assets_used(seg, needs, b)
     if not isinstance(cov, list) or not cov:
         errs.append("coverage missing: list every element of the concept / every instruction of D / every feedback point, each done:true (how) or done:false (why)")
     else:
@@ -874,9 +963,20 @@ def cmd_built(app, slug, a):
                 errs.append(f"coverage[{i}] needs item and done (true/false)")
             elif not c["done"] and not str(c.get("why") or "").strip():
                 errs.append(f"coverage[{i}] '{c['item']}' is not done: say why")
-    beat = {"id": b.get("id") or seg["id"], "kind": b.get("kind"), "at": b.get("at", seg["start"]), "props": b.get("props") or {},
-            "reason": b.get("reason") or f"{seg.get('type')}: \"{seg['text']}\" ({r['type']} {r['id']})",
-            "refs": b.get("refs") or (r["brief"].get("concept") or {}).get("refs") or r["brief"].get("refs") or [], "segmentId": seg["id"]}
+    beat = make_beat(seg, r, b)
+    # quality gate: the exact beat was previewed next to its style reference, and the match is accounted for
+    pv = r.get("previews") or []
+    if not pv:
+        errs.append(f"preview it first: {ED} preview {slug} --request {r['id']} --file <build.json>, open the comparison sheet and fix what the reference has and yours lacks")
+    elif pv[-1]["hash"] != beat_hash(beat):
+        errs.append(f"this beat differs from preview {pv[-1]['n']}: preview this exact version and look at it before building")
+    match = data.get("match")
+    if not isinstance(match, list) or len(match) < 4:
+        errs.append("match missing: list at least 4 visible qualities of the style reference (light, depth, glow, texture, scale in frame, type, colour, composition), each done:true (how) or done:false (why)")
+    else:
+        for i, mq in enumerate(match):
+            if not str(mq.get("quality") or "").strip() or not isinstance(mq.get("done"), bool) or not str(mq.get("how") or mq.get("why") or "").strip():
+                errs.append(f"match[{i}] needs quality, done (true/false) and how / why")
     chk = beat_check(app, slug, seg["id"], beat)
     errs += chk["errors"]
     for w in chk["warnings"]:
@@ -912,7 +1012,7 @@ def cmd_built(app, slug, a):
     log["beats"], log["sfx"] = candidate["beats"], candidate["sfx"]
     versions.append({"v": v, "at": now(), "source": "revision" if r["type"] == "revision" else ((seg.get("decision") or {}).get("source") or "claude"),
                      "requestId": r["id"], "beat": beat, "sfx": sfx, "status": "partial" if partial else "built", "notes": data.get("notes", ""),
-                     "coverage": cov, **({"still": still} if still else {}), **({"clip": clip} if clip else {})})
+                     "coverage": cov, "match": match, "compare": pv[-1]["sheet"], **({"still": still} if still else {}), **({"clip": clip} if clip else {})})
     seg["beatId"], seg["activeVersion"], seg["review"] = beat["id"], v, None
     done = sum(c["done"] for c in cov)
     set_status(r, "partial" if partial else "completed", result=f"v{v} built ({beat['kind']}, {chk['window']['start']:.2f}-{chk['window']['end']:.2f} s), {done}/{len(cov)} items done")
@@ -1043,7 +1143,7 @@ def cmd_asset(app, slug, a):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("cmd", choices=["init", "analyze", "propose", "decide", "approve", "feedback", "status", "storyboard",
-                                    "request", "pending", "show", "claim", "built", "fail", "cancel", "review", "restore", "plan-approve", "asset"])
+                                    "request", "pending", "show", "claim", "preview", "built", "fail", "cancel", "review", "restore", "plan-approve", "asset"])
     ap.add_argument("slug", nargs="?")
     ap.add_argument("--file"); ap.add_argument("--moments"); ap.add_argument("--choice")
     ap.add_argument("--set", choices=["claude", "draft"], default="claude", help="decide: which A/B/C (Claude Concepts; Quick Drafts are chosen in the Studio)")
@@ -1061,13 +1161,13 @@ def main():
     app = V.find_app(a.app)
     if a.cmd not in ("pending", "status") and not a.slug:
         sys.exit(f"{a.cmd}: project slug required")
-    if a.cmd in ("analyze", "propose", "built", "asset") and not a.file:
+    if a.cmd in ("analyze", "propose", "preview", "built", "asset") and not a.file:
         sys.exit("--file required")
     if a.cmd == "decide" and not (a.moments and a.choice):
         sys.exit("--moments and --choice required")
     if a.cmd == "approve" and not a.gate:
         sys.exit("--gate required")
-    if a.cmd in ("show", "claim", "built", "fail", "cancel") and not a.request:
+    if a.cmd in ("show", "claim", "preview", "built", "fail", "cancel") and not a.request:
         sys.exit("--request REQ-#### required")
     if a.cmd in ("request", "review", "restore", "asset") and not a.segment:
         sys.exit("--segment required")
@@ -1077,7 +1177,7 @@ def main():
         sys.exit("--version required")
     {"init": cmd_init, "analyze": cmd_analyze, "propose": cmd_propose, "decide": cmd_decide, "approve": cmd_approve,
      "feedback": cmd_feedback, "status": cmd_status, "storyboard": cmd_storyboard, "request": cmd_request, "pending": cmd_pending,
-     "show": cmd_show, "claim": cmd_claim, "built": cmd_built, "fail": cmd_fail,
+     "show": cmd_show, "claim": cmd_claim, "preview": cmd_preview, "built": cmd_built, "fail": cmd_fail,
      "cancel": lambda ap_, s, x: cmd_fail(ap_, s, x, status="cancelled"), "review": cmd_review, "restore": cmd_restore,
      "plan-approve": cmd_plan_approve, "asset": cmd_asset}[a.cmd](app, a.slug, a)
 

@@ -10,8 +10,13 @@ export type UiCardProps = {
   variant?: "rows" | "inbox";
   /** Optional header ("Inquiries", "Clients"). */
   header?: string;
-  /** 1-4 rows: title + optional subline. Use the speaker's own words. */
-  rows: { title: string; sub?: string }[];
+  /** 1-4 rows: title + optional subline (+ optional line icon and a short value on the right, glass look). Use the speaker's own words. */
+  rows: { title: string; sub?: string; icon?: string; meta?: string }[];
+  /**
+   * "classic": separate flat chips (the original look, kept for versions built with it);
+   * "glass": one premium frosted-glass card (GLASS-DARK / NEON-RIM: rim light, grid, grain, light sweep, 3D tilt-in, line icons).
+   */
+  look?: "classic" | "glass";
   /** Row index that is "active" (accent border + glow), or -1. */
   active?: number;
   /** Card block position (frame fractions): default right of centre in the UI band. */
@@ -26,6 +31,7 @@ export type UiCardProps = {
 
 export const uiDefaults = (p: UiCardProps) => ({
   variant: p.variant ?? "rows",
+  look: p.look ?? "classic",
   anchor: p.anchor ?? { x: 0.6, y: 0.7 },
   width: p.width ?? 0.5,
   accent: p.accent ?? "#2F6BFF",
@@ -40,6 +46,18 @@ export const uiRowPose = (t: number, i: number, p: UiCardProps) => {
   const k = prog(t, d.inAt + (p.header && d.variant === "inbox" ? 0.08 : 0) + i * d.stagger, 0.32, "outCubic");
   const out = 1 - E.inCubic(clamp((t - p.outAt) / d.outDur));
   return { opacity: k * out, rise: (1 - k) * 16 + (1 - out) * -8, blur: (1 - k) * 7 };
+};
+/** The glass card as a whole: tilt-in, rim light, one light sweep, and the exit. */
+export const uiCardPose = (t: number, p: UiCardProps) => {
+  const d = uiDefaults(p);
+  const out = 1 - E.inCubic(clamp((t - p.outAt) / d.outDur));
+  return {
+    card: prog(t, d.inAt - 0.06, 0.62, "outQuart"),
+    rim: prog(t, d.inAt + 0.3, 0.8),
+    sweep: clamp((t - d.inAt - 0.35) / 0.9),
+    pulse: 0.5 + 0.5 * Math.sin(t * 4),
+    out,
+  };
 };
 // header of the inbox variant
 export const uiHeaderPose = (t: number, p: UiCardProps) => uiRowPose(t + uiDefaults(p).stagger, -1, p);

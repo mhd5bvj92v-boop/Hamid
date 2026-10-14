@@ -202,7 +202,10 @@ def main():
         for b in BEATS:
             bf = d / f"build_{b['id']}.json"
             bf.write_text(json.dumps({"beat": {k: b[k] for k in ("id", "kind", "at", "props", "refs")}, "notes": "selftest",
-                                      "coverage": [{"item": b["reason"], "done": True, "how": b["kind"]}]}))
+                                      "coverage": [{"item": b["reason"], "done": True, "how": b["kind"]}],
+                                      "match": [{"quality": q, "done": True, "how": b["kind"]} for q in ("light", "depth", "type", "colour")]}))
+            step(ED + ["built", SLUG, "--request", reqs[b["segmentId"]], "--file", str(bf)], env, expect=1)   # refused: not previewed
+            step(ED + ["preview", SLUG, "--request", reqs[b["segmentId"]], "--file", str(bf)], env)
             step(ED + ["built", SLUG, "--request", reqs[b["segmentId"]], "--file", str(bf)], env)
         step(ED + ["built", SLUG, "--request", reqs["S01"], "--file", str(d / "build_b01-hook.json")], env, expect=1)
         doc = json.loads((pdir / "edit.json").read_text())

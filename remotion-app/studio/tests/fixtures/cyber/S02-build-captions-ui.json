@@ -79,5 +79,27 @@
    "done": true,
    "how": "caption 'flags suspicious logins' above the stack, 'suspicious' in the alert red"
   }
+ ],
+ "match": [
+  {
+   "quality": "dark glass toast cards stacked with even spacing (ONS-041)",
+   "done": true,
+   "how": "three glass toasts, 18 px gap, rounded 22 px"
+  },
+  {
+   "quality": "one status colour per toast (blue / green / red dot)",
+   "done": true,
+   "how": "calm toasts blue, the flagged one red with a glowing dot"
+  },
+  {
+   "quality": "bold title + muted second line typography",
+   "done": true,
+   "how": "Montserrat 600 title, 400 subline at 60 % white"
+  },
+  {
+   "quality": "soft deep shadow under each card",
+   "done": true,
+   "how": "layered box-shadow"
+  }
  ]
 }

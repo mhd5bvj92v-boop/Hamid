@@ -4,21 +4,75 @@
   "at": 0.5,
   "props": {
    "serifFont": "Instrument Serif",
-   "colors": {"accent": "#FF4D57"},
+   "colors": {
+    "accent": "#FF4D57"
+   },
    "lines": [
-    {"text": "Most companies find out", "style": "sans-sm", "at": 0.1},
-    {"text": "about a breach", "style": "sans-sm", "at": 0.7},
-    {"text": "months too late", "style": "serif", "at": 1.95}
+    {
+     "text": "Most companies find out",
+     "style": "sans-sm",
+     "at": 0.1
+    },
+    {
+     "text": "about a breach",
+     "style": "sans-sm",
+     "at": 0.7
+    },
+    {
+     "text": "months too late",
+     "style": "serif",
+     "at": 1.95
+    }
    ],
    "outAt": 2.82
   },
-  "refs": ["TXT-004"]
+  "refs": [
+   "TXT-004"
+  ]
  },
  "notes": "Built from the approved scene plan (Captions Only) with the kit's CaptionAccent kind, which already does exactly this layout; accent colour and accent font from the constants for the whole edit.",
  "coverage": [
-  {"item": "caption under my chin", "done": true, "how": "CaptionAccent default anchor (58% of the height), the speaker stays visible"},
-  {"item": "small white words 'Most companies find out about a breach'", "done": true, "how": "two sans-sm lines in white, 0.1 s and 0.7 s into the scene"},
-  {"item": "then 'months too late' lands big in the red accent serif", "done": true, "how": "serif line at 1.95 s (on the spoken words), Instrument Serif in #FF4D57"},
-  {"item": "constants: accent colour, accent font, caption position", "done": true, "how": "accent #FF4D57, Instrument Serif, under the chin"}
+  {
+   "item": "caption under my chin",
+   "done": true,
+   "how": "CaptionAccent default anchor (58% of the height), the speaker stays visible"
+  },
+  {
+   "item": "small white words 'Most companies find out about a breach'",
+   "done": true,
+   "how": "two sans-sm lines in white, 0.1 s and 0.7 s into the scene"
+  },
+  {
+   "item": "then 'months too late' lands big in the red accent serif",
+   "done": true,
+   "how": "serif line at 1.95 s (on the spoken words), Instrument Serif in #FF4D57"
+  },
+  {
+   "item": "constants: accent colour, accent font, caption position",
+   "done": true,
+   "how": "accent #FF4D57, Instrument Serif, under the chin"
+  }
+ ],
+ "match": [
+  {
+   "quality": "small sans connector words + one large expressive key phrase (TXT-004)",
+   "done": true,
+   "how": "CaptionAccent serif accent on the key phrase"
+  },
+  {
+   "quality": "caption sits in the lower third, clear of the face",
+   "done": true,
+   "how": "caption band below the face zone"
+  },
+  {
+   "quality": "accent colour on the key phrase only",
+   "done": true,
+   "how": "accent from the edit constants"
+  },
+  {
+   "quality": "phrase builds word by word",
+   "done": true,
+   "how": "staggered fade-rise per word"
+  }
  ]
 }

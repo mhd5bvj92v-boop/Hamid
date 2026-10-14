@@ -910,6 +910,25 @@ const BuildPanel: React.FC<{
                 ))}
               </ul>
             ) : null}
+            {ver.match?.length ? (
+              <div className="match" data-testid="match">
+                <b className="small">Matched against the style reference</b>
+                {ver.compare ? (
+                  <a href={ver.compare} target="_blank" rel="noreferrer" className="small" data-testid="compare-sheet">
+                    {" "}
+                    · open the comparison sheet
+                  </a>
+                ) : null}
+                <ul className="coverage">
+                  {ver.match.map((m, i) => (
+                    <li key={i} className={m.done ? "done" : "not-done"}>
+                      {m.done ? "✓" : "✗"} {m.quality}
+                      {m.done ? (m.how ? ` — ${m.how}` : "") : ` — not matched: ${m.why}`}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
             {seg.review?.status === "approved" &&
             seg.review.version === ver.v ? (
               <p className="ok small" data-testid="review-approved">

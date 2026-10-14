@@ -43,6 +43,11 @@ const check = (n, ok, msg) => {
 };
 const ed = (...args) => spawnSync("python3", [path.join(SCRIPTS, "edit_decisions.py"), ...args], { cwd: REPO, env, encoding: "utf8" });
 const claude = (label, ...args) => {
+  if (args[0] === "built") {
+    // as Claude Code must: preview the exact build next to its style reference first (SKILL.md rule 12)
+    const pv = spawnSync("python3", [path.join(SCRIPTS, "edit_decisions.py"), "preview", ...args.slice(1)], { cwd: REPO, env, encoding: "utf8" });
+    console.log(`      [Claude Code] preview + compare: edit_decisions.py preview ${args.slice(1, 4).join(" ")} -> exit ${pv.status}`);
+  }
   const r = ed(...args);
   console.log(`      [Claude Code] ${label}: edit_decisions.py ${args.slice(0, 4).join(" ")} -> exit ${r.status}`);
   return { ...r, out: (r.stdout ?? "") + (r.stderr ?? "") };

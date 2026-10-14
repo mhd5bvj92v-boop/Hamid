@@ -2,19 +2,86 @@
  "beat": {
   "kind": "LockdownTitle",
   "at": 8.3,
-  "props": {"text": "LOCKED OUT", "typeAt": 0.15, "charDur": 0.085, "outAt": 2.8, "glitchDur": 0.1, "color": "#FF3B3B"},
-  "refs": ["FUL-006"]
+  "props": {
+   "text": "LOCKED OUT",
+   "typeAt": 0.15,
+   "charDur": 0.085,
+   "outAt": 2.8,
+   "glitchDur": 0.1,
+   "color": "#FF3B3B"
+  },
+  "refs": [
+   "FUL-006"
+  ]
  },
  "notes": "New kind LockdownTitle (src/kit/custom/) for your own idea (D). JetBrains Mono Bold is bundled from npm for the monospace letters. The scene covers the footage from 8.30 to 11.20 s; your footage and dialogue keep running underneath.",
  "coverage": [
-  {"item": "full screen, black background", "done": true, "how": "System C full-screen scene on pure black, covering 8.30-11.20 s"},
-  {"item": "the words LOCKED OUT type in one letter at a time", "done": true, "how": "one letter every 0.085 s from 0.15 s (10 characters, done by 1.0 s)"},
-  {"item": "big red monospace letters", "done": true, "how": "JetBrains Mono Bold 126 px (inside the 6% side margins), #FF3B3B with a soft red glow"},
-  {"item": "with a blinking cursor", "done": true, "how": "block cursor follows the typing, then blinks every 0.5 s"},
-  {"item": "after the last letter a padlock icon snaps shut under the text", "done": true, "how": "padlock fades up under the text, its shackle drops shut 0.18 s after the last letter with a small squash"},
-  {"item": "leave with a quick glitch (2-3 frames of horizontal slices jumping sideways)", "done": true, "how": "the last 0.1 s (3 frames at 30 fps): 8 horizontal slices shift sideways, different each frame"},
-  {"item": "then cut straight back to me", "done": true, "how": "the scene ends right after the glitch (hard cut, no fade) at 11.20 s"},
-  {"item": "sound: a soft keyboard tick per letter and one heavy lock clunk", "done": true, "how": "sound intents 'typing' (one per letter) and 'lock' are on the SFX track; your sound library is empty, so no sound assets are assigned yet (shown as missing, nothing invented)"},
-  {"item": "your reference FUL-006", "done": true, "how": "used for the deep black frame with one glowing element; its blue light streaks were not added because your text asks for a plain black background"}
+  {
+   "item": "full screen, black background",
+   "done": true,
+   "how": "System C full-screen scene on pure black, covering 8.30-11.20 s"
+  },
+  {
+   "item": "the words LOCKED OUT type in one letter at a time",
+   "done": true,
+   "how": "one letter every 0.085 s from 0.15 s (10 characters, done by 1.0 s)"
+  },
+  {
+   "item": "big red monospace letters",
+   "done": true,
+   "how": "JetBrains Mono Bold 126 px (inside the 6% side margins), #FF3B3B with a soft red glow"
+  },
+  {
+   "item": "with a blinking cursor",
+   "done": true,
+   "how": "block cursor follows the typing, then blinks every 0.5 s"
+  },
+  {
+   "item": "after the last letter a padlock icon snaps shut under the text",
+   "done": true,
+   "how": "padlock fades up under the text, its shackle drops shut 0.18 s after the last letter with a small squash"
+  },
+  {
+   "item": "leave with a quick glitch (2-3 frames of horizontal slices jumping sideways)",
+   "done": true,
+   "how": "the last 0.1 s (3 frames at 30 fps): 8 horizontal slices shift sideways, different each frame"
+  },
+  {
+   "item": "then cut straight back to me",
+   "done": true,
+   "how": "the scene ends right after the glitch (hard cut, no fade) at 11.20 s"
+  },
+  {
+   "item": "sound: a soft keyboard tick per letter and one heavy lock clunk",
+   "done": true,
+   "how": "sound intents 'typing' (one per letter) and 'lock' are on the SFX track; your sound library is empty, so no sound assets are assigned yet (shown as missing, nothing invented)"
+  },
+  {
+   "item": "your reference FUL-006",
+   "done": true,
+   "how": "used for the deep black frame with one glowing element; its blue light streaks were not added because your text asks for a plain black background"
+  }
+ ],
+ "match": [
+  {
+   "quality": "pure black frame with one light source (FUL-006)",
+   "done": true,
+   "how": "black stage, red glow from the type only"
+  },
+  {
+   "quality": "big type that fills the width",
+   "done": true,
+   "how": "126 px monospace, about 80 % of the width"
+  },
+  {
+   "quality": "light streaks crossing behind the line",
+   "done": false,
+   "why": "the user's own idea (D) asks for a typed title and a padlock, not streaks"
+  },
+  {
+   "quality": "hard cut out on the beat",
+   "done": true,
+   "how": "3-frame glitch then a hard cut back"
+  }
  ]
 }

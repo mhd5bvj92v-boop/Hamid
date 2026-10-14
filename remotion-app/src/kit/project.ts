@@ -178,6 +178,9 @@ export type BuildVersion = {
   /** Remotion renders of this version (served from work/<slug>/previews). */
   still?: string;
   clip?: string;
+  /** The last preview sheet (key frames next to the style reference) and how the build matches the reference. */
+  compare?: string;
+  match?: { quality: string; done: boolean; how?: string; why?: string }[];
 };
 
 export type RequestType = "concepts" | "implement" | "revision";
@@ -231,6 +234,8 @@ export type ClaudeRequest = {
   result?: string;
   error?: string;
   brief: RequestBrief;
+  /** Preview rounds Claude Code rendered next to the style reference before building (edit_decisions.py preview). */
+  previews?: { n: number; hash: string; sheet: string; at: string }[];
 };
 
 export type Decision = {

@@ -15,6 +15,7 @@
 //  5 Remotion renders the scene with the user's image (still + Player)
 //  6 the user's own video asset for their idea D: MOV -> WebM with alpha, used and rendered
 //  7 everything is still there after reopening
+//  8 quality gate: a build must be previewed next to its style reference, unchanged since, with a match list
 // Usage: node studio/tests/assets.mjs [--keep]
 import { execSync, spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -182,19 +183,42 @@ try {
     "a build that redraws the object instead of using the user's asset is refused");
 
   // ---------------------------------------------------------------- 5 Remotion renders it with the user's image
-  writeFileSync(path.join(tmp, "build-S01.json"), JSON.stringify({
-    beat: { kind: "AssetScene", props: { asset: a1.file, enter: "rise", headline: ["a single light", "in the darkness"], accentLine: 0, outAt: 3.0 } },
+  const MATCH = [
+    { quality: "one light source in a black frame (FUL-002)", done: true, how: "void stage, top spotlight, accent glow behind the sphere" },
+    { quality: "the subject fills the frame", done: true, how: "asset at 42 % of the frame height" },
+    { quality: "depth: contact shadow and haze", done: true, how: "contact shadow + vignette" },
+    { quality: "horizon arc light", done: false, why: "this concept centres the user's sphere instead of a horizon" },
+  ];
+  const buildS01 = (outAt, match) => ({
+    beat: { kind: "AssetScene", props: { asset: a1.file, enter: "rise", headline: ["a single light", "in the darkness"], accentLine: 0, outAt } },
     notes: "the user's sphere staged full-screen",
     coverage: [{ item: "sphere rises out of black", done: true, how: "AssetScene enter rise with blur to sharp" }, { item: "glow breathes, slow push", done: true, how: "accent glow + camera push" }],
-  }));
+    ...(match ? { match } : {}),
+  });
+  // 8 the quality gate: preview first, build exactly what was previewed, account for the reference
+  writeFileSync(path.join(tmp, "build-S01.json"), JSON.stringify(buildS01(3.0, MATCH)));
+  const unpreviewed = ed("build without a preview", "built", SLUG, "--request", implReq.id, "--file", path.join(tmp, "build-S01.json"));
+  const pv1 = ed("preview + compare", "preview", SLUG, "--request", implReq.id, "--file", path.join(tmp, "build-S01.json"));
+  const sheet = path.join(REPO, "work", SLUG, "previews", "S01_try1_compare.png");
+  writeFileSync(path.join(tmp, "build-S01-changed.json"), JSON.stringify(buildS01(2.9, MATCH)));
+  const changed = ed("build a beat that was not previewed", "built", SLUG, "--request", implReq.id, "--file", path.join(tmp, "build-S01-changed.json"));
+  writeFileSync(path.join(tmp, "build-S01-nomatch.json"), JSON.stringify(buildS01(3.0, null)));
+  const nomatch = ed("build without a match list", "built", SLUG, "--request", implReq.id, "--file", path.join(tmp, "build-S01-nomatch.json"));
   const built = ed("build with the asset", "built", SLUG, "--request", implReq.id, "--file", path.join(tmp, "build-S01.json"));
+  const ver1 = segOf("S01").versions?.at(-1) ?? {};
+  check(8, unpreviewed.status !== 0 && /preview it first/.test(unpreviewed.out) && pv1.status === 0 && existsSync(sheet) && /S01_try1_compare\.png/.test(pv1.out) &&
+    changed.status !== 0 && /differs from preview 1/.test(changed.out) && nomatch.status !== 0 && /match missing/.test(nomatch.out) &&
+    built.status === 0 && ver1.match?.length === 4 && /S01_try1_compare\.png$/.test(ver1.compare ?? ""),
+    "unpreviewed build refused; preview rendered key frames next to FUL-002 (S01_try1_compare.png); a changed beat and a missing match list refused; the build keeps the sheet and the match");
   const still1 = path.join(REPO, "work", SLUG, "previews", "S01_v1.png");
   await page.getByTestId("version-still").waitFor({ timeout: 20000 });
   const m1 = existsSync(still1) ? magenta(still1) : 0;
   await seekTo(2.6);
   const inPlayer = await page.locator(`[data-testid=player] img[src*="S01_A1_glass-sphere.png"]`).count();
-  check(5, built.status === 0 && reqFor("S01", "implement").status === "completed" && m1 > 0.05 && inPlayer > 0,
-    `Remotion rendered S01 v1 with the user's sphere (${(m1 * 100).toFixed(1)}% of the still is the sphere), and the Player shows the same file`);
+  await page.getByTestId("match").waitFor({ timeout: 15000 });
+  const sheetLink = await page.getByTestId("compare-sheet").getAttribute("href");
+  check(5, built.status === 0 && reqFor("S01", "implement").status === "completed" && m1 > 0.05 && inPlayer > 0 && /S01_try1_compare\.png/.test(sheetLink ?? ""),
+    `Remotion rendered S01 v1 with the user's sphere (${(m1 * 100).toFixed(1)}% of the still is the sphere), the Player shows the same file, and the Studio shows the reference match + comparison sheet`);
   await shot("01-asset-scene");
 
   // ---------------------------------------------------------------- 6 the user's own video asset for their idea D
@@ -217,7 +241,14 @@ try {
   writeFileSync(path.join(tmp, "build-S02.json"), JSON.stringify({
     beat: { kind: "AssetScene", props: { asset: u1.file, enter: "zoom", look: "studio", outAt: 3.2 } },
     coverage: [{ item: "my product turning in the middle of a dark stage", done: true, how: "AssetScene studio look with the user's WebM" }, { item: "zoom through it", done: true, how: "push-through exit" }],
+    match: [
+      { quality: "the user's product is the hero", done: true, how: "their WebM centred at 42 % of the frame height" },
+      { quality: "dark stage with a floor", done: true, how: "studio look" },
+      { quality: "light from above", done: true, how: "spotlight + accent glow" },
+      { quality: "a library style reference", done: false, why: "the user's own idea came without one" },
+    ],
   }));
+  ed("preview + compare D", "preview", SLUG, "--request", dReq.id, "--file", path.join(tmp, "build-S02.json"));
   const builtD = ed("build D with the user's asset", "built", SLUG, "--request", dReq.id, "--file", path.join(tmp, "build-S02.json"));
   const still2 = path.join(REPO, "work", SLUG, "previews", "S02_v1.png");
   const m2 = existsSync(still2) ? magenta(still2) : 0;
