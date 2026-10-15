@@ -103,8 +103,10 @@ type DocResult = { doc: EditDoc; out?: string };
 
 export const api = {
   projects: () => call<ProjectInfo[]>("GET", "/api/projects"),
-  create: (footage: string, slug: string, fps?: number, fit?: boolean) => call<{ doc: EditDoc; out: string }>("POST", "/api/projects", { footage, slug, fps, fit }),
-  createScriptOnly: (slug: string, duration: number, fps?: number) => call<{ doc: EditDoc; out: string }>("POST", "/api/projects", { scriptOnly: true, slug, duration, fps }),
+  create: (footage: string, slug: string, fps?: number, fit?: boolean, size?: string) =>
+    call<{ doc: EditDoc; out: string }>("POST", "/api/projects", { footage, slug, fps, fit, size }),
+  createScriptOnly: (slug: string, duration: number, fps?: number, size?: string) =>
+    call<{ doc: EditDoc; out: string }>("POST", "/api/projects", { scriptOnly: true, slug, duration, fps, size }),
   load: (slug: string) => call<Loaded>("GET", `/api/project/${slug}`),
   rev: (slug: string) => call<{ rev: number; updated: string; open: number }>("GET", `/api/project/${slug}/rev`),
   /** Save now: the user's changes since the last server copy go out (in order) and stay visible until answered. */

@@ -9,7 +9,7 @@ type DocBeat = EditDoc["beats"][number];
 
 /** Scene fields the user edits in the Studio; everything else on a scene is owned by server actions / Claude Code. */
 export const UI_SEGMENT_FIELDS = ["start", "end", "text", "type", "sceneType", "onScreen", "transcriptIds", "major"] as const;
-const TOP = ["transcript", "constants", "focus", "hookEnd"] as const;
+const TOP = ["transcript", "constants", "focus", "hookEnd", "zooms"] as const;
 
 export type DocPatch = {
   top?: Partial<Pick<EditDoc, (typeof TOP)[number]>>;

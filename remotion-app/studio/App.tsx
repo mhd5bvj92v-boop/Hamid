@@ -19,6 +19,7 @@ import {
   linesInRange,
   segTypeOf,
 } from "../src/kit/project";
+import { applyPatch, makePatch } from "../src/kit/patch";
 import { StudioEdit, StudioEditProps } from "../src/kit/StudioEdit";
 import { SoundMeta, resolveAudio } from "../src/kit/studio";
 import {
@@ -38,6 +39,16 @@ import { ReferencesPanel } from "./components/ReferencesPanel";
 import { SoundPanel } from "./components/SoundPanel";
 import { Timeline } from "./components/Timeline";
 import { TranscriptPanel } from "./components/TranscriptPanel";
+import { PlayerStage } from "./components/PlayerStage";
+import {
+  FilmIcon,
+  KeyboardIcon,
+  LockIcon,
+  PauseIcon,
+  PlayIcon,
+} from "./ui/icons";
+import { ShortcutsPopover } from "./ui/Shortcuts";
+import { ThemeToggle, useTheme } from "./ui/theme";
 
 export type Selection = {
   start: number;
@@ -77,6 +88,9 @@ export const App: React.FC = () => {
     useState<StudioEditProps["concept"]>(null);
   const [extraRefs, setExtraRefs] = useState<string[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const [showKeys, setShowKeys] = useState(false);
+  const { theme, toggle: toggleTheme } = useTheme();
   const [view, setViewState] = useState<View>(() =>
     new URLSearchParams(location.search).get("view") === "plan"
       ? "plan"
@@ -135,8 +149,11 @@ export const App: React.FC = () => {
       .catch((e) => setError(String(e.message)));
   }, [slug]);
 
+  const docRef = useRef<EditDoc | null>(null);
+  docRef.current = doc;
   /** Local edit: the Player updates immediately, edit.json is saved shortly after (writes are queued in order). */
-  const setDoc = useCallback((next: EditDoc) => {
+  const commitDoc = useCallback((next: EditDoc) => {
+    docRef.current = next;
     setDocState(next);
     setSaveState("dirty");
     scheduleSave(
@@ -167,6 +184,68 @@ export const App: React.FC = () => {
     );
   }, []);
 
+  // ---- Undo / redo of the user's own edits (the ones that go through setDoc).
+  // Snapshots of the document before each edit; a drag or a burst of typing is one step.
+  const past = useRef<EditDoc[]>([]);
+  const future = useRef<EditDoc[]>([]);
+  const lastEdit = useRef(0);
+  const gesture = useRef({ active: false, pushed: false });
+  const [, setHistoryTick] = useState(0);
+  const bumpHistory = () => setHistoryTick((n) => n + 1);
+  const clearHistory = useCallback(() => {
+    past.current = [];
+    future.current = [];
+    lastEdit.current = 0;
+    setHistoryTick((n) => n + 1);
+  }, []);
+  const setDoc = useCallback(
+    (next: EditDoc) => {
+      const cur = docRef.current;
+      if (cur && cur.slug === next.slug) {
+        const now = Date.now();
+        const g = gesture.current;
+        const coalesce = g.active ? g.pushed : now - lastEdit.current < 700;
+        if (g.active) g.pushed = true;
+        lastEdit.current = now;
+        if (!coalesce) {
+          past.current.push(cur);
+          if (past.current.length > 50) past.current.shift();
+          future.current = [];
+          setHistoryTick((n) => n + 1);
+        }
+      }
+      commitDoc(next);
+    },
+    [commitDoc],
+  );
+  const onGesture = useCallback((active: boolean) => {
+    gesture.current = { active, pushed: false };
+    if (!active) lastEdit.current = 0;
+  }, []);
+  /** Bring back the user-editable fields of a snapshot; work done meanwhile by the server is kept. */
+  const restore = (cur: EditDoc, snap: EditDoc) =>
+    applyPatch(cur, makePatch(cur, snap));
+  const undo = useCallback(() => {
+    const cur = docRef.current;
+    const prev = past.current.pop();
+    if (!cur || !prev) return;
+    future.current.push(cur);
+    lastEdit.current = 0;
+    commitDoc(restore(cur, prev));
+    bumpHistory();
+  }, [commitDoc]);
+  const redo = useCallback(() => {
+    const cur = docRef.current;
+    const nxt = future.current.pop();
+    if (!cur || !nxt) return;
+    past.current.push(cur);
+    lastEdit.current = 0;
+    commitDoc(restore(cur, nxt));
+    bumpHistory();
+  }, [commitDoc]);
+  // a new project starts with an empty history
+  useEffect(() => clearHistory(), [slug, clearHistory]);
+
   // Pick up what Claude Code writes to edit.json (concepts, builds, request status) while the Studio is open.
   useEffect(() => {
     if (!slug) return;
@@ -178,6 +257,7 @@ export const App: React.FC = () => {
           return;
         const l = await api.load(slug);
         if (live.current.state !== "saved") return;
+        clearHistory();
         setDocState(l.doc);
         setIssues(l.issues);
         setNotice(
@@ -189,13 +269,18 @@ export const App: React.FC = () => {
       }
     }, 1500);
     return () => window.clearInterval(t);
-  }, [slug]);
+  }, [slug, clearHistory]);
   /** Server-side change (drafts, choose, approvals): already saved. */
   /** A server action's result: the new server copy, with the user's unsaved edits (if any) re-applied on top. */
-  const fromServer = useCallback((next: EditDoc) => {
-    setDocState(localView(next.slug) ?? next);
-    if (!hasPendingSave()) setSaveState("saved");
-  }, []);
+  const fromServer = useCallback(
+    (next: EditDoc) => {
+      // server actions are not undoable: the history starts again from here
+      clearHistory();
+      setDocState(localView(next.slug) ?? next);
+      if (!hasPendingSave()) setSaveState("saved");
+    },
+    [clearHistory],
+  );
 
   useEffect(() => {
     const p = player.current;
@@ -205,11 +290,19 @@ export const App: React.FC = () => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => setFrame(e.detail.frame));
     };
+    const onPlay = () => setPlaying(true);
+    const onPause = () => setPlaying(false);
     p.addEventListener("frameupdate", onFrame);
     p.addEventListener("seeked", onFrame);
+    p.addEventListener("play", onPlay);
+    p.addEventListener("pause", onPause);
+    p.addEventListener("ended", onPause);
     return () => {
       p.removeEventListener("frameupdate", onFrame);
       p.removeEventListener("seeked", onFrame);
+      p.removeEventListener("play", onPlay);
+      p.removeEventListener("pause", onPause);
+      p.removeEventListener("ended", onPause);
     };
     // re-attach when the Player (re)mounts, e.g. after the preview proxy is created
   }, [doc?.slug, doc?.source.previewSrc]);
@@ -223,6 +316,68 @@ export const App: React.FC = () => {
     },
     [fps],
   );
+  const durationInFrames = doc?.source.durationInFrames ?? 1;
+  const seekFrame = useCallback(
+    (f: number) => {
+      const c = Math.max(0, Math.min(durationInFrames - 1, Math.round(f)));
+      player.current?.seekTo(c);
+      setFrame(c);
+    },
+    [durationInFrames],
+  );
+  const togglePlay = useCallback(() => player.current?.toggle(), []);
+
+  // ---- Keyboard shortcuts (never while the user is typing in a field)
+  const keys = useRef({ frame, fps, seekFrame, togglePlay, undo, redo });
+  keys.current = { frame, fps, seekFrame, togglePlay, undo, redo };
+  useEffect(() => {
+    const typing = (el: EventTarget | null) => {
+      const t = el as HTMLElement | null;
+      if (!t || !t.tagName) return false;
+      return (
+        t.isContentEditable ||
+        ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName)
+      );
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (!docRef.current || e.defaultPrevented || typing(e.target)) return;
+      const k = keys.current;
+      const mod = e.ctrlKey || e.metaKey;
+      const key = e.key.toLowerCase();
+      if (mod && !e.altKey && (key === "z" || key === "y")) {
+        e.preventDefault();
+        if (key === "y" || e.shiftKey) k.redo();
+        else k.undo();
+        return;
+      }
+      if (mod || e.altKey) return;
+      if (e.key === "?") {
+        e.preventDefault();
+        setShowKeys((v) => !v);
+        return;
+      }
+      if (e.key === "Escape") {
+        setShowKeys(false);
+        return;
+      }
+      const go = (f: number) => {
+        e.preventDefault();
+        k.seekFrame(f);
+      };
+      if (e.key === " " || e.code === "Space") {
+        e.preventDefault();
+        // a focused button would otherwise be "clicked" by the space bar
+        if ((e.target as HTMLElement)?.tagName === "BUTTON")
+          (e.target as HTMLElement).blur();
+        k.togglePlay();
+      } else if (e.key === "ArrowLeft") go(k.frame - (e.shiftKey ? k.fps : 1));
+      else if (e.key === "ArrowRight") go(k.frame + (e.shiftKey ? k.fps : 1));
+      else if (e.key === "Home") go(0);
+      else if (e.key === "End") go(Number.MAX_SAFE_INTEGER);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const soundMap = useMemo(
     () => Object.fromEntries(sounds.map((s) => [s.id, s])),
@@ -386,39 +541,62 @@ export const App: React.FC = () => {
     seek(r.start);
   };
 
+  const compW: number = doc?.source.width || 1080;
+  const compH: number = doc?.source.height || 1920;
+  const aspect = compW / compH;
+  const orient = aspect > 1.05 ? "landscape" : aspect < 0.95 ? "portrait" : "square";
+
   if (!slug || !doc) {
     return (
       <div className="landing">
-        <h1>Creative Director Studio</h1>
-        <p className="muted">
-          Remotion-native finishing for your already-cut talking-head videos.
-          Your cut, pauses and dialogue are never changed.
-        </p>
-        {error ? <div className="error">{error}</div> : null}
-        <h3>Open a project</h3>
-        <div className="project-list">
-          {projects.map((p) => (
-            <button
-              key={p.slug}
-              className="project"
-              onClick={() => setSlug(p.slug)}
-              data-testid={`open-${p.slug}`}
-            >
-              <b>{p.slug}</b>
-              <span className="muted">
-                {p.scriptOnly ? "script-only · " : ""}
-                {p.duration.toFixed(1)} s · {p.fps} fps · {p.segments} segments
-                · {p.beats} timeline items
-                {p.openRequests
-                  ? ` · ${p.openRequests} waiting for Claude Code`
-                  : ""}
-              </span>
-            </button>
-          ))}
-          {!projects.length ? (
-            <span className="muted">No projects yet.</span>
-          ) : null}
+        <div className="landing-top">
+          <div className="brand">
+            <span className="brand-mark">
+              <FilmIcon size={16} />
+            </span>
+            Creative Director Studio
+          </div>
+          <ThemeToggle theme={theme} toggle={toggleTheme} />
         </div>
+        <div className="landing-hero">
+          <h1>Creative Director Studio</h1>
+          <p className="muted">
+            Remotion-native finishing for your already-cut talking-head videos.
+            Your cut, pauses and dialogue are never changed.
+          </p>
+        </div>
+        {error ? <div className="error">{error}</div> : null}
+        <section className="card">
+          <h3>Open a project</h3>
+          <div className="project-list">
+            {projects.map((p) => (
+              <button
+                key={p.slug}
+                className="project"
+                onClick={() => setSlug(p.slug)}
+                data-testid={`open-${p.slug}`}
+              >
+                <span className="project-icon">
+                  <FilmIcon size={18} />
+                </span>
+                <b>{p.slug}</b>
+                <span className="muted">
+                  {p.scriptOnly ? "script-only · " : ""}
+                  {p.duration.toFixed(1)} s · {p.fps} fps · {p.segments}{" "}
+                  segments · {p.beats} timeline items
+                  {p.openRequests
+                    ? ` · ${p.openRequests} waiting for Claude Code`
+                    : ""}
+                </span>
+              </button>
+            ))}
+            {!projects.length ? (
+              <span className="muted empty-note">
+                No projects yet. Import your cut or start from the script below.
+              </span>
+            ) : null}
+          </div>
+        </section>
         <NewProject onCreated={(s) => setSlug(s)} />
       </div>
     );
@@ -427,61 +605,24 @@ export const App: React.FC = () => {
   return (
     <div className="studio">
       <header className="topbar">
-        <div className="brand">Creative Director Studio</div>
-        <select
-          value={slug}
-          onChange={(e) => setSlug(e.target.value)}
-          className="project-select"
-        >
-          {projects.map((p) => (
-            <option key={p.slug}>{p.slug}</option>
-          ))}
-        </select>
-        <span className="pill">
-          {doc.source.durationInFrames} frames · {doc.source.fps} fps ·
-          1080×1920
-        </span>
-        {doc.source.scriptOnly ? (
-          <span
-            className="pill warn-pill"
-            data-testid="script-only"
-            title="Attach your cut later: python3 .claude/skills/video-editing/scripts/edit_init.py /path/to/my-cut.mp4 --slug <this project>"
+        <div className="topbar-left">
+          <div className="brand" title="Creative Director Studio">
+            <span className="brand-mark">
+              <FilmIcon size={16} />
+            </span>
+            <span className="brand-name">Creative Director Studio</span>
+          </div>
+          <select
+            value={slug}
+            onChange={(e) => setSlug(e.target.value)}
+            className="project-select"
+            title="Switch project"
           >
-            script-only · no footage yet
-          </span>
-        ) : (
-          <span className="pill">original footage locked</span>
-        )}
-        {doc.source.scriptOnly ? null : doc.source.previewSrc ? (
-          <span
-            className="pill"
-            title="The Player shows a VP9 proxy of the same footage (same fps and duration); every render uses the original."
-          >
-            preview proxy on
-          </span>
-        ) : (
-          <button
-            className="ghost small"
-            onClick={() =>
-              api
-                .proxy(doc.slug)
-                .then((r) => fromServer(r.doc))
-                .catch((e) => setError(String(e.message)))
-            }
-            data-testid="make-proxy"
-          >
-            Create preview proxy
-          </button>
-        )}
-        <span className={`save save-${saveState}`} data-testid="save-state">
-          {saveState === "saved"
-            ? "saved to edit.json"
-            : saveState === "saving"
-              ? "saving…"
-              : saveState === "dirty"
-                ? "unsaved changes"
-                : "save error"}
-        </span>
+            {projects.map((p) => (
+              <option key={p.slug}>{p.slug}</option>
+            ))}
+          </select>
+        </div>
         <nav className="views" data-testid="views">
           <button
             className={view === "plan" ? "active" : ""}
@@ -498,6 +639,82 @@ export const App: React.FC = () => {
             Timeline Editor
           </button>
         </nav>
+        <div className="topbar-right">
+          <span
+            className="pill"
+            title={`${doc.source.durationInFrames} frames at ${doc.source.fps} fps`}
+          >
+            {doc.source.durationInFrames} frames · {doc.source.fps} fps ·{" "}
+            {compW}×{compH}
+          </span>
+          {doc.source.scriptOnly ? (
+            <span
+              className="pill warn-pill"
+              data-testid="script-only"
+              title="Attach your cut later: python3 .claude/skills/video-editing/scripts/edit_init.py /path/to/my-cut.mp4 --slug <this project>"
+            >
+              script-only · no footage yet
+            </span>
+          ) : (
+            <span
+              className="pill"
+              title="Your original file is never modified: every animation is layered on top."
+            >
+              <LockIcon size={12} /> original footage locked
+            </span>
+          )}
+          {doc.source.scriptOnly ? null : doc.source.previewSrc ? (
+            <span
+              className="pill"
+              title="The Player shows a VP9 proxy of the same footage (same fps and duration); every render uses the original."
+            >
+              preview proxy on
+            </span>
+          ) : (
+            <button
+              className="ghost small"
+              onClick={() =>
+                api
+                  .proxy(doc.slug)
+                  .then((r) => fromServer(r.doc))
+                  .catch((e) => setError(String(e.message)))
+              }
+              data-testid="make-proxy"
+            >
+              Create preview proxy
+            </button>
+          )}
+          <span
+            className={`save save-${saveState}`}
+            data-testid="save-state"
+            title="Every change is saved to edit.json automatically"
+          >
+            {saveState === "saved"
+              ? "saved to edit.json"
+              : saveState === "saving"
+                ? "saving…"
+                : saveState === "dirty"
+                  ? "unsaved changes"
+                  : "save error"}
+          </span>
+          <span className="topbar-sep" />
+          <div className="popover-anchor">
+            <button
+              className={`icon-btn${showKeys ? " active" : ""}`}
+              onClick={() => setShowKeys((v) => !v)}
+              title="Keyboard shortcuts (?)"
+              aria-label="Keyboard shortcuts"
+              data-shortcuts-toggle
+              data-testid="shortcuts-toggle"
+            >
+              <KeyboardIcon />
+            </button>
+            {showKeys ? (
+              <ShortcutsPopover onClose={() => setShowKeys(false)} />
+            ) : null}
+          </div>
+          <ThemeToggle theme={theme} toggle={toggleTheme} />
+        </div>
       </header>
       <div className="banner-slot">
         {notice && !error ? (
@@ -519,7 +736,7 @@ export const App: React.FC = () => {
           </div>
         ) : null}
       </div>
-      <div className={`main view-${view}`}>
+      <div className={`main view-${view} ar-${orient}`}>
         {view === "plan" ? (
           <section className="panel planning-panel">
             <ScenePlanning
@@ -567,7 +784,7 @@ export const App: React.FC = () => {
               </button>
             </div>
           ) : null}
-          <div className="player-wrap" data-testid="player">
+          <PlayerStage aspect={aspect}>
             {!doc.source.scriptOnly &&
             !doc.source.previewSrc &&
             !canPlayH264 ? (
@@ -599,10 +816,11 @@ export const App: React.FC = () => {
                 inputProps={inputProps}
                 durationInFrames={doc.source.durationInFrames}
                 fps={doc.source.fps}
-                compositionWidth={1080}
-                compositionHeight={1920}
+                compositionWidth={compW}
+                compositionHeight={compH}
                 controls
                 clickToPlay={false}
+                spaceKeyToPlayOrPause={false}
                 acknowledgeRemotionLicense
                 errorFallback={({ error: err }) => (
                   <div className="player-error">
@@ -634,9 +852,23 @@ export const App: React.FC = () => {
                 style={{ width: "100%", height: "100%" }}
               />
             )}
-          </div>
-          <div className="timecode" data-testid="timecode">
-            {fmtTime(frame / fps)} · frame {frame}
+          </PlayerStage>
+          <div className="transport">
+            <button
+              className="icon-btn play-btn"
+              onClick={togglePlay}
+              title={playing ? "Pause (Space)" : "Play (Space)"}
+              aria-label={playing ? "Pause" : "Play"}
+              data-testid="play-toggle"
+            >
+              {playing ? <PauseIcon /> : <PlayIcon />}
+            </button>
+            <div className="timecode" data-testid="timecode">
+              {fmtTime(frame / fps)} · frame {frame}
+            </div>
+            <span className="muted small">
+              / {fmtTime(durationInFrames / fps)}
+            </span>
           </div>
         </section>
         {view === "timeline" ? (
@@ -677,6 +909,7 @@ export const App: React.FC = () => {
                   setBeatId={setBeatId}
                   setDoc={setDoc}
                   seek={seek}
+                  fromServer={fromServer}
                 />
               ) : null}
               {tab === "sound" ? (
@@ -713,6 +946,11 @@ export const App: React.FC = () => {
           selection={selection}
           setSelection={setSelection}
           setDoc={setDoc}
+          onGesture={onGesture}
+          onUndo={undo}
+          onRedo={redo}
+          canUndo={past.current.length > 0}
+          canRedo={future.current.length > 0}
           selectedBeat={beatId}
           selectedSegment={segmentId}
           onSelectBeat={(id) => {
@@ -777,6 +1015,15 @@ export const App: React.FC = () => {
   );
 };
 
+/** "My New Video!" -> "my-new-video" (project names: lowercase letters, digits and hyphens). */
+const toSlug = (v: string) => v.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+/, "").slice(0, 41);
+const SIZES = [
+  { id: "1080x1920", label: "9:16 vertical · 1080×1920" },
+  { id: "1920x1080", label: "16:9 landscape · 1920×1080" },
+  { id: "2160x3840", label: "9:16 vertical 4K · 2160×3840" },
+  { id: "3840x2160", label: "16:9 landscape 4K · 3840×2160" },
+];
+
 const NewProject: React.FC<{ onCreated: (slug: string) => void }> = ({
   onCreated,
 }) => {
@@ -787,6 +1034,8 @@ const NewProject: React.FC<{ onCreated: (slug: string) => void }> = ({
   const [sSlug, setSSlug] = useState("");
   const [duration, setDuration] = useState("");
   const [fps, setFps] = useState("30");
+  const [size, setSize] = useState("");
+  const [sSize, setSSize] = useState("1080x1920");
   return (
     <>
       <div className="new-project">
@@ -803,16 +1052,25 @@ const NewProject: React.FC<{ onCreated: (slug: string) => void }> = ({
         <input
           placeholder="project-name"
           value={slug}
-          onChange={(e) => setSlug(e.target.value)}
+          onChange={(e) => setSlug(toSlug(e.target.value))}
         />
+        <select value={size} onChange={(e) => setSize(e.target.value)} data-testid="new-size">
+          <option value="">Format: same as my video</option>
+          {SIZES.map((x) => (
+            <option key={x.id} value={x.id}>
+              {x.label}
+            </option>
+          ))}
+        </select>
         <button
+          className="primary"
           disabled={busy || !footage || !slug}
           onClick={async () => {
             setBusy(true);
             setMsg("");
             try {
-              await api.create(footage, slug);
-              onCreated(slug);
+              await api.create(footage, slug.replace(/-+$/, ""), undefined, undefined, size || undefined);
+              onCreated(slug.replace(/-+$/, ""));
             } catch (e) {
               setMsg(String((e as Error).message));
             }
@@ -833,9 +1091,16 @@ const NewProject: React.FC<{ onCreated: (slug: string) => void }> = ({
         <input
           placeholder="project-name"
           value={sSlug}
-          onChange={(e) => setSSlug(e.target.value)}
+          onChange={(e) => setSSlug(toSlug(e.target.value))}
           data-testid="so-slug"
         />
+        <select value={sSize} onChange={(e) => setSSize(e.target.value)} data-testid="so-size">
+          {SIZES.map((x) => (
+            <option key={x.id} value={x.id}>
+              {x.label}
+            </option>
+          ))}
+        </select>
         <div className="row">
           <input
             placeholder="length in seconds (at least the end of your script)"
@@ -851,18 +1116,16 @@ const NewProject: React.FC<{ onCreated: (slug: string) => void }> = ({
           />
         </div>
         <button
+          className="primary"
           disabled={busy || !sSlug || !(parseFloat(duration) > 0)}
           data-testid="so-create"
           onClick={async () => {
             setBusy(true);
             setMsg("");
             try {
-              await api.createScriptOnly(
-                sSlug,
-                parseFloat(duration),
-                parseFloat(fps) || 30,
-              );
-              onCreated(sSlug);
+              const name = sSlug.replace(/-+$/, "");
+              await api.createScriptOnly(name, parseFloat(duration), parseFloat(fps) || 30, sSize);
+              onCreated(name);
             } catch (e) {
               setMsg(String((e as Error).message));
             }
