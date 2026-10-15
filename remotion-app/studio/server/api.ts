@@ -2,6 +2,7 @@
 // the media files and the Remotion renderer). Every route reads or writes the
 // project document remotion-app/src/projects/<slug>/edit.json.
 import { spawn, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { createReadStream, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
@@ -20,7 +21,7 @@ const PROJECTS = path.join(APP, "src", "projects");
 /** The user's own library (references they add in the Studio): local, never in git; Claude Code reads it. */
 const LIBRARY = path.resolve(APP, "..", "library");
 const userRefsPath = path.join(LIBRARY, "references.json");
-type UserRef = { id: string; file: string; name: string; tags: string[]; note: string; kind: string; added: string };
+type UserRef = { id: string; file: string; name: string; tags: string[]; note: string; kind: string; added: string; sha256?: string };
 const userRefs = (): UserRef[] => (existsSync(userRefsPath) ? JSON.parse(readFileSync(userRefsPath, "utf8")) : []);
 const now = () => new Date().toISOString().slice(0, 19);
 
@@ -166,6 +167,20 @@ const FAMILY_CATS: Record<string, string[]> = { whoosh: ["WSH"], texture: ["POP"
 const pickSound = (family: string, roles: string[] = []) => {
   const lib = soundLib();
   return (lib.find((s) => s.role && roles.includes(s.role)) ?? lib.find((s) => FAMILY_CATS[family]?.includes(s.category)))?.id ?? null;
+};
+
+const sha256 = (b: Buffer) => createHash("sha256").update(b).digest("hex");
+/** Which reference already holds this exact picture: the built-in library (incl. alternates) or My library. */
+const findDuplicate = (hash: string): { id: string; title: string } | null => {
+  for (const r of JSON.parse(readFileSync(path.join(SKILL, "data", "references.json"), "utf8")).references as {
+    id: string; title: string; sha256?: string; alternates?: { sha256?: string }[];
+  }[])
+    if (r.sha256 === hash || (r.alternates ?? []).some((a) => a.sha256 === hash)) return { id: r.id, title: r.title };
+  for (const r of userRefs()) {
+    const h = r.sha256 ?? (existsSync(r.file) ? sha256(readFileSync(r.file)) : "");
+    if (h === hash) return { id: r.id, title: r.name };
+  }
+  return null;
 };
 
 const references = () => JSON.parse(readFileSync(path.join(SKILL, "data", "references.json"), "utf8")).references as {
@@ -427,16 +442,22 @@ const routes: [string, RegExp, (c: Ctx) => Promise<unknown> | unknown][] = [
     const b = await body(req);
     const name = String(b.name ?? "reference").replace(/[^\w.-]+/g, "_").slice(-80);
     if (!/\.(png|jpe?g|webp|gif|mp4|webm)$/i.test(name)) throw new Error("references: images (png, jpg, webp, gif) or short videos (mp4, webm)");
+    const data = Buffer.from(String(b.data ?? ""), "base64");
+    if (!data.length) throw new Error(`${name}: empty file`);
+    const hash = sha256(data);
+    // the same picture is never stored twice: the answer names the reference that already has it
+    const dup = findDuplicate(hash);
+    if (dup) return { references: userRefs(), duplicate: dup };
     const dir = path.join(LIBRARY, "references");
     mkdirSync(dir, { recursive: true });
     const refs = userRefs();
     const id = `MY-${String(refs.length + 1).padStart(3, "0")}`;
     const file = path.join(dir, `${id}_${name}`);
-    writeFileSync(file, Buffer.from(String(b.data ?? ""), "base64"));
+    writeFileSync(file, data);
     const tags = String(b.tags ?? "").split(/[,\s]+/).map((x) => x.trim().toLowerCase()).filter(Boolean);
-    refs.push({ id, file, name, tags, note: String(b.note ?? ""), kind: String(b.kind ?? "style"), added: new Date().toISOString() });
+    refs.push({ id, file, name, tags, note: String(b.note ?? ""), kind: String(b.kind ?? "style"), added: new Date().toISOString(), sha256: hash });
     writeFileSync(userRefsPath, JSON.stringify(refs, null, 1));
-    return { references: refs };
+    return { references: refs, added: id };
   }],
   ["GET", /^\/api\/library\/file\/(MY-\d{3})$/, ({ req, res, m }) => {
     const r = userRefs().find((x) => x.id === m[1]);

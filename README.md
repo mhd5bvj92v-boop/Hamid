@@ -66,6 +66,7 @@ Claude Code processes your requests in a Claude Code session (no automatic Claud
   ```
   Claude then checks every 2 minutes and builds whatever you click in the Studio: concepts, your idea D, changes and new backgrounds.
 - **Just say it:** you can also type changes directly, e.g. *"scene 3: make the text typewriter, background grid floor, fast zoom in"*.
+- **References:** your inspiration pictures are already built in (182 references with IDs like ONS-024, TXT-003, FUL-072, each described and tagged; References tab → Visual reference library). New ones go into **References → My library**: drop many files at once, add tags and a note, and they get IDs MY-001, MY-002… Pictures that are already in either library are skipped. My library stays on your own PC (the `library/` folder, not in git), so keep that folder when you download a new version.
 - **AI video (Higgsfield, etc.):** generate the clip there, then drop it into a scene's **3D assets** box (MP4, WebM or MOV). Remotion stages it like any other asset, in short or long videos.
 
 ## The workflow in short

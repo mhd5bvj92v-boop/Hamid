@@ -54,7 +54,7 @@ The UI card's `look: "glass"` (`UiCard`) is the reference implementation of thes
 
   Every full-screen beat moves with the edit's camera automatically; a beat can set `camera: {move, intensity}`. `doc.zooms` moves the talking-head footage itself (look only, never timing).
 - **Formats:** 1080x1920, 1920x1080, 2160x3840, 3840x2160 (`edit_init.py --size`). Components draw on a design canvas whose short side is 1080: use `useCanvas()` (not `useVideoConfig()`) for width/height, and check `landscape` to lay out side-by-side in 16:9.
-- **The user's reference library:** `library/references.json` (Studio: References → My library). `show` lists it; open the ones that fit.
+- **The user's reference library:** `library/references.json` (Studio: References → My library, many files at once). `show` lists it; open the ones that fit. Uploads are de-duplicated by SHA-256 against the built-in library (`data/references.json`, incl. alternates) and My library: a picture already there is skipped and named by its existing ID. The user's inspiration ZIP of 2026-10-13 is the built-in library itself (ONS/TXT/FUL), so it never needs importing.
 
 ## 3. Scale, type and colour
 

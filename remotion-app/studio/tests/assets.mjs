@@ -253,7 +253,11 @@ try {
   const still2 = path.join(REPO, "work", SLUG, "previews", "S02_v1.png");
   const m2 = existsSync(still2) ? magenta(still2) : 0;
   await seekTo(6.5);
-  const vidInPlayer = await page.locator(`[data-testid=player] video[src*="S02_U1_product-turn.webm"]`).count();
+  // the Player mounts the scene's <video> a moment after the seek
+  const vidSel = `[data-testid=player] video[src*="S02_U1_product-turn.webm"]`;
+  await page.locator(vidSel).first().waitFor({ state: "attached", timeout: 15000 }).catch(() => {});
+  const vidInPlayer = await page.locator(vidSel).count();
+  console.log(`      [6] codec ${probe.codec_name} alpha ${probe.tags?.alpha_mode}, built ${builtD.status}, sphere ${(m2 * 100).toFixed(1)}%, player videos ${vidInPlayer}`);
   check(6, u1.kind === "video" && u1.note === "my product, turning" && u1.file.endsWith("S02_U1_product-turn.webm") && probe.codec_name === "vp9" && probe.tags?.alpha_mode === "1" &&
     sha(sphereMov) === movSha && /the user's own asset \(use it\)/.test(show.out) && ignored.status !== 0 && /\['U1'\]/.test(ignored.out) &&
     builtD.status === 0 && m2 > 0.03 && vidInPlayer > 0,

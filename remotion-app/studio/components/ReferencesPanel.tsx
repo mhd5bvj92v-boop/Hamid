@@ -9,7 +9,9 @@ export const ReferencesPanel: React.FC<{ picked: string[]; setPicked: (r: string
   const [big, setBig] = useState<Ref | null>(null);
   type Mine = { id: string; name: string; tags: string[]; note: string; kind: string };
   const [mine, setMine] = useState<Mine[]>([]);
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const [drag, setDrag] = useState(false);
+  const [done, setDone] = useState(0);
   const [tags, setTags] = useState("");
   const [note, setNote] = useState("");
   const [kind, setKind] = useState("style");
@@ -18,27 +20,43 @@ export const ReferencesPanel: React.FC<{ picked: string[]; setPicked: (r: string
   useEffect(() => {
     api.library().then((l) => setMine(l.references)).catch(() => setMine([]));
   }, []);
+  const OK = /\.(png|jpe?g|webp|gif|mp4|webm)$/i;
+  const pick = (list: FileList | null) => setFiles(Array.from(list ?? []).filter((f) => OK.test(f.name)));
+  // one file at a time (IDs stay in order); tags, kind and note apply to every file of the batch
   const add = async () => {
-    if (!file) return;
+    if (!files.length) return;
     setBusy(true);
     setMsg("");
-    try {
-      const data = await new Promise<string>((ok) => {
-        const fr = new FileReader();
-        fr.onload = () => ok(String(fr.result).split(",")[1] ?? "");
-        fr.readAsDataURL(file);
-      });
-      const r = await api.addReference(file.name, data, tags, note, kind);
-      setMine(r.references);
-      setFile(null);
-      setTags("");
-      setNote("");
-      setMsg("Added. Claude Code reads your library on every request; mention its ID (e.g. MY-001) in option D to use it.");
-    } catch (e) {
-      setMsg(String((e as Error).message ?? e));
-    } finally {
-      setBusy(false);
+    setDone(0);
+    const added: string[] = [];
+    const dups: string[] = [];
+    const failed: string[] = [];
+    for (const f of files) {
+      try {
+        const data = await new Promise<string>((ok, bad) => {
+          const fr = new FileReader();
+          fr.onload = () => ok(String(fr.result).split(",")[1] ?? "");
+          fr.onerror = () => bad(fr.error);
+          fr.readAsDataURL(f);
+        });
+        const r = await api.addReference(f.name, data, tags, note, kind);
+        setMine(r.references);
+        if (r.duplicate) dups.push(`${f.name} = ${r.duplicate.id}`);
+        else if (r.added) added.push(r.added);
+      } catch (e) {
+        failed.push(`${f.name}: ${String((e as Error).message ?? e)}`);
+      }
+      setDone((n) => n + 1);
     }
+    setFiles([]);
+    setBusy(false);
+    setMsg(
+      [
+        added.length ? `Added ${added.length} (${added[0]}${added.length > 1 ? `–${added[added.length - 1]}` : ""}). Claude Code reads your library on every request; mention an ID in option D to use it.` : "",
+        dups.length ? `Skipped ${dups.length} already in your libraries: ${dups.slice(0, 6).join(", ")}${dups.length > 6 ? ", …" : ""}.` : "",
+        failed.length ? `Failed ${failed.length}: ${failed.slice(0, 3).join("; ")}` : "",
+      ].filter(Boolean).join(" "),
+    );
   };
   useEffect(() => {
     const t = setTimeout(() => api.references(q, cat).then(setRefs).catch(() => setRefs([])), 200);
@@ -48,8 +66,24 @@ export const ReferencesPanel: React.FC<{ picked: string[]; setPicked: (r: string
     <div className="refs-panel" data-testid="refs-panel">
       <h2>My library</h2>
       <p className="muted small">Your own references (images or short clips). Claude Code reads them when it builds; tag them so it finds the right one.</p>
-      <div className="my-lib-add" data-testid="my-lib-add">
-        <input type="file" accept="image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm" data-testid="my-lib-file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+      <div
+        className={`my-lib-add${drag ? " drag" : ""}`}
+        data-testid="my-lib-add"
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDrag(true);
+        }}
+        onDragLeave={() => setDrag(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDrag(false);
+          pick(e.dataTransfer.files);
+        }}
+      >
+        <label className="my-lib-drop">
+          <input type="file" multiple accept="image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm" data-testid="my-lib-file" onChange={(e) => pick(e.target.files)} />
+          <span>{files.length ? `${files.length} file${files.length > 1 ? "s" : ""} ready` : "Drop images or clips here, or click to choose (many at once)"}</span>
+        </label>
         <input placeholder="tags: glow, saas, dashboard" value={tags} onChange={(e) => setTags(e.target.value)} data-testid="my-lib-tags" />
         <select value={kind} onChange={(e) => setKind(e.target.value)} data-testid="my-lib-kind">
           <option value="style">style (look and colour)</option>
@@ -59,11 +93,11 @@ export const ReferencesPanel: React.FC<{ picked: string[]; setPicked: (r: string
           <option value="ui">UI / on-screen</option>
         </select>
         <input placeholder="what should Claude take from it?" value={note} onChange={(e) => setNote(e.target.value)} data-testid="my-lib-note" />
-        <button className="primary small" disabled={!file || busy} onClick={add} data-testid="my-lib-upload">
-          {busy ? "Adding…" : "Add to my library"}
+        <button className="primary small" disabled={!files.length || busy} onClick={add} data-testid="my-lib-upload">
+          {busy ? `Adding ${done}/${files.length}…` : files.length > 1 ? `Add ${files.length} to my library` : "Add to my library"}
         </button>
       </div>
-      {msg ? <p className="small">{msg}</p> : null}
+      {msg ? <p className="small" data-testid="my-lib-msg">{msg}</p> : null}
       {mine.length ? (
         <div className="ref-grid" data-testid="my-lib-grid">
           {mine.map((r) => (

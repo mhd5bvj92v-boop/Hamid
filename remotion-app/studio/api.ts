@@ -138,7 +138,7 @@ export const api = {
     call<{ backgrounds: { id: string; label: string; description: string }[]; cameraMoves: { id: string; label: string }[]; textStyles: string[];
       references: { id: string; name: string; tags: string[]; note: string; kind: string }[] }>("GET", "/api/library"),
   addReference: (name: string, data: string, tags: string, note: string, kind: string) =>
-    call<{ references: { id: string; name: string; tags: string[]; note: string; kind: string }[] }>("POST", "/api/library/reference", { name, data, tags, note, kind }),
+    call<{ references: { id: string; name: string; tags: string[]; note: string; kind: string }[]; added?: string; duplicate?: { id: string; title: string } }>("POST", "/api/library/reference", { name, data, tags, note, kind }),
   /** The user's 3D / realistic asset for a scene (a concept's need id, or none for their own asset). */
   uploadAsset: (slug: string, segmentId: string, name: string, data: string, needId?: string, note?: string) =>
     call<{ doc: EditDoc; out: string }>("POST", `/api/project/${slug}/asset`, { segmentId, name, data, needId, note }),
