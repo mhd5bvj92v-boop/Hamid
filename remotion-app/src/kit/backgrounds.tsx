@@ -5,7 +5,7 @@
 import React from "react";
 import { AbsoluteFill, useCurrentFrame } from "remotion";
 import { CinematicFinish, Dust, LightRays, alpha } from "./premium";
-import { useCanvas, usePalette } from "./style";
+import { isLightBase, useCanvas, usePalette } from "./style";
 import { customBackgrounds } from "./backgrounds/custom";
 
 export type BackgroundProps = { t: number; c60: string; c30: string; c10: string; W: number; H: number };
@@ -129,6 +129,30 @@ const Minimal: React.FC<BackgroundProps> = ({ t, c60, c30, c10 }) => (
   </AbsoluteFill>
 );
 
+// Light paper with a fine grid: minor lines every 48 px, major every 4 cells, both barely visible.
+// The grid drifts slowly and a faint accent glow breathes, so the stage never sits still.
+const PaperGrid: React.FC<BackgroundProps> = ({ t, c60, c10 }) => {
+  const line = "rgba(20,22,28,.055)";
+  const major = "rgba(20,22,28,.085)";
+  const dx = (t * 6) % 192;
+  const dy = (t * 3) % 192;
+  return (
+    <AbsoluteFill style={{ background: c60, overflow: "hidden" }}>
+      <AbsoluteFill
+        style={{
+          backgroundImage: `linear-gradient(${major} 1px, transparent 1px), linear-gradient(90deg, ${major} 1px, transparent 1px), linear-gradient(${line} 1px, transparent 1px), linear-gradient(90deg, ${line} 1px, transparent 1px)`,
+          backgroundSize: "192px 192px, 192px 192px, 48px 48px, 48px 48px",
+          backgroundPosition: `${dx}px ${dy}px`,
+          maskImage: "radial-gradient(120% 95% at 50% 45%, black 55%, transparent 100%)",
+          WebkitMaskImage: "radial-gradient(120% 95% at 50% 45%, black 55%, transparent 100%)",
+        }}
+      />
+      <AbsoluteFill style={{ background: `radial-gradient(40% 32% at ${50 + 6 * Math.sin(t * 0.3)}% ${44 + 4 * Math.cos(t * 0.25)}%, ${alpha(c10, 0.1 + 0.03 * Math.sin(t * 0.8))}, transparent 72%)`, filter: "blur(30px)" }} />
+      <AbsoluteFill style={{ background: "radial-gradient(130% 110% at 50% 40%, transparent 60%, rgba(20,22,28,.06) 100%)" }} />
+    </AbsoluteFill>
+  );
+};
+
 const DataLines: React.FC<BackgroundProps> = ({ t, c60, c10, W, H }) => (
   <AbsoluteFill style={{ background: c60 }}>
     <svg width={W} height={H} style={{ position: "absolute", inset: 0, filter: `drop-shadow(0 0 12px ${alpha(c10, 0.9)})` }}>
@@ -157,6 +181,7 @@ export const BACKGROUNDS: BackgroundDef[] = [
   { id: "beams", label: "Light beams", description: "soft vertical beams sweeping across", render: Beams },
   { id: "data-lines", label: "Data waves", description: "glowing flowing data lines", render: DataLines },
   { id: "minimal", label: "Minimal glow", description: "calm dark gradient with one soft glow", render: Minimal },
+  { id: "paper-grid", label: "Paper grid (light)", description: "off-white paper with a fine, barely visible grid that drifts slowly; use with a light 60 % colour", render: PaperGrid },
   ...customBackgrounds,
 ];
 
@@ -170,7 +195,8 @@ export const Backdrop: React.FC<{ preset?: string; finish?: boolean }> = ({ pres
   return (
     <AbsoluteFill>
       <R t={frame / fps} c60={pal.c60} c30={pal.c30} c10={pal.c10} W={W} H={H} />
-      {finish ? <CinematicFinish /> : null}
+      {/* light bases get a much lighter finish: a dark vignette and heavy grain look dirty on paper */}
+      {finish ? (isLightBase(pal.c60) ? <CinematicFinish grain={0.035} vignette={0.12} /> : <CinematicFinish />) : null}
     </AbsoluteFill>
   );
 };

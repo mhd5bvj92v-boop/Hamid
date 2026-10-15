@@ -4,7 +4,7 @@ import { SANS } from "../../fonts";
 import { Backdrop } from "../backgrounds";
 import { clamp, lerp } from "../motion";
 import { alpha } from "../premium";
-import { useCanvas, usePalette } from "../style";
+import { useCanvas, useInk, usePalette } from "../style";
 import { KineticTextProps, splitWords, textDefaults, textScene, wordProg } from "./kineticText.timing";
 
 const SIZE = { s: 54, m: 72, l: 104, xl: 140 } as const;
@@ -15,6 +15,7 @@ export const KineticText: React.FC<KineticTextProps> = (p) => {
   const frame = useCurrentFrame();
   const { fps, width: W, height: H, landscape } = useCanvas();
   const pal = usePalette();
+  const ink = useInk();
   const t = frame / fps;
   const d = textDefaults(p);
   const sc = textScene(t, p);
@@ -37,8 +38,16 @@ export const KineticText: React.FC<KineticTextProps> = (p) => {
   const renderWord = (w: string, i: number, li: number) => {
     const k = wordProg(t, i, p);
     const acc = isAccent(w);
-    const color = acc ? pal.c10 : "#FFFFFF";
-    const glow = acc ? `0 0 ${fs * 0.35}px ${alpha(pal.c10, 0.85)}, 0 0 ${fs * 0.9}px ${alpha(pal.c10, 0.45)}` : "0 4px 24px rgba(0,0,0,.45)";
+    // over the footage (caption / center) text stays white; on a light full-screen base it turns to ink
+    const onPaper = d.placement === "fullscreen" && ink.light;
+    const color = acc ? pal.c10 : onPaper ? ink.ink : "#FFFFFF";
+    const glow = acc
+      ? onPaper
+        ? `0 0 ${fs * 0.3}px ${alpha(pal.c10, 0.35)}`
+        : `0 0 ${fs * 0.35}px ${alpha(pal.c10, 0.85)}, 0 0 ${fs * 0.9}px ${alpha(pal.c10, 0.45)}`
+      : onPaper
+        ? ink.shadow
+        : "0 4px 24px rgba(0,0,0,.45)";
     const base: React.CSSProperties = { display: "inline-block", color, textShadow: glow, fontWeight: acc ? 800 : 600, marginRight: "0.26em", whiteSpace: "pre" };
     switch (d.style) {
       case "typewriter":
@@ -80,7 +89,7 @@ export const KineticText: React.FC<KineticTextProps> = (p) => {
       case "slide-stack":
         return <span key={i} style={{ ...base, opacity: k, transform: `translateX(${(1 - k) * (li % 2 ? 1 : -1) * W * 0.35}px)`, filter: `blur(${(1 - k) * 8}px)` }}>{w}</span>;
       case "karaoke":
-        return <span key={i} style={{ ...base, color: k ? color : "rgba(255,255,255,.38)", textShadow: k ? glow : "none", transform: `scale(${k ? 1.04 : 1})` }}>{w}</span>;
+        return <span key={i} style={{ ...base, color: k ? color : onPaper ? ink.soft : "rgba(255,255,255,.38)", textShadow: k ? glow : "none", transform: `scale(${k ? 1.04 : 1})` }}>{w}</span>;
       case "highlight-sweep": {
         const sweep = acc ? clamp((t - (d.inAt + words.length * d.stagger + 0.15)) / 0.45) : 0;
         return (

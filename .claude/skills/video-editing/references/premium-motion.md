@@ -44,7 +44,10 @@ The UI card's `look: "glass"` (`UiCard`) is the reference implementation of thes
   - `aurora`, `grid-floor`, `light-rays`, `horizon`
   - `starfield`, `glass-blobs`, `spotlight`, `mesh`
   - `tunnel`, `beams`, `data-lines`, `minimal`
+  - `paper-grid`: the light one (off-white paper, fine drifting grid) for edits whose 60 % colour is light
   - plus the user's own in `backgrounds/custom.tsx`
+
+  **Light edits** (a light 60 % colour such as `#F4F2ED`): use `paper-grid` for every full-screen scene, and take text colours from `useInk()` (`src/kit/style.tsx`): near-black ink on paper, white over footage. `KineticText` does this by itself; `StatCard` takes `background: "paper-grid"`. Dark glass cards with a coloured glow sit well on paper; white text straight on paper does not. Keep glows soft (≈ 0.3 alpha) on light bases.
 
   All are animated, palette-driven and finished with grain and vignette. A user request "Ask Claude for a new background" arrives as a `background` request; add the preset to `backgrounds/custom.tsx` and finish with `edit_decisions.py done`.
 - **Camera moves** (`CAMERA_MOVES` in `src/kit/style.tsx`):

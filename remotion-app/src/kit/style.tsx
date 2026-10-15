@@ -60,6 +60,29 @@ export const useEditStyle = () => useContext(Ctx);
 /** The 60-30-10 palette of this edit: c60 base, c30 support, c10 accent. */
 export const usePalette = () => useContext(Ctx).palette;
 
+/** Relative luminance (0 dark .. 1 white) of a #RRGGBB colour. */
+export const luminance = (hex: string) => {
+  const n = parseInt(hex.replace("#", "").slice(0, 6).padEnd(6, "0"), 16);
+  const ch = (v: number) => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * ch((n >> 16) & 255) + 0.7152 * ch((n >> 8) & 255) + 0.0722 * ch(n & 255);
+};
+/** True when the edit's 60 % colour is a light base (off-white, paper, cream). */
+export const isLightBase = (c60: string) => luminance(c60) > 0.5;
+/** Text colour that reads on the 60 % base: near-black ink on light bases, white on dark ones. */
+export const useInk = () => {
+  const { c60, c30 } = usePalette();
+  const light = isLightBase(c60);
+  return {
+    light,
+    ink: light ? (luminance(c30) < 0.2 ? c30 : "#14161C") : "#FFFFFF",
+    soft: light ? "rgba(20,22,28,.45)" : "rgba(255,255,255,.38)",
+    shadow: light ? "0 2px 18px rgba(20,22,28,.10)" : "0 4px 24px rgba(0,0,0,.45)",
+  };
+};
+
 const AMOUNT: Record<CameraIntensity, number> = { subtle: 0.6, medium: 1, strong: 1.7 };
 
 /**

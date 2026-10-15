@@ -1,6 +1,7 @@
 import React from "react";
 import { AbsoluteFill, useCurrentFrame} from "remotion";
 import { useCanvas } from "../style";
+import { Backdrop } from "../backgrounds";
 import { SANS } from "../../fonts";
 import { enterStyle, fmtNumber, lerp } from "../motion";
 import { COLORS } from "../tokens";
@@ -26,7 +27,9 @@ export const StatCard: React.FC<StatCardProps> = (p) => {
   const t = frame / fps;
   const d = statDefaults(p);
   const pose = statPose(t, p);
-  const s = d.uiScale; // 1 = template size at 1080 w
+  // the card is sized from the width in portrait; in landscape the height limits it (16:9 / 4K stays inside the frame)
+  const cardPx = Math.min(d.cardWidth * width, height * (p.fullscreen ? 0.66 : 0.4));
+  const s = p.uiScale ?? cardPx / (0.62 * 1080); // 1 = template size at 1080 w
   const [dx, dy] = pointAtLength(pose.dotLen);
   const enter = enterStyle(pose.e, { rise: 30, blur: 10, scale: 0.94 });
   const id = `sc${Math.round(d.center.x * 1000)}${Math.round(d.center.y * 1000)}`;
@@ -34,21 +37,25 @@ export const StatCard: React.FC<StatCardProps> = (p) => {
   return (
     <AbsoluteFill>
       {p.fullscreen ? (
-        <AbsoluteFill
-          style={{
-            background: `radial-gradient(80% 50% at 50% 60%, ${d.glow.replace(/[\d.]+\)$/, ".18)")}, transparent 70%), ${COLORS.deep}`,
-          }}
-        />
+        p.background ? (
+          <Backdrop preset={p.background} />
+        ) : (
+          <AbsoluteFill
+            style={{
+              background: `radial-gradient(80% 50% at 50% 60%, ${d.glow.replace(/[\d.]+\)$/, ".18)")}, transparent 70%), ${COLORS.deep}`,
+            }}
+          />
+        )
       ) : null}
       <div
         style={{
           position: "absolute",
           left: d.center.x * width,
           top: d.center.y * height,
-          width: d.cardWidth * width,
+          width: cardPx,
           aspectRatio: "0.8",
-          marginLeft: (-d.cardWidth * width) / 2,
-          marginTop: (-d.cardWidth * width) / 0.8 / 2,
+          marginLeft: -cardPx / 2,
+          marginTop: -cardPx / 0.8 / 2,
           borderRadius: 70 * s,
           overflow: "hidden",
           background:

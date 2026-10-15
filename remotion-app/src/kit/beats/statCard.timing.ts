@@ -6,6 +6,8 @@ import type { BeatTiming } from "../types";
 
 export type StatCardProps = {
   fullscreen?: boolean;
+  /** Full-screen only: a background library preset (backgrounds.tsx) instead of the default dark stage. */
+  background?: string;
   /** Card centre as frame fractions (System A default sits in the UI band). */
   center?: { x: number; y: number };
   /** Card width as a fraction of frame width. */
