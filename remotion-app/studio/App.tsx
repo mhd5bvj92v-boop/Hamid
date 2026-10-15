@@ -822,33 +822,49 @@ export const App: React.FC = () => {
                 clickToPlay={false}
                 spaceKeyToPlayOrPause={false}
                 acknowledgeRemotionLicense
-                errorFallback={({ error: err }) => (
-                  <div className="player-error">
-                    <p>
-                      The browser could not play the footage (
-                      {String(err.message).slice(0, 120)}).
-                    </p>
-                    <p className="muted small">
-                      This browser lacks the codec of your file. A preview proxy
-                      (VP9, same timeline) fixes the Player; renders always use
-                      the original.
-                    </p>
-                    <button
-                      className="primary"
-                      onClick={() =>
-                        api
-                          .proxy(doc.slug)
-                          .then((r) => {
-                            fromServer(r.doc);
-                            location.reload();
-                          })
-                          .catch((e) => setError(String(e.message)))
-                      }
-                    >
-                      Create preview proxy
-                    </button>
-                  </div>
-                )}
+                errorFallback={({ error: err }) =>
+                  // only a media error means the browser can't decode the footage; anything else is a bug in a scene's code
+                  /MediaError|decode|codec|NotSupported|no supported source|format error|DEMUXER|PIPELINE_ERROR/i.test(String(err.message)) ? (
+                    <div className="player-error">
+                      <p>
+                        The browser could not play the footage (
+                        {String(err.message).slice(0, 120)}).
+                      </p>
+                      <p className="muted small">
+                        This browser lacks the codec of your file. A preview proxy
+                        (VP9, same timeline) fixes the Player; renders always use
+                        the original.
+                      </p>
+                      <button
+                        className="primary"
+                        onClick={() =>
+                          api
+                            .proxy(doc.slug)
+                            .then((r) => {
+                              fromServer(r.doc);
+                              location.reload();
+                            })
+                            .catch((e) => setError(String(e.message)))
+                        }
+                      >
+                        Create preview proxy
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="player-error" data-testid="player-code-error">
+                      <p>
+                        A scene&apos;s code has an error: <b>{String(err.message).slice(0, 160)}</b>
+                      </p>
+                      <p className="muted small">
+                        Your footage and edit.json are fine. Tell Claude Code:{" "}
+                        <i>&quot;The Studio Player shows: {String(err.message).slice(0, 160)}. Find the scene that causes it, fix it and re-run preview.&quot;</i>
+                      </p>
+                      <button className="primary" onClick={() => location.reload()}>
+                        Try again
+                      </button>
+                    </div>
+                  )
+                }
                 style={{ width: "100%", height: "100%" }}
               />
             )}
