@@ -11,7 +11,31 @@ import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
 import { E, clamp, lerp } from "./motion";
 import type { EditConstants } from "./project";
 
-export type CameraStyle = "push-in" | "drift" | "orbit" | "dynamic" | "static";
+export type CameraStyle =
+  | "push-in"
+  | "slow-zoom-in"
+  | "fast-zoom-in"
+  | "slow-zoom-out"
+  | "fast-zoom-out"
+  | "peak-middle"
+  | "drift"
+  | "orbit"
+  | "dynamic"
+  | "static";
+
+/** Camera moves with a short label (Studio pickers, Claude briefs). */
+export const CAMERA_MOVES: { id: CameraStyle; label: string }[] = [
+  { id: "push-in", label: "Slow push-in" },
+  { id: "slow-zoom-in", label: "Slow zoom in" },
+  { id: "fast-zoom-in", label: "Fast zoom in (punch)" },
+  { id: "slow-zoom-out", label: "Slow zoom out" },
+  { id: "fast-zoom-out", label: "Fast zoom out (reveal)" },
+  { id: "peak-middle", label: "Zoom in, peak in the middle, out" },
+  { id: "drift", label: "Drift" },
+  { id: "orbit", label: "Orbit (3D)" },
+  { id: "dynamic", label: "Dynamic (punch-in, then drift)" },
+  { id: "static", label: "Static" },
+];
 export type CameraIntensity = "subtle" | "medium" | "strong";
 
 export type EditStyle = {
@@ -54,6 +78,23 @@ export const cameraPose = (t: number, dur: number, move: CameraStyle = "push-in"
       return { scale: 1 + 0.04 * k, x: lerp(-0.018, 0.018, ease) * k, y: lerp(0.008, -0.008, ease) * k, rotate: lerp(-0.4, 0.4, ease) * k, rotateX: 0, rotateY: 0 };
     case "orbit":
       return { scale: 1 + 0.05 * k, x: 0, y: 0, rotate: 0, rotateX: lerp(4, -2, ease) * k, rotateY: lerp(-9, 9, ease) * k };
+    case "slow-zoom-in":
+      return { scale: 1 + 0.12 * k * ease, x: 0, y: 0, rotate: 0, rotateX: 0, rotateY: 0 };
+    case "fast-zoom-in": {
+      const z = E.outExpo(clamp(t / 0.45));
+      return { scale: 1 + 0.16 * k * z + 0.02 * k * ease, x: 0, y: 0, rotate: 0, rotateX: 0, rotateY: 0 };
+    }
+    case "slow-zoom-out":
+      return { scale: 1 + 0.12 * k * (1 - ease), x: 0, y: 0, rotate: 0, rotateX: 0, rotateY: 0 };
+    case "fast-zoom-out": {
+      const z = E.outExpo(clamp(t / 0.55));
+      return { scale: 1 + 0.18 * k * (1 - z) + 0.02 * k * ease, x: 0, y: 0, rotate: 0, rotateX: 0, rotateY: 0 };
+    }
+    case "peak-middle": {
+      // in until the middle of the scene, then back out: the peak lands on the key moment
+      const tri = 1 - Math.abs(2 * p - 1);
+      return { scale: 1 + 0.14 * k * E.inOutSine(tri), x: 0, y: 0, rotate: 0, rotateX: 0, rotateY: 0 };
+    }
     case "dynamic": {
       // a fast push on arrival that settles into a slow drift
       const hit = E.outExpo(clamp(t / 0.7));
@@ -70,7 +111,7 @@ export const cameraPose = (t: number, dur: number, move: CameraStyle = "push-in"
  */
 export const CameraMove: React.FC<{ dur: number; move?: CameraStyle; intensity?: CameraIntensity; children: React.ReactNode }> = ({ dur, move, intensity, children }) => {
   const frame = useCurrentFrame();
-  const { fps, width, height } = useVideoConfig();
+  const { fps, width, height } = useCanvas();
   const st = useEditStyle();
   const c = cameraPose(frame / fps, dur, move ?? st.camera, intensity ?? st.cameraIntensity);
   return (
@@ -85,4 +126,34 @@ export const CameraMove: React.FC<{ dur: number; move?: CameraStyle; intensity?:
       </AbsoluteFill>
     </AbsoluteFill>
   );
+};
+
+// ------------------------------------------------------------ formats: one design canvas for 9:16, 16:9 and 4K
+// Animations are designed in a canvas whose SHORT side is 1080 px: 1080x1920 for vertical, 1920x1080 for
+// landscape. <DesignCanvas> scales it to the real frame (2x for 4K), so every kind works in every format and
+// stays sharp. Components read the canvas with useCanvas() instead of useVideoConfig() for width/height.
+const CanvasCtx = createContext<{ width: number; height: number } | null>(null);
+
+export const designSize = (w: number, h: number) =>
+  w >= h ? { width: Math.round((1080 * w) / h), height: 1080 } : { width: 1080, height: Math.round((1080 * h) / w) };
+
+export const DesignCanvas: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { width, height } = useVideoConfig();
+  const d = designSize(width, height);
+  const k = width / d.width;
+  return (
+    <AbsoluteFill style={{ overflow: "hidden" }}>
+      <div style={{ position: "absolute", left: 0, top: 0, width: d.width, height: d.height, transform: `scale(${k})`, transformOrigin: "0 0" }}>
+        <CanvasCtx.Provider value={d}>{children}</CanvasCtx.Provider>
+      </div>
+    </AbsoluteFill>
+  );
+};
+
+/** useVideoConfig() with the design canvas's width/height (short side 1080). */
+export const useCanvas = () => {
+  const cfg = useVideoConfig();
+  const c = useContext(CanvasCtx);
+  const d = c ?? designSize(cfg.width, cfg.height);
+  return { ...cfg, width: d.width, height: d.height, landscape: d.width > d.height };
 };

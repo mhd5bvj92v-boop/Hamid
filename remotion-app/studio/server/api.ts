@@ -17,6 +17,11 @@ import { APP, getBundle, invalidateBundle, media, still } from "./render";
 const SKILL = path.resolve(APP, "..", ".claude", "skills", "video-editing");
 const SCRIPTS = path.join(SKILL, "scripts");
 const PROJECTS = path.join(APP, "src", "projects");
+/** The user's own library (references they add in the Studio): local, never in git; Claude Code reads it. */
+const LIBRARY = path.resolve(APP, "..", "library");
+const userRefsPath = path.join(LIBRARY, "references.json");
+type UserRef = { id: string; file: string; name: string; tags: string[]; note: string; kind: string; added: string };
+const userRefs = (): UserRef[] => (existsSync(userRefsPath) ? JSON.parse(readFileSync(userRefsPath, "utf8")) : []);
 const now = () => new Date().toISOString().slice(0, 19);
 
 // ------------------------------------------------------------------ helpers
@@ -90,6 +95,19 @@ const kit = async (): Promise<Kit> => {
   const studio = await vite.ssrLoadModule(id("studio.ts"));
   const timing = await vite.ssrLoadModule(id("timing.ts"));
   return { ...studio, ...timing } as Kit;
+};
+/** Backgrounds, camera moves and text styles the kit offers (for the Studio pickers). */
+const library = async () => {
+  if (!vite) throw new Error("server not ready");
+  const id = (f: string) => "/@fs/" + path.join(APP, "src", "kit", f).replace(/\\/g, "/").replace(/^\//, "");
+  const bg = await vite.ssrLoadModule(id("backgrounds.tsx"));
+  const st = await vite.ssrLoadModule(id("style.tsx"));
+  const tx = await vite.ssrLoadModule(id("beats/kineticText.timing.ts"));
+  return {
+    backgrounds: (bg.BACKGROUNDS as { id: string; label: string; description: string }[]).map(({ id, label, description }) => ({ id, label, description })),
+    cameraMoves: st.CAMERA_MOVES as { id: string; label: string }[],
+    textStyles: tx.TEXT_STYLES as string[],
+  };
 };
 
 const docPath = (slug: string) => path.join(PROJECTS, slug, "edit.json");
@@ -224,6 +242,7 @@ const routes: [string, RegExp, (c: Ctx) => Promise<unknown> | unknown][] = [
     const b = await body(req);
     const args = b.scriptOnly ? ["--script-only", "--slug", String(b.slug), "--duration", String(b.duration)] : [String(b.footage), "--slug", String(b.slug)];
     if (b.fps) args.push("--fps", String(b.fps));
+    if (b.size) args.push("--size", String(b.size));
     if (b.fit) args.push("--fit", "cover");
     const r = await py("edit_init.py", args);
     if (r.code) throw new Error(r.out);
@@ -400,6 +419,37 @@ const routes: [string, RegExp, (c: Ctx) => Promise<unknown> | unknown][] = [
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  }],
+  // the kit's library: backgrounds, camera moves, text styles
+  ["GET", /^\/api\/library$/, async () => ({ ...(await library()), references: userRefs() })],
+  // the user's own reference library (images, video stills): Claude Code reads library/references.json
+  ["POST", /^\/api\/library\/reference$/, async ({ req }) => {
+    const b = await body(req);
+    const name = String(b.name ?? "reference").replace(/[^\w.-]+/g, "_").slice(-80);
+    if (!/\.(png|jpe?g|webp|gif|mp4|webm)$/i.test(name)) throw new Error("references: images (png, jpg, webp, gif) or short videos (mp4, webm)");
+    const dir = path.join(LIBRARY, "references");
+    mkdirSync(dir, { recursive: true });
+    const refs = userRefs();
+    const id = `MY-${String(refs.length + 1).padStart(3, "0")}`;
+    const file = path.join(dir, `${id}_${name}`);
+    writeFileSync(file, Buffer.from(String(b.data ?? ""), "base64"));
+    const tags = String(b.tags ?? "").split(/[,\s]+/).map((x) => x.trim().toLowerCase()).filter(Boolean);
+    refs.push({ id, file, name, tags, note: String(b.note ?? ""), kind: String(b.kind ?? "style"), added: new Date().toISOString() });
+    writeFileSync(userRefsPath, JSON.stringify(refs, null, 1));
+    return { references: refs };
+  }],
+  ["GET", /^\/api\/library\/file\/(MY-\d{3})$/, ({ req, res, m }) => {
+    const r = userRefs().find((x) => x.id === m[1]);
+    if (!r) return send(res, 404, { error: "unknown reference" });
+    serveFile(req, res, r.file);
+    return undefined;
+  }],
+  // "Ask Claude for a new background": a request Claude Code processes (it adds a preset to src/kit/backgrounds/custom.tsx)
+  ["POST", /^\/api\/project\/([\w-]+)\/ask-background$/, async ({ req, m }) => {
+    const b = await body(req);
+    if (!String(b.prompt ?? "").trim()) throw new Error("describe the background you want");
+    const out = await decisions(["ask-background", m[1], `--segment=${String(b.segmentId)}`, `--note=${String(b.prompt)}`]);
+    return { doc: readDoc(m[1]), out };
   }],
   // sounds indexed after the animation was built: fill the SFX that still have none (nothing is invented)
   ["POST", /^\/api\/project\/([\w-]+)\/assign-sounds$/, async ({ m }) => {

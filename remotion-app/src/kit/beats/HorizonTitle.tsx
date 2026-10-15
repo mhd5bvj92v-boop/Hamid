@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
-import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, useCurrentFrame} from "remotion";
+import { useCanvas } from "../style";
 import { SANS } from "../../fonts";
 import { enterStyle, fmtNumber, lerp } from "../motion";
 import {
@@ -11,7 +12,7 @@ import {
 /** System C full-screen HORIZON-ARC scene (FUL-002). Opaque: it covers the footage, which keeps playing underneath. */
 export const HorizonTitle: React.FC<HorizonTitleProps> = (p) => {
   const frame = useCurrentFrame();
-  const { fps, width: W, height: H } = useVideoConfig();
+  const { fps, width: W, height: H } = useCanvas();
   const t = frame / fps;
   const d = horizonDefaults(p);
   const pose = horizonPose(t, p, H);

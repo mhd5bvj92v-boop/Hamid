@@ -6,7 +6,7 @@
 Compares the delivered file with the ORIGINAL footage recorded by edit_init.py:
   approval   the Creative Director's explicit final approval is recorded in the project file (edit.json)
   source     the original still has its recorded sha256 (untouched) and is not the output file
-  spec       MP4, H.264, 1080x1920, yuv420p, BT.709 limited range, the approved constant frame rate, AAC 48 kHz audio
+  spec       MP4, H.264, the approved size (1080x1920, 1920x1080 or 4K), yuv420p, BT.709 limited range, the approved constant frame rate, AAC 48 kHz audio
   duration   same length as the source (+-1 frame) and exactly round(duration * fps) frames: nothing removed or added
   frames     sampled frames outside every beat window match the source frame at the SAME time better than the
              neighbouring frames (+-1 and +-2 frames): no cuts, no re-ordering, no speed change, no drift.
@@ -129,7 +129,7 @@ def main():
     checks = [
         ("mp4" in (info["format"] or ""), "MP4 container", info["format"]),
         (info["codec"] == "h264", "H.264 video", info["codec"]),
-        ((info["width"], info["height"]) == (1080, 1920), "1080x1920", f"{info['width']}x{info['height']}"),
+        ((info["width"], info["height"]) == (int(appr.get("width", 1080)), int(appr.get("height", 1920))), f"{appr.get('width', 1080)}x{appr.get('height', 1920)} (approved)", f"{info['width']}x{info['height']}"),
         (info["pix_fmt"] == "yuv420p", "yuv420p", info["pix_fmt"]),
         (info["color"].get("color_space") == "bt709" and info["color"].get("color_range") == "tv", "BT.709 limited range", f"{info['color']}"),
         (info["fps"] is not None and abs(info["fps"] - fps) < 0.01 and not info["vfr"], f"constant {fps} fps (approved)", f"r={info['r_frame_rate']} avg={info['avg_frame_rate']}"),

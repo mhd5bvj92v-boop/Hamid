@@ -32,6 +32,30 @@ A real-looking frame has five to seven layers, back to front:
 
 The UI card's `look: "glass"` (`UiCard`) is the reference implementation of these blocks.
 
+## 2b. Libraries: text animation, backgrounds, camera, formats
+
+- **Text animation library:** kind `KineticText` (`src/kit/beats/kineticText.timing.ts`). Styles:
+  - `typewriter`, `word-pop`, `word-rise`, `letter-cascade`
+  - `blur-in`, `mask-reveal`, `highlight-sweep`, `glitch`
+  - `scramble`, `scale-punch`, `slide-stack`, `karaoke`
+
+  Placement is `caption`, `center` or `fullscreen` (on a library background). Accent words use the 10 % colour with a deep glow. Use it instead of writing a new text component when one of these styles fits.
+- **Background library:** `Backdrop` / `BACKGROUNDS` (`src/kit/backgrounds.tsx`):
+  - `aurora`, `grid-floor`, `light-rays`, `horizon`
+  - `starfield`, `glass-blobs`, `spotlight`, `mesh`
+  - `tunnel`, `beams`, `data-lines`, `minimal`
+  - plus the user's own in `backgrounds/custom.tsx`
+
+  All are animated, palette-driven and finished with grain and vignette. A user request "Ask Claude for a new background" arrives as a `background` request; add the preset to `backgrounds/custom.tsx` and finish with `edit_decisions.py done`.
+- **Camera moves** (`CAMERA_MOVES` in `src/kit/style.tsx`):
+  - push-in, slow-zoom-in, fast-zoom-in
+  - slow-zoom-out, fast-zoom-out, peak-middle
+  - drift, orbit, dynamic, static
+
+  Every full-screen beat moves with the edit's camera automatically; a beat can set `camera: {move, intensity}`. `doc.zooms` moves the talking-head footage itself (look only, never timing).
+- **Formats:** 1080x1920, 1920x1080, 2160x3840, 3840x2160 (`edit_init.py --size`). Components draw on a design canvas whose short side is 1080: use `useCanvas()` (not `useVideoConfig()`) for width/height, and check `landscape` to lay out side-by-side in 16:9.
+- **The user's reference library:** `library/references.json` (Studio: References → My library). `show` lists it; open the ones that fit.
+
 ## 3. Scale, type and colour
 
 - **Fill the frame.** A full-screen subject spans 55-80 % of the width; a UI card beside the speaker at least 70 % of the width. Tiny elements read as unfinished.

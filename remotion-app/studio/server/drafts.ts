@@ -56,10 +56,10 @@ export const draftConcepts = (seg: CreativeSegment): { A: Concept; B: Concept; C
         props: { serifFont: "Instrument Serif", lines: [...(lead ? [{ text: lead.toUpperCase(), style: "tracked", at: 0.05 }] : []), { text: key, style: "script", at: at(0.25) }] },
       }),
       C: draft({
-        title: "Bold gradient hook", system: "B", kind: "CaptionAccent", refs: ["TXT-006"], family: "SERIF-ACCENT-CAPTION",
-        description: `heavy warm-gradient sans "${key.toUpperCase()}" with a small line beneath`,
-        motion: "mask-like fade-rise, one strong landing", sound: "sci-fi click on the landing",
-        props: { lines: [{ text: key.toUpperCase(), style: "bold", at: 0.1 }, ...(lead ? [{ text: lead, style: "sans-sm", at: at(0.3) }] : [])] },
+        title: "Typewriter caption", system: "B", kind: "KineticText", refs: ["TXT-010"], family: "KINETIC-TYPE",
+        description: `your words type on letter by letter under the chin, "${key}" glows in the accent colour`,
+        motion: "typewriter with a glowing cursor, quick blur-out", sound: "soft keyboard ticks",
+        props: { text: seg.text, style: "typewriter", accent: [key], placement: "caption" },
       }),
     };
   }
@@ -145,10 +145,10 @@ export const draftConcepts = (seg: CreativeSegment): { A: Concept; B: Concept; C
         props: { variant: "aurora", lines, accentLine: Math.min(1, lines.length - 1) },
       }),
       B: draft({
-        title: "Editorial poster", system: "C", kind: "StatementScene", refs: ["FUL-090", "FUL-078"], family: "EDITORIAL-PRINT",
-        description: "light paper poster, navy condensed caps, the key line in a royal-blue highlight box",
-        motion: "lines set one by one, the highlight wipes in", sound: "camera click on the cut, soft pop on the highlight",
-        props: { variant: "editorial", lines, accentLine: lines.length - 1 },
+        title: "Glowing grid statement", system: "C", kind: "KineticText", refs: ["FUL-072", "FUL-063"], family: "KINETIC-TYPE",
+        description: `your line rises word by word over a glowing perspective grid; a light bar sweeps behind "${key}"`,
+        motion: "words rise out of blur, highlight sweep, slow zoom in", sound: "sci-fi entry on the cut, pop on the highlight",
+        props: { text: seg.text, style: "highlight-sweep", accent: [key], placement: "fullscreen", background: "grid-floor" },
       }),
       C:
         horizon ??

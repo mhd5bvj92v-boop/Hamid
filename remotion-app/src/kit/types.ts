@@ -14,8 +14,8 @@ export type SourceInfo = {
   readonly fps: number;
   /** round(sourceDurationSeconds * fps): the edit is exactly as long as the source. */
   readonly durationInFrames: number;
-  readonly width: 1080;
-  readonly height: 1920;
+  readonly width: number;
+  readonly height: number;
   /**
    * Optional browser-friendly proxy of the same footage (same fps and duration),
    * used ONLY by the Remotion Player for interactive preview. Renders always use `src`.
@@ -70,4 +70,6 @@ export type Beat<K extends string = string, P = unknown> = {
   readonly reason: string;
   /** Reference IDs from the library this beat is designed from (e.g. ["TXT-001"]). */
   readonly refs: readonly string[];
+  /** Camera move over this scene (style.tsx CAMERA_MOVES). Full-screen scenes default to the edit's camera; "static" turns it off. */
+  readonly camera?: { readonly move: string; readonly intensity?: string };
 };

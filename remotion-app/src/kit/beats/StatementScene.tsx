@@ -1,5 +1,6 @@
 import React from "react";
-import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, useCurrentFrame} from "remotion";
+import { useCanvas } from "../style";
 import { PLAYFAIR, SANS } from "../../fonts";
 import { lerp } from "../motion";
 import { StatementSceneProps, statementDefaults, statementPose } from "./statementScene.timing";
@@ -7,7 +8,7 @@ import { StatementSceneProps, statementDefaults, statementPose } from "./stateme
 /** System C full-screen statement: aurora (FUL-063), editorial (FUL-090), streak (FUL-006). Opaque cover; the footage keeps running underneath. */
 export const StatementScene: React.FC<StatementSceneProps> = (p) => {
   const frame = useCurrentFrame();
-  const { fps, width: W, height: H } = useVideoConfig();
+  const { fps, width: W, height: H } = useCanvas();
   const t = frame / fps;
   const d = statementDefaults(p);
   const pose = statementPose(t, p);

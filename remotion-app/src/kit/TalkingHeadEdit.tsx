@@ -2,6 +2,7 @@ import React from "react";
 import { AbsoluteFill, Sequence, useVideoConfig } from "remotion";
 import { CaptionAccent } from "./beats/CaptionAccent";
 import { AssetScene } from "./beats/AssetScene";
+import { KineticText } from "./beats/KineticText";
 import { HalfPanel } from "./beats/HalfPanel";
 import { HorizonTitle } from "./beats/HorizonTitle";
 import { StatCard } from "./beats/StatCard";
@@ -9,9 +10,9 @@ import { StatementScene } from "./beats/StatementScene";
 import { UiCard } from "./beats/UiCard";
 import { customComponents } from "./custom/components";
 import { SoundPreview, SoundPreviewData } from "./SoundPreview";
-import { FocusWindow, SourceFootage } from "./SourceFootage";
+import { FocusWindow, SourceFootage, ZoomWindow } from "./SourceFootage";
 import type { EditConstants } from "./project";
-import { EditStyleProvider } from "./style";
+import { CameraIntensity, CameraMove, CameraStyle, DesignCanvas, EditStyleProvider } from "./style";
 import { TimingRegistry, beatWindow, kitTiming } from "./timing";
 import type { Beat, SourceInfo } from "./types";
 
@@ -26,6 +27,7 @@ export const kitComponents: ComponentRegistry = {
   StatementScene,
   HalfPanel,
   AssetScene,
+  KineticText,
   // kinds Claude Code built for approved concepts (src/kit/custom/)
   ...customComponents,
 };
@@ -38,6 +40,8 @@ export type TalkingHeadEditProps = {
   /** "graphics" hides the footage (black) to measure or review the graphics alone. */
   readonly layers?: EditLayers;
   readonly focus?: readonly FocusWindow[];
+  /** Camera moves on the footage itself (look only). */
+  readonly zooms?: readonly ZoomWindow[];
   readonly sound?: SoundPreviewData | null;
   /** The edit's constants (60-30-10 palette, camera): every component reads them with useEditStyle(). */
   readonly constants?: Partial<EditConstants> | null;
@@ -59,6 +63,7 @@ export const TalkingHeadEdit: React.FC<TalkingHeadEditProps> = ({
   beats,
   layers = "all",
   focus,
+  zooms = [],
   sound,
   extraComponents = {},
   extraTiming = {},
@@ -77,7 +82,7 @@ export const TalkingHeadEdit: React.FC<TalkingHeadEditProps> = ({
     <EditStyleProvider constants={constants}>
       <AbsoluteFill style={{ backgroundColor: "black" }}>
         {layers === "all" ? (
-          <SourceFootage source={source} focus={focus} />
+          <SourceFootage source={source} focus={focus} zooms={zooms} />
         ) : null}
         {beats.map((beat) => {
           const Component = components[beat.kind];
@@ -94,7 +99,20 @@ export const TalkingHeadEdit: React.FC<TalkingHeadEditProps> = ({
               durationInFrames={w.durationInFrames}
               premountFor={fps}
             >
-              <Component {...(beat.props as object)} />
+              <DesignCanvas>
+                {/* full-screen scenes move with the edit's camera unless the beat chooses a move (or "static") */}
+                {beat.camera?.move ?? (w.fullscreen ? constants?.camera : undefined) ? (
+                  <CameraMove
+                    dur={w.durationInFrames / fps}
+                    move={(beat.camera?.move ?? constants?.camera) as CameraStyle}
+                    intensity={(beat.camera?.intensity ?? constants?.cameraIntensity) as CameraIntensity | undefined}
+                  >
+                    <Component {...(beat.props as object)} />
+                  </CameraMove>
+                ) : (
+                  <Component {...(beat.props as object)} />
+                )}
+              </DesignCanvas>
             </Sequence>
           );
         })}

@@ -8,6 +8,7 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
+import { CameraStyle, cameraPose } from "./style";
 import type { SourceInfo } from "./types";
 
 /**
@@ -15,6 +16,18 @@ import type { SourceInfo } from "./types";
  * and/or softened for a window (seconds), ramping in and out over <= 0.3 s.
  * It changes the LOOK of the footage only, never its timing.
  */
+/** A camera move on the talking-head footage itself (look only: the footage's timing never changes). */
+export type ZoomWindow = {
+  start: number;
+  end: number;
+  /** style.tsx camera move: slow-zoom-in, fast-zoom-in, slow-zoom-out, fast-zoom-out, peak-middle, push-in, drift... */
+  move: string;
+  intensity?: "subtle" | "medium" | "strong";
+  /** Zoom centre in frame fractions (default the face zone: 0.5, 0.32). */
+  x?: number;
+  y?: number;
+};
+
 export type FocusWindow = {
   start: number;
   end: number;
@@ -25,6 +38,7 @@ export type FocusWindow = {
 type Props = {
   readonly source: SourceInfo;
   readonly focus?: readonly FocusWindow[];
+  readonly zooms?: readonly ZoomWindow[];
 };
 
 /**
@@ -39,7 +53,7 @@ type Props = {
  * In the Remotion Player only, a proxy of the same footage (source.previewSrc)
  * may be shown for smooth interactive preview; every render uses the original.
  */
-export const SourceFootage: React.FC<Props> = ({ source, focus = [] }) => {
+export const SourceFootage: React.FC<Props> = ({ source, focus = [], zooms = [] }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const t = frame / fps;
@@ -60,6 +74,12 @@ export const SourceFootage: React.FC<Props> = ({ source, focus = [] }) => {
     brightness = Math.min(brightness, 1 - (1 - (w.brightness ?? 0.62)) * k);
     blur = Math.max(blur, (w.blur ?? 6) * k);
   }
+
+  const z = zooms.find((w) => t >= w.start && t < w.end);
+  const cam = z ? cameraPose(t - z.start, z.end - z.start, z.move as CameraStyle, z.intensity ?? "medium") : null;
+  const zoomStyle: React.CSSProperties = cam
+    ? { transform: `scale(${cam.scale}) rotate(${cam.rotate}deg)`, transformOrigin: `${(z!.x ?? 0.5) * 100}% ${(z!.y ?? 0.32) * 100}%` }
+    : {};
 
   if (source.scriptOnly || !source.src) {
     // Script-only project: no footage attached yet. A neutral stand-in keeps
@@ -85,6 +105,7 @@ export const SourceFootage: React.FC<Props> = ({ source, focus = [] }) => {
           position: "absolute",
           width: "100%",
           height: "100%",
+          ...zoomStyle,
           filter:
             brightness < 1 || blur > 0
               ? `brightness(${brightness}) blur(${blur}px)`

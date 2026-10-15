@@ -1,5 +1,6 @@
 import React from "react";
-import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, useCurrentFrame} from "remotion";
+import { useCanvas } from "../style";
 import { MONO, PLAYFAIR, SANS, SERIF } from "../../fonts";
 import { COLORS } from "../tokens";
 import { HalfPanelProps, halfDefaults, halfRowPose, panelPose } from "./halfPanel.timing";
@@ -9,7 +10,7 @@ const FONT = { "Instrument Serif": SERIF, "Playfair Display": PLAYFAIR, "JetBrai
 /** Halfscreen: a panel fills the lower half; the speaker stays visible above it. */
 export const HalfPanel: React.FC<HalfPanelProps> = (p) => {
   const frame = useCurrentFrame();
-  const { fps, height } = useVideoConfig();
+  const { fps, height } = useCanvas();
   const t = frame / fps;
   const d = halfDefaults(p);
   const { slide } = panelPose(t, p);

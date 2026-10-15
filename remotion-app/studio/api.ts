@@ -130,6 +130,13 @@ export const api = {
   restore: (slug: string, segmentId: string, version: number) => call<DocResult>("POST", `/api/project/${slug}/restore`, { segmentId, version }),
   renderVersion: (slug: string, segmentId: string) => call<DocResult>("POST", `/api/project/${slug}/render-version`, { segmentId }),
   upload: (slug: string, name: string, data: string) => call<{ path: string; url: string }>("POST", `/api/project/${slug}/upload`, { name, data }),
+  askBackground: (slug: string, segmentId: string, prompt: string) =>
+    call<{ doc: EditDoc; out: string }>("POST", `/api/project/${slug}/ask-background`, { segmentId, prompt }),
+  library: () =>
+    call<{ backgrounds: { id: string; label: string; description: string }[]; cameraMoves: { id: string; label: string }[]; textStyles: string[];
+      references: { id: string; name: string; tags: string[]; note: string; kind: string }[] }>("GET", "/api/library"),
+  addReference: (name: string, data: string, tags: string, note: string, kind: string) =>
+    call<{ references: { id: string; name: string; tags: string[]; note: string; kind: string }[] }>("POST", "/api/library/reference", { name, data, tags, note, kind }),
   /** The user's 3D / realistic asset for a scene (a concept's need id, or none for their own asset). */
   uploadAsset: (slug: string, segmentId: string, name: string, data: string, needId?: string, note?: string) =>
     call<{ doc: EditDoc; out: string }>("POST", `/api/project/${slug}/asset`, { segmentId, name, data, needId, note }),

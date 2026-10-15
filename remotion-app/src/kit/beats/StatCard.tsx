@@ -1,5 +1,6 @@
 import React from "react";
-import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, useCurrentFrame} from "remotion";
+import { useCanvas } from "../style";
 import { SANS } from "../../fonts";
 import { enterStyle, fmtNumber, lerp } from "../motion";
 import { COLORS } from "../tokens";
@@ -21,7 +22,7 @@ const readable = (px: number) => Math.max(20, px);
 /** System A stat card (ONS-024, ONS-050); `fullscreen: true` turns it into a System C scene. */
 export const StatCard: React.FC<StatCardProps> = (p) => {
   const frame = useCurrentFrame();
-  const { fps, width, height } = useVideoConfig();
+  const { fps, width, height } = useCanvas();
   const t = frame / fps;
   const d = statDefaults(p);
   const pose = statPose(t, p);

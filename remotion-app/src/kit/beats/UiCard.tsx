@@ -1,5 +1,6 @@
 import React from "react";
-import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, useCurrentFrame} from "remotion";
+import { useCanvas } from "../style";
 import { SANS } from "../../fonts";
 import { clamp, prog } from "../motion";
 import { FineGrid, Grain, LightSweep, LineIcon, RimGlow, StatusDot, alpha, glass, tiltIn } from "../premium";
@@ -9,7 +10,7 @@ import { UiCardProps, uiCardPose, uiDefaults, uiHeaderPose, uiRowPose } from "./
 /** System A LIVE-UI rows (ONS-001 chips, ONS-003 inbox cards) beside the speaker. */
 export const UiCard: React.FC<UiCardProps> = (p) => {
   const frame = useCurrentFrame();
-  const { fps, width, height } = useVideoConfig();
+  const { fps, width, height } = useCanvas();
   const t = frame / fps;
   const d = uiDefaults(p);
   const W = d.width * width;
@@ -92,7 +93,7 @@ export const UiCard: React.FC<UiCardProps> = (p) => {
 /** The premium look: one frosted-glass card with rim light, fine grid, grain, a light sweep and a 3D tilt-in (ONS-024 / ONS-041 / GLASS-DARK). */
 const GlassCard: React.FC<UiCardProps> = (p) => {
   const frame = useCurrentFrame();
-  const { fps, width, height } = useVideoConfig();
+  const { fps, width, height } = useCanvas();
   const t = frame / fps;
   const d = uiDefaults(p);
   const c = uiCardPose(t, p);

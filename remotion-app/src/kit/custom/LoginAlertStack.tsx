@@ -1,5 +1,6 @@
 import React from "react";
-import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, useCurrentFrame} from "remotion";
+import { useCanvas } from "../style";
 import { SANS } from "../../fonts";
 import { COLORS, SHADOW } from "../tokens";
 import { LoginAlertStackProps, Toast, alertDefaults, alertPose, calmPose, captionPose } from "./loginAlertStack.timing";
@@ -33,7 +34,7 @@ const ToastCard: React.FC<{ toast: Toast; dot: string; rim?: string; glow?: numb
 /** System A: stacked sign-in toasts beside the speaker; the flagged one drops in on top (ONS-041). */
 export const LoginAlertStack: React.FC<LoginAlertStackProps> = (p) => {
   const frame = useCurrentFrame();
-  const { fps, width, height } = useVideoConfig();
+  const { fps, width, height } = useCanvas();
   const t = frame / fps;
   const d = alertDefaults(p);
   const W = d.width * width;

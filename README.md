@@ -57,6 +57,17 @@ Two connected workspaces over one `edit.json` and one Remotion composition:
 
 Claude Code processes your requests in a Claude Code session (no automatic Claude connection): `python3 .claude/skills/video-editing/scripts/edit_decisions.py pending`. It writes the Remotion components; nothing counts as built until Remotion has rendered it. **Everything you export is rendered by Remotion**: your original footage and dialogue (unchanged), every animation layer and every sound effect, then QC. Quick Drafts are instant template versions, labelled as such. Details: `.claude/skills/video-editing/references/remotion.md` §8. Tests: `npm run studio:test`, `studio:test:claude`, `studio:test:plan`, `studio:test:assets`.
 
+## Working with Claude the easy way
+
+- **One window:** open this folder in VS Code. Run `npm run studio` in its terminal and open http://127.0.0.1:3010 in VS Code's Simple Browser (Ctrl+Shift+P → "Simple Browser: Show"), with the Claude Code panel next to it. You see the video and talk to Claude side by side.
+- **Hands-free:** in Claude Code, run once:
+  ```
+  /loop 2m Process my Studio requests
+  ```
+  Claude then checks every 2 minutes and builds whatever you click in the Studio: concepts, your idea D, changes and new backgrounds.
+- **Just say it:** you can also type changes directly, e.g. *"scene 3: make the text typewriter, background grid floor, fast zoom in"*.
+- **AI video (Higgsfield, etc.):** generate the clip there, then drop it into a scene's **3D assets** box (MP4, WebM or MOV). Remotion stages it like any other asset, in short or long videos.
+
 ## The workflow in short
 
 ```bash

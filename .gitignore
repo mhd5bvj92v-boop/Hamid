@@ -3,3 +3,4 @@ __pycache__/
 data/inbox/
 work/
 .DS_Store
+library/

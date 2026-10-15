@@ -29,6 +29,8 @@ Requests for Claude Code (written by the Studio or by these commands; processed 
   edit_decisions.py review <slug> --segment S02 --approve [--note "..."] | --changes "<the user's feedback>"
   edit_decisions.py plan-approve <slug> --segments S01,S02 --quote "..."   # Scene Planning: approved plans -> build requests
   edit_decisions.py restore <slug> --segment S02 --version 1
+  edit_decisions.py ask-background <slug> --segment S03 --note "<the user's description>"   # a new library background
+  edit_decisions.py done <slug> --request REQ-0007 --reason "what was made"   # finish a background request
   edit_decisions.py asset <slug> --segment S04 [--need A1] --file /path/render.png [--note "..."]
                                                            # the user's 3D / realistic asset for a scene (copied into the app)
 
@@ -688,6 +690,13 @@ def cmd_pending(app, slug, a):
 
 
 GUIDE = {
+    "background": """WHAT TO DO (Claude Code): the user wants a NEW background for the library, described above (verbatim).
+ 1. Read remotion-app/src/kit/backgrounds.tsx (the presets and BackgroundProps) and references/premium-motion.md.
+ 2. Add a preset to remotion-app/src/kit/backgrounds/custom.tsx: {{ id, label, description, render }} - animated (t),
+    palette-driven (c60 / c30 / c10), deep glows, layered (atmosphere, light, particles), never a flat fill.
+ 3. Use it on this scene if it has a full-screen beat (props.background = "<id>"), preview it
+    ({ed} preview ... for an open build, or render a still with edit_render.py still), and look at it.
+ 4. Finish: {ed} done {slug} --request {rid} --reason "added background <id>: ..." """,
     "concepts": """WHAT TO DO (Claude Code, with the video-editing skill):
  1. Read .claude/skills/video-editing/SKILL.md and references/creative-director.md (Phase 2), plus the system doc
     for this category (system-a-on-screen.md / system-b-text.md / system-c-full-screen.md) and design-language.md.
@@ -784,6 +793,15 @@ def cmd_show(app, slug, a):
         if missing and r["type"] != "concepts":
             print(f"WAITING FOR THE USER: {', '.join(missing)} not provided yet. Ask them to upload it in the Studio (the scene's 3D assets"
                   f" box) or to give you the file path, then: {ED} asset {slug} --segment {seg['id']} --need <id> --file <path>. Do not build before.")
+    lib = V.SKILL_ROOT.parents[2] / "library" / "references.json"
+    if lib.exists():
+        mine = json.loads(lib.read_text())
+        if mine:
+            print("\nTHE USER'S OWN REFERENCE LIBRARY (library/references.json; open the ones that fit):")
+            for x in mine[-30:]:
+                print(f"  {x['id']}  {x.get('kind', 'style'):6} {', '.join(x.get('tags') or [])[:50]:50}  {x['file']}" + (f"  - {x['note']}" if x.get("note") else ""))
+    if r["type"] == "background":
+        print(f"\nTHE USER'S BACKGROUND REQUEST, verbatim:\n{b.get('note', '')}")
     print("\nsuggested references (keyword match; open the images before using them):")
     for x in b["references"]["suggested"]:
         print(f"  {x['id']}  {x['family']:16} {x['title'][:60]}  {x['file']}")
@@ -796,6 +814,27 @@ def cmd_show(app, slug, a):
                                   start=b["start"], end=b["end"]))
     if a.json:
         print("\nbrief JSON:\n" + json.dumps(b, indent=1, ensure_ascii=False))
+
+
+def cmd_ask_background(app, slug, a):
+    log = load(app, slug)
+    seg = seg_by_id(log, a.segment)
+    if not (a.note or "").strip():
+        raise SystemExit("--note: describe the background")
+    req = new_request(log, "background", seg, note=a.note.strip())
+    save(app, slug, log)
+    print(f"{req['id']} pending: a new library background for {seg['id']} - \"{a.note.strip()}\"")
+
+
+def cmd_done(app, slug, a):
+    log = load(app, slug)
+    r = find_request(log, a.request)
+    take(r, ("background",))
+    if not (a.reason or "").strip():
+        raise SystemExit("--reason: say what was made")
+    set_status(r, "completed", result=a.reason.strip())
+    save(app, slug, log)
+    print(f"{r['id']} completed: {a.reason.strip()}")
 
 
 def cmd_claim(app, slug, a):
@@ -1186,7 +1225,8 @@ def cmd_asset(app, slug, a):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("cmd", choices=["init", "analyze", "propose", "decide", "approve", "feedback", "status", "storyboard",
-                                    "request", "pending", "show", "claim", "preview", "built", "fail", "cancel", "review", "restore", "plan-approve", "asset"])
+                                    "request", "pending", "show", "claim", "preview", "built", "fail", "cancel", "review", "restore", "plan-approve", "asset",
+                                    "ask-background", "done"])
     ap.add_argument("slug", nargs="?")
     ap.add_argument("--file"); ap.add_argument("--moments"); ap.add_argument("--choice")
     ap.add_argument("--set", choices=["claude", "draft"], default="claude", help="decide: which A/B/C (Claude Concepts; Quick Drafts are chosen in the Studio)")
@@ -1210,9 +1250,9 @@ def main():
         sys.exit("--moments and --choice required")
     if a.cmd == "approve" and not a.gate:
         sys.exit("--gate required")
-    if a.cmd in ("show", "claim", "preview", "built", "fail", "cancel") and not a.request:
+    if a.cmd in ("show", "claim", "preview", "built", "fail", "cancel", "done") and not a.request:
         sys.exit("--request REQ-#### required")
-    if a.cmd in ("request", "review", "restore", "asset") and not a.segment:
+    if a.cmd in ("request", "review", "restore", "asset", "ask-background") and not a.segment:
         sys.exit("--segment required")
     if a.cmd == "plan-approve" and not a.segments:
         sys.exit("--segments S01,S02 required")
@@ -1222,7 +1262,7 @@ def main():
      "feedback": cmd_feedback, "status": cmd_status, "storyboard": cmd_storyboard, "request": cmd_request, "pending": cmd_pending,
      "show": cmd_show, "claim": cmd_claim, "preview": cmd_preview, "built": cmd_built, "fail": cmd_fail,
      "cancel": lambda ap_, s, x: cmd_fail(ap_, s, x, status="cancelled"), "review": cmd_review, "restore": cmd_restore,
-     "plan-approve": cmd_plan_approve, "asset": cmd_asset}[a.cmd](app, a.slug, a)
+     "plan-approve": cmd_plan_approve, "asset": cmd_asset, "ask-background": cmd_ask_background, "done": cmd_done}[a.cmd](app, a.slug, a)
 
 
 if __name__ == "__main__":

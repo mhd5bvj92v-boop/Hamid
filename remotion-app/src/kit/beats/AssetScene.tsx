@@ -1,5 +1,6 @@
 import React from "react";
-import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, useCurrentFrame} from "remotion";
+import { useCanvas } from "../style";
 import { SANS } from "../../fonts";
 import { AssetMedia } from "../Asset";
 import { enterStyle } from "../motion";
@@ -8,7 +9,7 @@ import { AssetSceneProps, assetDefaults, assetPose } from "./assetScene.timing";
 /** System C full-screen: the user's 3D asset staged like a product shot. Opaque cover; the footage keeps running underneath. */
 export const AssetScene: React.FC<AssetSceneProps> = (p) => {
   const frame = useCurrentFrame();
-  const { fps, width: W, height: H } = useVideoConfig();
+  const { fps, width: W, height: H } = useCanvas();
   const t = frame / fps;
   const d = assetDefaults(p);
   const pose = assetPose(t, p);

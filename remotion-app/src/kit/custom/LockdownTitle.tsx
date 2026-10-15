@@ -1,5 +1,6 @@
 import React from "react";
-import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, useCurrentFrame} from "remotion";
+import { useCanvas } from "../style";
 import { MONO } from "../../fonts";
 import { LockdownTitleProps, lockDefaults, lockPose } from "./lockdownTitle.timing";
 
@@ -22,7 +23,7 @@ const Padlock: React.FC<{ color: string; snapK: number }> = ({ color, snapK }) =
 /** System C: black screen, typed red monospace title, padlock snap, glitch-cut back to the speaker. */
 export const LockdownTitle: React.FC<LockdownTitleProps> = (p) => {
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
+  const { fps } = useCanvas();
   const t = frame / fps;
   const d = lockDefaults(p);
   const pose = lockPose(t, p, fps);

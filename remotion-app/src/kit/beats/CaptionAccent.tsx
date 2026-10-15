@@ -1,5 +1,6 @@
 import React from "react";
-import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, useCurrentFrame} from "remotion";
+import { useCanvas } from "../style";
 import { SANS } from "../../fonts";
 import { lerp } from "../motion";
 import { COLORS } from "../tokens";
@@ -103,7 +104,7 @@ const lineStyle = (
 /** System B: designed caption (TXT-001..TXT-009). Times are seconds from the beat start. */
 export const CaptionAccent: React.FC<CaptionAccentProps> = (p) => {
   const frame = useCurrentFrame();
-  const { fps, width, height } = useVideoConfig();
+  const { fps, width, height } = useCanvas();
   const t = frame / fps;
   const c = {
     text: COLORS.ink,
@@ -186,7 +187,7 @@ const NameSuper: React.FC<{
   t: number;
   serif: string;
 }> = ({ n, t, serif }) => {
-  const { width, height } = useVideoConfig();
+  const { width, height } = useCanvas();
   const pose = nameSuperPose(t, n);
   const style = n.style ?? "plain";
   return (

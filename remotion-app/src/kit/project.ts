@@ -78,7 +78,7 @@ export type EditConstants = {
   /** 30 %: the support colour (panels, secondary shapes). */
   color30: string;
   /** Camera move every scene uses unless its plan says otherwise. */
-  camera: "push-in" | "drift" | "orbit" | "dynamic" | "static";
+  camera: import("./style").CameraStyle;
   cameraIntensity: "subtle" | "medium" | "strong";
   accentFont: "Instrument Serif" | "Playfair Display" | "JetBrains Mono" | "none";
   uiStyle: "dark-glass" | "light-glass" | "neon-rim" | "editorial";
@@ -196,7 +196,7 @@ export type BuildVersion = {
   match?: { quality: string; done: boolean; how?: string; why?: string }[];
 };
 
-export type RequestType = "concepts" | "implement" | "revision";
+export type RequestType = "concepts" | "implement" | "revision" | "background";
 export type RequestStatus = "pending" | "in_progress" | "completed" | "partial" | "failed" | "cancelled";
 
 /** Snapshot of everything Claude Code needs to process a request (taken when it is created). */
@@ -322,6 +322,8 @@ export type SfxItem = {
 export type Approval = { gate: "direction" | "preview" | "final"; at: string; quote: string; scope?: string };
 
 export type EditDoc = {
+  /** Camera moves on the talking-head footage (Timeline "Zoom" track); look only, never timing. */
+  zooms?: import("./SourceFootage").ZoomWindow[];
   version: 1;
   slug: string;
   source: SourceInfo & { sha256: string };

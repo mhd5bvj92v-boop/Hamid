@@ -1,3 +1,4 @@
+import { CAMERA_MOVES } from "../../src/kit/style";
 import React, { useEffect, useRef, useState } from "react";
 import type {
   CreativeSegment,
@@ -199,11 +200,11 @@ const Constants: React.FC<{ doc: EditDoc; setDoc: (d: EditDoc) => void }> = ({
             onChange={(e) => set({ camera: e.target.value as EditConstants["camera"] })}
             data-testid="const-camera"
           >
-            <option value="push-in">slow push-in</option>
-            <option value="drift">drift</option>
-            <option value="orbit">orbit (3D)</option>
-            <option value="dynamic">dynamic (punch-in, then drift)</option>
-            <option value="static">static</option>
+            {CAMERA_MOVES.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.label}
+              </option>
+            ))}
           </select>
         </label>
         <label>
