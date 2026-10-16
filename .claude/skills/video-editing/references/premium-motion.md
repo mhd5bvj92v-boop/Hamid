@@ -72,6 +72,17 @@ The UI card's `look: "glass"` (`UiCard`) is the reference implementation of thes
 - **Camera:** wrap every scene's world in `<CameraMove dur={...}>`. It uses the edit's camera (push-in / drift / orbit / dynamic, subtle / medium / strong) unless the plan asks for another move. Nothing is static; `preview` flags frames that barely change.
 - **Framing:** subjects and text sit inside the safe area: 8 % side margins, top 12 % and bottom 20 % free (platform UI), never cut by the frame edge unless on purpose. The subject is centred on a thirds line or dead centre, never drifting into a corner by accident.
 
+## 3c. Stage edits: one world, one camera, flowing scenes (`constants.stage`)
+
+When the constants set a **stage** (Studio: Scene Planning → Stage, e.g. `paper-grid`), consecutive full-screen scenes share one world (`src/kit/stage.tsx`, applied by `TalkingHeadEdit`):
+
+- **One background** runs under the whole run of scenes, from the first to the last, with no restart between scenes. It reaches the start/end of the video when the run is within 1.5 s of it, and opens with a fade from black. A scene draws **content only**: `<Backdrop>` renders nothing on the stage, and a component's own full-frame fill must be skipped when `useStage()` is true.
+- **One chained camera** scales background and scene together. Each scene starts at exactly the scale the previous one ended on. Default pattern: scene 1 zooms in, 2 holds, 3 zooms back out, 4 holds, 5 zooms in… (never below 100 %). A beat's `camera.move` overrides (`static` = hold, `*zoom-out*` = out, other = in, `fast-*` = fast ease). `<CameraMove>` steps aside on the stage: never add your own zoom.
+- **Flow:** every scene's content enters from slightly right (≈ 4.5 % of the width, opacity and blur clearing, 0.45 s) and leaves quickly to the left (0.3 s), inside the frame, never from outside it. Time each scene so its exit crosses the next entrance: `outAt` ≈ next scene's `at` − this `at` − 0.1. No empty frames between scenes.
+- **One look:** the palette (`usePalette()`), text colour from `useInk()`, Montserrat (`SANS`) only, the same card style (radius, border, shadow, glow) in every scene. A scene that looks like it came from another video is wrong.
+- **Layout on the thirds and the grid:** `useLayout()` (`src/kit/style.tsx`) gives the thirds lines, the four power points, the upper / middle / lower bands, a 12-column grid and the safe area. `GRID` is 40 px: the paper-grid's lines pass exactly through the thirds, so snap edges with `snapGrid()`. Headlines sit on the upper third, labels and captions on the lower third, the key element on a power point or the centre. Repeated elements (thumbnails, cards) share one width from `span(n)` and align to columns.
+- **Always in motion:** inside a scene something keeps moving while it holds (a value ticking, a glow breathing, a slow drift); between scenes the flow carries the eye.
+
 ## 4. Motion
 
 - One clear camera move per scene: a slow push-in (3-6 %), a drift, or a tilt-in. Nothing static.

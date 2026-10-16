@@ -727,6 +727,10 @@ GUIDE = {
     STYLE: 60-30-10 palette from the constants (usePalette(): c60 base ~60 %, c30 support ~30 %, c10 accent ~10 %,
     plus neutrals only); wrap the scene in <CameraMove dur=...> (camera from the constants) - nothing static; keep
     text and key elements inside the safe area (8 % margins, top 12 %, bottom 20 % free). preview measures palette and motion.
+    STAGE (constants.stage set, e.g. "paper-grid"): the stage draws the one shared background and runs the chained camera
+    and the scene flow itself - draw content only (no own background, no own zoom), lay it out with useLayout() on the
+    thirds and snapGrid(), same font/card style as the other scenes, and set outAt = next scene's at - this at - 0.1 so
+    the exit crosses the next entrance (premium-motion.md 3c).
     LOOK: read references/premium-motion.md and build from src/kit/premium.tsx (glass, rim light, grain, light sweep,
     bloom, light rays, dust, vignette, line icons, tilt-in). Flat boxes, letter tiles, emoji and tiny elements are not acceptable.
  3b. PREVIEW AND COMPARE (required, usually 2-3 rounds): write build.json, then run

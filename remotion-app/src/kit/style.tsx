@@ -128,6 +128,12 @@ export const cameraPose = (t: number, dur: number, move: CameraStyle = "push-in"
   }
 };
 
+// Stage scenes (stage.tsx): the stage runs one continuous camera, so a scene's own CameraMove steps aside.
+const StageCtx = createContext(false);
+/** True inside a full-screen scene that sits on the edit's stage: no own background, no own camera. */
+export const useStage = () => useContext(StageCtx);
+export const StageScene: React.FC<{ children: React.ReactNode }> = ({ children }) => <StageCtx.Provider value>{children}</StageCtx.Provider>;
+
 /**
  * Wrap a scene's world in the edit's camera move (or an explicit one). `dur` = the scene's length in
  * seconds (e.g. outAt + outDur). Text that must stay perfectly still can sit outside the wrapper.
@@ -136,7 +142,9 @@ export const CameraMove: React.FC<{ dur: number; move?: CameraStyle; intensity?:
   const frame = useCurrentFrame();
   const { fps, width, height } = useCanvas();
   const st = useEditStyle();
+  const onStage = useStage();
   const c = cameraPose(frame / fps, dur, move ?? st.camera, intensity ?? st.cameraIntensity);
+  if (onStage) return <AbsoluteFill>{children}</AbsoluteFill>;
   return (
     <AbsoluteFill style={{ perspective: 1800, overflow: "hidden" }}>
       <AbsoluteFill
@@ -179,4 +187,39 @@ export const useCanvas = () => {
   const c = useContext(CanvasCtx);
   const d = c ?? designSize(cfg.width, cfg.height);
   return { ...cfg, width: d.width, height: d.height, landscape: d.width > d.height };
+};
+
+// ------------------------------------------------------------ layout: rule of thirds on a 40 px grid
+/** Grid cell in design px. 40 divides both formats' thirds (9:16: 360/720 x 640/1280, 16:9: 640/1280 x 360/720). */
+export const GRID = 40;
+/** Snap a design-px value to the grid, so edges sit on the paper-grid lines. */
+export const snapGrid = (v: number) => Math.round(v / GRID) * GRID;
+/**
+ * The layout every scene places its elements on: thirds lines and their four power points, the upper /
+ * centre / lower bands, a 12-column grid and the safe area (6 % sides, 7 % top/bottom). Put the key
+ * element on a power point or a thirds line, headlines on the upper third, captions/labels on the lower.
+ */
+export const useLayout = () => {
+  const { width: W, height: H, landscape } = useCanvas();
+  const x3 = [W / 3, (2 * W) / 3];
+  const y3 = [H / 3, (2 * H) / 3];
+  const safe = { left: snapGrid(W * 0.06), right: W - snapGrid(W * 0.06), top: snapGrid(H * 0.07), bottom: H - snapGrid(H * 0.07) };
+  const cols = 12;
+  const gutter = GRID;
+  const colW = (safe.right - safe.left - gutter * (cols - 1)) / cols;
+  return {
+    W,
+    H,
+    landscape,
+    grid: GRID,
+    thirds: { x: x3, y: y3 },
+    /** power points: where thirds lines cross */
+    points: { tl: { x: x3[0], y: y3[0] }, tr: { x: x3[1], y: y3[0] }, bl: { x: x3[0], y: y3[1] }, br: { x: x3[1], y: y3[1] } },
+    bands: { upper: { top: 0, bottom: y3[0] }, middle: { top: y3[0], bottom: y3[1] }, lower: { top: y3[1], bottom: H } },
+    center: { x: W / 2, y: H / 2 },
+    safe,
+    /** x of column c (0..11) and the width of n columns */
+    col: (c: number) => safe.left + c * (colW + gutter),
+    span: (n: number) => n * colW + (n - 1) * gutter,
+  };
 };

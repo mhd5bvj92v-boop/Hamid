@@ -1,4 +1,5 @@
 import { CAMERA_MOVES } from "../../src/kit/style";
+import { BACKGROUNDS } from "../../src/kit/backgrounds";
 import React, { useEffect, useRef, useState } from "react";
 import type {
   CreativeSegment,
@@ -216,6 +217,17 @@ const Constants: React.FC<{ doc: EditDoc; setDoc: (d: EditDoc) => void }> = ({
             <option value="subtle">subtle</option>
             <option value="medium">medium</option>
             <option value="strong">strong</option>
+          </select>
+        </label>
+        <label title="One background for all full-screen scenes, one continuous camera (zoom, hold, zoom back) and flowing scene changes">
+          Stage (shared background)
+          <select value={c.stage ?? ""} onChange={(e) => set({ stage: e.target.value })} data-testid="const-stage">
+            <option value="">off: every scene its own</option>
+            {BACKGROUNDS.map((b) => (
+              <option key={b.id} value={b.id} title={b.description}>
+                {b.label}
+              </option>
+            ))}
           </select>
         </label>
         <label>

@@ -5,7 +5,8 @@
 import React from "react";
 import { AbsoluteFill, useCurrentFrame } from "remotion";
 import { CinematicFinish, Dust, LightRays, alpha } from "./premium";
-import { isLightBase, useCanvas, usePalette } from "./style";
+import { GRID, isLightBase, useCanvas, usePalette } from "./style";
+import { useStage } from "./stage";
 import { customBackgrounds } from "./backgrounds/custom";
 
 export type BackgroundProps = { t: number; c60: string; c30: string; c10: string; W: number; H: number };
@@ -129,25 +130,25 @@ const Minimal: React.FC<BackgroundProps> = ({ t, c60, c30, c10 }) => (
   </AbsoluteFill>
 );
 
-// Light paper with a fine grid: minor lines every 48 px, major every 4 cells, both barely visible.
-// The grid drifts slowly and a faint accent glow breathes, so the stage never sits still.
-const PaperGrid: React.FC<BackgroundProps> = ({ t, c60, c10 }) => {
-  const line = "rgba(20,22,28,.055)";
-  const major = "rgba(20,22,28,.085)";
-  const dx = (t * 6) % 192;
-  const dy = (t * 3) % 192;
+// Light paper with a fine grid: 40 px cells (GRID) whose lines pass exactly through the thirds, which are
+// drawn a touch stronger; everything barely visible. The grid itself stays put (the camera moves it, so
+// elements snapped with snapGrid stay on the lines); only a faint accent glow breathes.
+const PaperGrid: React.FC<BackgroundProps> = ({ t, c60, c10, W, H }) => {
+  const line = "rgba(20,22,28,.05)";
+  const third = "rgba(20,22,28,.085)";
+  const v = (x: number) => `linear-gradient(90deg, transparent ${x - 0.5}px, ${third} ${x - 0.5}px, ${third} ${x + 0.5}px, transparent ${x + 0.5}px)`;
+  const h = (y: number) => `linear-gradient(180deg, transparent ${y - 0.5}px, ${third} ${y - 0.5}px, ${third} ${y + 0.5}px, transparent ${y + 0.5}px)`;
   return (
     <AbsoluteFill style={{ background: c60, overflow: "hidden" }}>
       <AbsoluteFill
         style={{
-          backgroundImage: `linear-gradient(${major} 1px, transparent 1px), linear-gradient(90deg, ${major} 1px, transparent 1px), linear-gradient(${line} 1px, transparent 1px), linear-gradient(90deg, ${line} 1px, transparent 1px)`,
-          backgroundSize: "192px 192px, 192px 192px, 48px 48px, 48px 48px",
-          backgroundPosition: `${dx}px ${dy}px`,
-          maskImage: "radial-gradient(120% 95% at 50% 45%, black 55%, transparent 100%)",
-          WebkitMaskImage: "radial-gradient(120% 95% at 50% 45%, black 55%, transparent 100%)",
+          backgroundImage: `${v(W / 3)}, ${v((2 * W) / 3)}, ${h(H / 3)}, ${h((2 * H) / 3)}, linear-gradient(${line} 1px, transparent 1px), linear-gradient(90deg, ${line} 1px, transparent 1px)`,
+          backgroundSize: `100% 100%, 100% 100%, 100% 100%, 100% 100%, ${GRID}px ${GRID}px, ${GRID}px ${GRID}px`,
+          maskImage: "radial-gradient(125% 100% at 50% 45%, black 60%, transparent 100%)",
+          WebkitMaskImage: "radial-gradient(125% 100% at 50% 45%, black 60%, transparent 100%)",
         }}
       />
-      <AbsoluteFill style={{ background: `radial-gradient(40% 32% at ${50 + 6 * Math.sin(t * 0.3)}% ${44 + 4 * Math.cos(t * 0.25)}%, ${alpha(c10, 0.1 + 0.03 * Math.sin(t * 0.8))}, transparent 72%)`, filter: "blur(30px)" }} />
+      <AbsoluteFill style={{ background: `radial-gradient(40% 32% at ${50 + 6 * Math.sin(t * 0.3)}% ${44 + 4 * Math.cos(t * 0.25)}%, ${alpha(c10, 0.09 + 0.03 * Math.sin(t * 0.8))}, transparent 72%)`, filter: "blur(30px)" }} />
       <AbsoluteFill style={{ background: "radial-gradient(130% 110% at 50% 40%, transparent 60%, rgba(20,22,28,.06) 100%)" }} />
     </AbsoluteFill>
   );
@@ -185,13 +186,18 @@ export const BACKGROUNDS: BackgroundDef[] = [
   ...customBackgrounds,
 ];
 
-/** A library background, animated, in the edit's palette, with the cinematic finish (grain + vignette). */
-export const Backdrop: React.FC<{ preset?: string; finish?: boolean }> = ({ preset = "aurora", finish = true }) => {
+/**
+ * A library background, animated, in the edit's palette, with the cinematic finish (grain + vignette).
+ * Inside a stage scene (constants.stage) it renders nothing: the stage's one continuous background shows.
+ */
+export const Backdrop: React.FC<{ preset?: string; finish?: boolean; force?: boolean }> = ({ preset = "aurora", finish = true, force = false }) => {
+  const onStage = useStage();
   const frame = useCurrentFrame();
   const { fps, width: W, height: H } = useCanvas();
   const pal = usePalette();
   const def = BACKGROUNDS.find((b) => b.id === preset) ?? BACKGROUNDS[0];
   const R = def.render;
+  if (onStage && !force) return null;
   return (
     <AbsoluteFill>
       <R t={frame / fps} c60={pal.c60} c30={pal.c30} c10={pal.c10} W={W} H={H} />

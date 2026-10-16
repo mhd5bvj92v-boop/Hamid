@@ -80,6 +80,11 @@ export type EditConstants = {
   /** Camera move every scene uses unless its plan says otherwise. */
   camera: import("./style").CameraStyle;
   cameraIntensity: "subtle" | "medium" | "strong";
+  /**
+   * Stage: a background preset (e.g. "paper-grid") shared by all consecutive full-screen scenes, with one
+   * continuous chained camera and flowing scene transitions (src/kit/stage.tsx). "" = every scene its own.
+   */
+  stage?: string;
   accentFont: "Instrument Serif" | "Playfair Display" | "JetBrains Mono" | "none";
   uiStyle: "dark-glass" | "light-glass" | "neon-rim" | "editorial";
   transitions: string;
