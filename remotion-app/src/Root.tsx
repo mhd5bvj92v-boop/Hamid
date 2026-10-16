@@ -4,6 +4,7 @@ import "./fonts";
 import { Overlay } from "./Overlay";
 import { FootageComposite, footageMetadata, TestComposition } from "./Scenes";
 import { Projects } from "./projects";
+import { Demos } from "./demo";
 import { StudioEdit, studioMetadata } from "./kit/StudioEdit";
 
 // Talking-head edits (one composition per project, src/projects/<slug>/)
@@ -24,6 +25,8 @@ export const RemotionRoot: React.FC = () => {
         calculateMetadata={studioMetadata}
       />
       <Projects />
+      {/* recipe demonstrations (brief §20), not part of any project */}
+      <Demos />
       <Composition
         id="TestComposition"
         component={TestComposition}

@@ -4,6 +4,8 @@ import { AbsoluteFill, CalculateMetadataFunction, Sequence, useVideoConfig } fro
 import type { EditDoc } from "./project";
 import { AudioPlacement, ConceptPreviewPick, beatsForRender } from "./studio";
 import { EditLayers, TalkingHeadEdit } from "./TalkingHeadEdit";
+import { GuideSettings, Guides } from "./Guides";
+import { DesignCanvas } from "./style";
 
 export type StudioEditProps = {
   /** The project document (edit.json) - the single source of truth. */
@@ -13,6 +15,8 @@ export type StudioEditProps = {
   concept: ConceptPreviewPick | null;
   /** Resolved sound-effect placements (Player / preview renders). The final mix is made by sound_mix.py. */
   audio: AudioPlacement[] | null;
+  /** Studio Player only: composition guides (thirds, centre, safe area, platform zones). Renders never pass it. */
+  guides?: GuideSettings | null;
 };
 
 const undb = (db: number) => Math.pow(10, db / 20);
@@ -22,7 +26,7 @@ const undb = (db: number) => Math.pow(10, db / 20);
  * driven by inputProps. The Remotion Player, the concept previews and the final
  * render all use this component with the same document.
  */
-export const StudioEdit: React.FC<StudioEditProps> = ({ doc, layers, concept, audio }) => {
+export const StudioEdit: React.FC<StudioEditProps> = ({ doc, layers, concept, audio, guides }) => {
   const { fps } = useVideoConfig();
   if (!doc) return <AbsoluteFill style={{ backgroundColor: "black" }} />;
   const beats = beatsForRender(doc, concept);
@@ -34,6 +38,11 @@ export const StudioEdit: React.FC<StudioEditProps> = ({ doc, layers, concept, au
           <Audio src={p.src} trimBefore={Math.round(p.clipIn * fps)} volume={undb(p.gainDb)} />
         </Sequence>
       ))}
+      {guides ? (
+        <DesignCanvas>
+          <Guides g={guides} />
+        </DesignCanvas>
+      ) : null}
     </AbsoluteFill>
   );
 };

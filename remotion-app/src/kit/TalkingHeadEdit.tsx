@@ -3,6 +3,8 @@ import { AbsoluteFill, Sequence, useVideoConfig } from "remotion";
 import { CaptionAccent } from "./beats/CaptionAccent";
 import { AssetScene } from "./beats/AssetScene";
 import { KineticText } from "./beats/KineticText";
+import { DirectionalCard } from "./beats/DirectionalCard";
+import { Popover } from "./beats/Popover";
 import { HalfPanel } from "./beats/HalfPanel";
 import { HorizonTitle } from "./beats/HorizonTitle";
 import { StatCard } from "./beats/StatCard";
@@ -30,6 +32,8 @@ export const kitComponents: ComponentRegistry = {
   HalfPanel,
   AssetScene,
   KineticText,
+  DirectionalCard,
+  Popover,
   // kinds Claude Code built for approved concepts (src/kit/custom/)
   ...customComponents,
 };

@@ -291,7 +291,12 @@ def make_brief(log, seg, **extra):
              "references": {"suggested": suggest_refs(seg["text"], seg.get("type")), "previous": previous},
              "plan": {"sceneType": scene_type(seg), "sceneLabel": SCENE_LABEL.get(scene_type(seg), ""), "onScreen": seg.get("onScreen") or "",
                       "status": (seg.get("plan") or {}).get("status", "draft")},
-             "constants": log.get("constants") or {}}
+             "constants": log.get("constants") or {},
+             **({"sceneBrief": {k: v for k, v in seg["brief"].items() if v not in (None, "", False)}} if seg.get("brief") else {}),
+             # neighbours, for continuity (what the previous scene hands over, what the next one inherits)
+             "neighbours": [{"segmentId": m["id"], "start": m["start"], "end": m["end"], "type": m.get("type"),
+                             **({"inherits": (m.get("brief") or {}).get("inherits")} if (m.get("brief") or {}).get("inherits") else {})}
+                            for m in log["segments"] if m["id"] != seg["id"] and (abs(m["end"] - seg["start"]) < 1.5 or abs(m["start"] - seg["end"]) < 1.5)]}
     brief.update({k: v for k, v in extra.items() if v not in (None, [], "")})
     return brief
 
@@ -748,6 +753,8 @@ GUIDE = {
     and the scene flow itself - draw content only (no own background, no own zoom), lay it out with useLayout() on the
     thirds and snapGrid(), same font/card style as the other scenes, and set outAt = next scene's at - this at - 0.1 so
     the exit crosses the next entrance (premium-motion.md 3c).
+    DOCS: references/art-direction.md (mode, platform, palette, backgrounds, type), references/motion-recipes.md (lifecycle,
+    timing tokens, DirectionalCard / Popover recipes, transitions, diagnosis), references/references-and-d.md (D + references).
     LOOK: read references/premium-motion.md and build from src/kit/premium.tsx (glass, rim light, grain, light sweep,
     bloom, light rays, dust, vignette, line icons, tilt-in). Flat boxes, letter tiles, emoji and tiny elements are not acceptable.
  3b. PREVIEW AND COMPARE (required, usually 2-3 rounds): write build.json, then run
@@ -834,6 +841,14 @@ def cmd_show(app, slug, a):
     if b.get("constants"):
         c = b["constants"]
         print("CONSTANTS FOR THE WHOLE EDIT: " + "; ".join(f"{k}: {v}" for k, v in c.items() if v not in ("", None)))
+    sb = b.get("sceneBrief") or {}
+    if sb:
+        names = {"understand": "viewer must understand", "idea": "one visual idea", "why": "why a visual", "focus": "focus & reading order",
+                 "enterExit": "enters / changes / exits", "inherits": "next scene inherits", "sound": "sound", "stillHold": "intentional still hold"}
+        print("\nSCENE BRIEF (the user's direction for this scene):\n" + "\n".join(f"  {names.get(k, k)}: {v}" for k, v in sb.items()))
+    for n in b.get("neighbours") or []:
+        if n.get("inherits"):
+            print(f"  neighbour {n['segmentId']} ({n['start']}-{n['end']} s) hands over: {n['inherits']}")
     if b.get("custom") is not None:
         print("\nTHE USER'S OWN IDEA (D), verbatim - implement all of it (it wins over any reference):\n" + "-" * 60 + f"\n{b['custom']}\n" + "-" * 60)
         seg0 = seg_by_id(log, r["segmentId"])

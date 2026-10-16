@@ -85,6 +85,12 @@ export type EditConstants = {
    * continuous chained camera and flowing scene transitions (src/kit/stage.tsx). "" = every scene its own.
    */
   stage?: string;
+  /** natural talking head / talking head with visuals / UI-SaaS motion (art-direction.md); a scene's plan may override */
+  mode?: "natural" | "visuals" | "ui-saas";
+  /** delivery: changes layout checks and guides only, never the pacing */
+  platform?: "tiktok" | "shorts" | "youtube";
+  /** the short art-direction note: feeling, foundation, harmony, who may use the accent */
+  artDirection?: string;
   accentFont: "Instrument Serif" | "Playfair Display" | "JetBrains Mono" | "none";
   uiStyle: "dark-glass" | "light-glass" | "neon-rim" | "editorial";
   transitions: string;

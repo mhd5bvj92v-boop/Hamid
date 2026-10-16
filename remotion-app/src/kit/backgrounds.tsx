@@ -8,9 +8,17 @@ import { CinematicFinish, Dust, LightRays, alpha } from "./premium";
 import { GRID, isLightBase, useCanvas, usePalette } from "./style";
 import { useStage } from "./stage";
 import { customBackgrounds } from "./backgrounds/custom";
+import { gradientBackgrounds } from "./backgrounds/gradients";
 
 export type BackgroundProps = { t: number; c60: string; c30: string; c10: string; W: number; H: number };
-export type BackgroundDef = { id: string; label: string; description: string; render: React.FC<BackgroundProps> };
+export type BackgroundDef = {
+  id: string;
+  label: string;
+  description: string;
+  render: React.FC<BackgroundProps>;
+  /** a light background whatever the palette (fixed light colours): gets the light finish */
+  light?: boolean;
+};
 
 const Aurora: React.FC<BackgroundProps> = ({ t, c60, c30, c10 }) => (
   <AbsoluteFill style={{ background: c60, overflow: "hidden" }}>
@@ -183,8 +191,11 @@ export const BACKGROUNDS: BackgroundDef[] = [
   { id: "data-lines", label: "Data waves", description: "glowing flowing data lines", render: DataLines },
   { id: "minimal", label: "Minimal glow", description: "calm dark gradient with one soft glow", render: Minimal },
   { id: "paper-grid", label: "Paper grid (light)", description: "off-white paper with a fine, barely visible grid that drifts slowly; use with a light 60 % colour", render: PaperGrid },
+  ...gradientBackgrounds,
   ...customBackgrounds,
 ];
+
+const FIXED_DARK = new Set(["midnight-blue", "indigo-violet", "deep-teal", "warm-graphite", "near-black-light"]);
 
 /**
  * A library background, animated, in the edit's palette, with the cinematic finish (grain + vignette).
@@ -202,7 +213,7 @@ export const Backdrop: React.FC<{ preset?: string; finish?: boolean; force?: boo
     <AbsoluteFill>
       <R t={frame / fps} c60={pal.c60} c30={pal.c30} c10={pal.c10} W={W} H={H} />
       {/* light bases get a much lighter finish: a dark vignette and heavy grain look dirty on paper */}
-      {finish ? (isLightBase(pal.c60) ? <CinematicFinish grain={0.035} vignette={0.12} /> : <CinematicFinish />) : null}
+      {finish ? (def.light ?? (def.id === "paper-grid" || def.id === "dot-field" ? isLightBase(pal.c60) : isLightBase(pal.c60) && !FIXED_DARK.has(def.id)) ? <CinematicFinish grain={0.035} vignette={0.12} /> : <CinematicFinish />) : null}
     </AbsoluteFill>
   );
 };

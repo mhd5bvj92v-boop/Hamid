@@ -8,6 +8,8 @@ import { horizonTitleTiming } from "./beats/horizonTitle.timing";
 import { statCardTiming } from "./beats/statCard.timing";
 import { statementSceneTiming } from "./beats/statementScene.timing";
 import { uiCardTiming } from "./beats/uiCard.timing";
+import { directionalCardTiming } from "./beats/directionalCard.timing";
+import { popoverTiming } from "./beats/popover.timing";
 import type { AssetSceneProps } from "./beats/assetScene.timing";
 import type { KineticTextProps } from "./beats/kineticText.timing";
 import type { CaptionAccentProps } from "./beats/captionAccent.timing";
@@ -16,6 +18,8 @@ import type { HorizonTitleProps } from "./beats/horizonTitle.timing";
 import type { StatCardProps } from "./beats/statCard.timing";
 import type { StatementSceneProps } from "./beats/statementScene.timing";
 import type { UiCardProps } from "./beats/uiCard.timing";
+import type { DirectionalCardProps } from "./beats/directionalCard.timing";
+import type { PopoverProps } from "./beats/popover.timing";
 import type { Beat, BeatTiming } from "./types";
 import { customTiming } from "./custom/timing";
 
@@ -30,6 +34,9 @@ export const kitTiming = {
   AssetScene: assetSceneTiming,
   // the text-animation library (typewriter, word-pop, karaoke, glitch...) on captions or full-screen backgrounds
   KineticText: kineticTextTiming,
+  // motion recipes: a directional card with one state change; an anchored popover / notification
+  DirectionalCard: directionalCardTiming,
+  Popover: popoverTiming,
   // kinds Claude Code built for approved concepts (src/kit/custom/)
   ...customTiming,
 } satisfies Record<string, BeatTiming<never>>;
@@ -47,6 +54,8 @@ export type KitBeat =
   | Beat<"HalfPanel", HalfPanelProps>
   | Beat<"AssetScene", AssetSceneProps>
   | Beat<"KineticText", KineticTextProps>
+  | Beat<"DirectionalCard", DirectionalCardProps>
+  | Beat<"Popover", PopoverProps>
   | Beat<CustomKind, Record<string, unknown>>;
 
 export type TimingRegistry = Record<string, BeatTiming<never>>;

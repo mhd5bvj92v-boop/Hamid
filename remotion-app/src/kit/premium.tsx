@@ -29,6 +29,25 @@ export const glass = (o: { radius?: number; tint?: string; depth?: number } = {}
   ].join(", "),
 });
 
+/** Light frosted glass for light bases (paper, porcelain): white body, hairline border, soft long shadow. Text uses dark ink. */
+export const lightGlass = (o: { radius?: number; depth?: number } = {}): React.CSSProperties => ({
+  position: "relative",
+  overflow: "hidden",
+  borderRadius: o.radius ?? 34,
+  background: "linear-gradient(170deg, rgba(255,255,255,.96) 0%, rgba(255,255,255,.86) 100%)",
+  backdropFilter: "blur(24px) saturate(140%)",
+  WebkitBackdropFilter: "blur(24px) saturate(140%)",
+  border: "1px solid rgba(20,22,28,.08)",
+  boxShadow: [
+    "inset 0 1px 0 rgba(255,255,255,.9)",
+    `0 ${30 * (o.depth ?? 1)}px ${70 * (o.depth ?? 1)}px rgba(20,30,60,.16)`,
+    "0 6px 16px rgba(20,30,60,.08)",
+  ].join(", "),
+});
+
+/** The edit's surface: dark glass on dark bases, light glass on light ones (one material for the whole video). */
+export const surface = (light: boolean, o: { radius?: number; depth?: number; tint?: string } = {}) => (light ? lightGlass(o) : glass(o));
+
 /** Coloured light rising from the bottom edge of a glass panel (NEON-RIM, ONS-024). */
 export const RimGlow: React.FC<{ color: string; strength?: number; edge?: "bottom" | "top" }> = ({ color, strength = 1, edge = "bottom" }) => (
   <>
@@ -134,6 +153,9 @@ const ICONS: Record<string, string> = {
   bolt: "M13 2L4.5 13.5H12L11 22l8.5-11.5H12z",
   eye: "M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
   wave: "M2 12c2.5-4 4.5-4 7 0s4.5 4 7 0 4.5-4 6 0",
+  link: "M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1",
+  mail: "M3.5 6.5h17v11h-17zM3.5 7l8.5 6.5L20.5 7",
+  users: "M9 11.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM2.5 20a6.5 6.5 0 0 1 13 0M16 4.8a3.5 3.5 0 0 1 0 6.4M18.5 20a6.5 6.5 0 0 0-3-5.5",
 };
 export const ICON_NAMES = Object.keys(ICONS);
 

@@ -582,3 +582,17 @@ h3 { font-size: 11.5px; margin: 16px 0 8px; text-transform: uppercase; letter-sp
 .d-summary { padding: 8px 10px; border-left: 3px solid var(--accent); background: var(--accent-soft); border-radius: 6px; font-size: 12px; }
 .d-summary ul { margin: 4px 0 0; padding-left: 16px; display: grid; gap: 2px; }
 .d-summary .warn { color: #d97706; }
+
+/* preview guides + scene brief */
+.guides-ctl { display: inline-flex; gap: 4px; align-items: center; margin-left: auto; }
+.guides-ctl .chip { min-height: 26px; padding: 2px 8px; font-size: 11px; border-radius: 99px; }
+.guides-ctl .chip.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.guides-ctl select { min-height: 26px; padding: 2px 6px; font-size: 11px; }
+.scene-brief { margin: 6px 0; }
+.scene-brief-fields { display: grid; gap: 6px; margin-top: 6px; }
+label.wide { grid-column: 1 / -1; }
+.d-editor, .d-refs, .d-att-body { min-width: 0; max-width: 100%; }
+.d-editor textarea, .d-editor input:not([type="checkbox"]):not([type="file"]) { width: 100%; box-sizing: border-box; }
+.d-add { flex-wrap: wrap; }
+.d-add input:not([type="file"]) { flex: 1 1 180px; width: auto; }
+.d-add .file, .d-add button { flex: none; }

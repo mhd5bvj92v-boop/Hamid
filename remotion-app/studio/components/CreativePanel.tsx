@@ -20,6 +20,7 @@ import { kitTiming } from "../../src/kit/timing";
 import { api } from "../api";
 import { draftOf } from "../dDraft";
 import { DEditor } from "./DEditor";
+import { SceneBriefPanel } from "./SceneBriefPanel";
 
 type Props = {
   doc: EditDoc;
@@ -210,6 +211,7 @@ export const CreativePanel: React.FC<Props> = (p) => {
             ▶ jump
           </button>
         </div>
+        <SceneBriefPanel doc={doc} seg={seg} setDoc={p.setDoc} />
         <div className="type-row">
           {SEGMENT_TYPES.map((t) => (
             <button

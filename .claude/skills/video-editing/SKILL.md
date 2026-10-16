@@ -149,7 +149,10 @@ The Remotion side lives in the repository's `remotion-app/`: the edit kit in `sr
 | The Creative Director Studio (UI, API, proxy, tests), importing the user's script | `remotion.md` §8, `creative-director.md` (script section) |
 | Sound design, SFX, risers, music, mix | `sound-design.md` (rules), then `sound-design-workflow.md` (procedure) |
 | Finding or adding sound effects | `sound-library-index.md` (or `scripts/sfx_index.py search`) |
-| Checking output | `quality-control.md` (+ `edit_qc.py`, `sound_qc.py`) |
+| Checking output | `quality-control.md` (+ `edit_qc.py`, `sound_qc.py`), `capabilities.md` (what is verified, what is not) |
+| Project look: mode, platform, palette, background family, type scale | `art-direction.md` |
+| Animating a scene: lifecycle, timing tokens, recipes (`DirectionalCard`, `Popover`), transitions, diagnosis | `motion-recipes.md` (+ `premium-motion.md` for the finish, §3c for stage edits) |
+| A D request, or references attached to a scene / the project | `references-and-d.md` |
 | New reference images arrive | `extending-library.md` |
 | Remotion API details | the `remotion-best-practices` skill (API knowledge only; this skill's rules govern the edit) |
 

@@ -36,6 +36,7 @@ import { ExportPanel } from "./components/ExportPanel";
 import { PropertiesPanel } from "./components/PropertiesPanel";
 import { ScenePlanning } from "./components/ScenePlanning";
 import { ReferencesPanel } from "./components/ReferencesPanel";
+import { GuideSettings, PLATFORM_ZONES } from "../src/kit/Guides";
 import { SoundPanel } from "./components/SoundPanel";
 import { Timeline } from "./components/Timeline";
 import { TranscriptPanel } from "./components/TranscriptPanel";
@@ -386,14 +387,32 @@ export const App: React.FC = () => {
     () => (doc ? resolveAudio(doc, soundMap) : []),
     [doc, soundMap],
   );
+  // preview-only composition guides (per viewer, remembered in this browser; never in a render)
+  const [guides, setGuidesState] = useState<GuideSettings>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("cds-guides") ?? "{}") as GuideSettings;
+    } catch {
+      return {};
+    }
+  });
+  const setGuides = (g: GuideSettings) => {
+    setGuidesState(g);
+    try {
+      localStorage.setItem("cds-guides", JSON.stringify(g));
+    } catch {
+      /* private window: not remembered */
+    }
+  };
+  const guidesOn = !!(guides.thirds || guides.center || guides.safe || guides.platform);
   const inputProps: StudioEditProps = useMemo(
     () => ({
       doc,
       layers: "all",
       concept: previewConcept,
       audio: previewConcept ? null : audio,
+      guides: guidesOn ? guides : null,
     }),
-    [doc, previewConcept, audio],
+    [doc, previewConcept, audio, guides, guidesOn],
   );
 
   const segment = doc?.segments.find((s) => s.id === segmentId) ?? null;
@@ -883,6 +902,22 @@ export const App: React.FC = () => {
             <span className="muted small">
               / {fmtTime(durationInFrames / fps)}
             </span>
+            <div className="guides-ctl" data-testid="guides" title="Preview-only guides; never rendered into the video">
+              <span className="muted small">Guides</span>
+              {(["thirds", "center", "safe"] as const).map((k) => (
+                <button key={k} className={`chip${guides[k] ? " active" : ""}`} onClick={() => setGuides({ ...guides, [k]: !guides[k] })} data-testid={`guide-${k}`}>
+                  {k === "thirds" ? "thirds" : k === "center" ? "centre" : "safe"}
+                </button>
+              ))}
+              <select value={guides.platform ?? ""} onChange={(e) => setGuides({ ...guides, platform: e.target.value as GuideSettings["platform"] })} data-testid="guide-platform" title={guides.platform ? PLATFORM_ZONES[guides.platform].checked : "platform UI zones (approximate)"}>
+                <option value="">no platform zones</option>
+                {Object.entries(PLATFORM_ZONES).map(([k, v]) => (
+                  <option key={k} value={k}>
+                    {v.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </section>
         {view === "timeline" ? (

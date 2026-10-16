@@ -230,6 +230,27 @@ const Constants: React.FC<{ doc: EditDoc; setDoc: (d: EditDoc) => void }> = ({
             ))}
           </select>
         </label>
+        <label title="Natural talking head: presenter first, short text. With visuals: a few useful graphics. UI/SaaS: interface states and staged interactions.">
+          Creative mode
+          <select value={c.mode ?? "visuals"} onChange={(e) => set({ mode: e.target.value as EditConstants["mode"] })} data-testid="const-mode">
+            <option value="natural">Natural talking head</option>
+            <option value="visuals">Talking head with visuals</option>
+            <option value="ui-saas">UI / SaaS motion</option>
+          </select>
+        </label>
+        <label title="Changes layout checks and the Player's platform guides; never the pacing">
+          Platform
+          <select value={c.platform ?? ""} onChange={(e) => set({ platform: (e.target.value || undefined) as EditConstants["platform"] })} data-testid="const-platform">
+            <option value="">not set</option>
+            <option value="tiktok">TikTok (9:16)</option>
+            <option value="shorts">YouTube Shorts (9:16)</option>
+            <option value="youtube">YouTube (16:9)</option>
+          </select>
+        </label>
+        <label className="wide" title="Feeling, light or dark foundation, harmony, who may use the accent (Claude Code reads it with every request)">
+          Art direction note
+          <input value={c.artDirection ?? ""} onChange={(e) => set({ artDirection: e.target.value })} placeholder="e.g. calm, confident; light paper foundation; one blue accent only on the key number" data-testid="const-art" />
+        </label>
         <label>
           Interface style
           <select
