@@ -50,6 +50,7 @@
     "studio:test:claude": "node studio/tests/claude-workflow.mjs",
     "studio:test:plan": "node studio/tests/scene-planning.mjs",
     "studio:test:assets": "node studio/tests/assets.mjs",
-    "studio:test:d": "node studio/tests/option-d.mjs"
+    "studio:test:d": "node studio/tests/option-d.mjs",
+    "studio:test:upgrade": "node studio/tests/upgrade.mjs"
   }
 }

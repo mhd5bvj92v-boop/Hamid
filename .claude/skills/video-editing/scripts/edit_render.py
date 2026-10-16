@@ -24,6 +24,7 @@ reads); its own mix is never the deliverable. --scale N renders a picture master
 2 for a 2160x3840 source); `edit_render.py downscale` makes the 1080x1920 picture from it.
 """
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -62,6 +63,18 @@ def require_final_approval(app, pj):
         sys.exit("PHASE 5 GATE: the final full-resolution render needs the Creative Director's explicit final approval.\n"
                  "Show the motion previews (edit_render.py preview), collect feedback, and only after the user approves the edit run:\n"
                  f"  python3 scripts/edit_decisions.py approve {pj['slug']} --gate final --quote \"<the user's words>\"")
+
+
+def render_props(app, pj, extra):
+    """Write the render's input props to a file: the composition's options plus the CURRENT edit.json
+    (beats, constants, focus, zooms), so a render never uses data from a stale bundle. A file, not a
+    command-line string (Windows limits command lines)."""
+    doc = creative_log(app, pj["slug"]) or {}
+    props = {**extra, "doc": {k: doc.get(k) for k in ("beats", "constants", "focus", "zooms") if k in doc} or None}
+    out = Path(pj["work"]) / "renders" / f"props-{hashlib.sha1(json.dumps(props, sort_keys=True).encode()).hexdigest()[:10]}.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(props), encoding="utf-8")
+    return str(out)
 
 
 def export_timeline(app, pj):
@@ -114,7 +127,7 @@ def cmd_still(app, pj, a):
     fps = pj["approved"]["fps"]
     frame = min(int(round(a.t * fps)), pj["approved"]["durationInFrames"] - 1)
     out = Path(a.out) if a.out else wd / "qc" / f"still{'_gfx' if a.graphics else ''}_{a.t:.3f}.png"
-    props = json.dumps({"layers": "graphics" if a.graphics else "all", "concept": parse_concept(a.concept)})
+    props = render_props(app, pj, {"layers": "graphics" if a.graphics else "all", "concept": parse_concept(a.concept)})
     npx(app, ["remotion", "still", pj["remotion"]["composition"], str(out), f"--frame={frame}", f"--props={props}", "--image-format=png"],
         wd / "qc" / "still.log")
     print(f"still   {out} (frame {frame} @ {fps} fps)")
@@ -126,7 +139,7 @@ def cmd_picture(app, pj, a):
     wd = Path(pj["work"])
     name = "picture_graphics.mp4" if a.graphics else ("picture_master.mp4" if a.scale and a.scale != 1 else "picture.mp4")
     out = Path(a.out) if a.out else wd / "renders" / name
-    props = json.dumps({"layers": "graphics" if a.graphics else "all", "concept": None})
+    props = render_props(app, pj, {"layers": "graphics" if a.graphics else "all", "concept": None})
     args = ["remotion", "render", pj["remotion"]["composition"], str(out), *H264, f"--props={props}", "--log=verbose"]
     if a.scale and a.scale != 1:
         args.append(f"--scale={a.scale}")
@@ -161,7 +174,7 @@ def cmd_final(app, pj, a):
           f"{len(sp['placements']) if sp else 0} sound effect(s){' + music' if sp and sp.get('music') else ''} -> {out}")
     if not sp:
         print("NOTE  no sound placements in the composition (sound-preview.ts is empty): the final carries the dialogue only")
-    props = json.dumps({"layers": "all", "concept": None})
+    props = render_props(app, pj, {"layers": "all", "concept": None})
     args = ["remotion", "render", pj["remotion"]["composition"], str(out), *H264, "--audio-bitrate=320k", f"--props={props}", "--log=verbose"]
     npx(app, args, out.with_suffix(".log"))
     export_timeline(app, pj)                   # graphics windows for the QC
@@ -213,7 +226,7 @@ def cmd_concept_frames(app, pj, a):
         n = c["endFrame"] - c["startFrame"]
         landed = c["endFrame"] - max(2, int(round(0.65 * fps)))      # settled, just before the exit starts
         keys = ([min(c["startFrame"] + int(round(0.3 * fps)), landed), c["startFrame"] + n // 2, landed] if a.sequence else [landed])
-        props = json.dumps({"layers": "all", "concept": {"moment": c["moment"], "option": c["option"], "round": rnd}})
+        props = render_props(app, pj, {"layers": "all", "concept": {"moment": c["moment"], "option": c["option"], "round": rnd}})
         seq = outdir / c["option"]
         if seq.exists():
             shutil.rmtree(seq)
@@ -304,7 +317,7 @@ def cmd_preview(app, pj, a):
     n = 1 + len(list((wd / "previews").glob(f"{name}_v*.mp4")))
     out = wd / "previews" / f"{name}_v{n}.mp4"
     out.parent.mkdir(parents=True, exist_ok=True)
-    props = json.dumps({"layers": "all", "concept": concept})
+    props = render_props(app, pj, {"layers": "all", "concept": concept})
     npx(app, ["remotion", "render", pj["remotion"]["composition"], str(out), *H264, f"--props={props}", f"--frames={f0}-{f1}",
               f"--scale={a.scale or 0.5}"], out.with_suffix(".log"))
     info = V.probe(out)
@@ -371,6 +384,9 @@ def main():
     a = ap.parse_args()
     app = V.find_app(a.app)
     pj = V.load_project(app, a.slug, a.work)
+    # older projects: bring the generated files (beats.ts, Edit.tsx) up to date; edit.json and user code are untouched
+    import edit_init as EI
+    EI.upgrade_project_files(a.slug, Path(pj["remotion"]["project_dir"]))
     if pj["source"].get("scriptOnly"):
         if a.cmd in ("sfx", "draft-sound", "sound-preview", "downscale"):
             sys.exit(f"script-only project: '{a.cmd}' needs the footage's dialogue. Attach the cut first (edit_init.py <footage> --slug {a.slug}).")

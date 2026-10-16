@@ -18,6 +18,7 @@ export type DirectionalCardProps = {
   icon?: string;
   /** seconds from the beat start at which the state changes (default: middle of the hold) */
   changeAt?: number;
+  /** default: the motion control's direction (Properties → Motion), else right */
   enterFrom?: "right" | "left" | "bottom";
   /** "continue" (default): leaves in the travel direction; "return": goes back where it came from */
   exit?: "continue" | "return";
@@ -60,14 +61,16 @@ export const dcDefaults = (p: DirectionalCardProps) => {
 /** Pure pose at t (seconds from the beat start): progress values; the component turns them into pixels. */
 export const dcPose = (t: number, p: DirectionalCardProps) => {
   const d = dcDefaults(p);
-  const enter = ease("arriveGently", local(t, d.inAt, d.inAt + d.enterDur));
-  const exit = ease("leaveDecisively", local(t, d.outAt, d.outAt + d.exitDur));
+  const enterRaw = local(t, d.inAt, d.inAt + d.enterDur);
+  const exitRaw = local(t, d.outAt, d.outAt + d.exitDur);
+  const enter = ease("arriveGently", enterRaw);
+  const exit = ease("leaveDecisively", exitRaw);
   // opacity: in quickly with the move, out only in the last 60 % of the exit (the move reads first)
   const opacity = Math.min(1, local(t, d.inAt, d.inAt + d.enterDur * 0.6)) * (1 - local(t, d.outAt + d.exitDur * 0.4, d.outAt + d.exitDur));
   const change = p.status ? ease("arriveSoftSettle", local(t, d.changeAt, d.changeAt + 0.35)) : 0;
   // the accent responds to the change and settles (no constant pumping)
   const pulse = p.status ? Math.sin(Math.PI * local(t, d.changeAt, d.changeAt + 0.7)) : 0;
-  return { enter, exit, opacity, scale: 0.97 + 0.03 * enter, change, pulse };
+  return { enter, exit, enterRaw, exitRaw, opacity, scale: 0.97 + 0.03 * enter, change, pulse };
 };
 
 export const directionalCardTiming: BeatTiming<DirectionalCardProps> = {

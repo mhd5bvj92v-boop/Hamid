@@ -3,6 +3,7 @@ import { BACKGROUNDS } from "../../src/kit/backgrounds";
 import { TEXT_STYLES } from "../../src/kit/beats/kineticText.timing";
 import { CAMERA_MOVES } from "../../src/kit/style";
 import { api } from "../api";
+import { MotionControls } from "./MotionControls";
 import type { EditDoc } from "../../src/kit/project";
 import { SCENE_TYPES, fmtTime, sceneTypeOf } from "../../src/kit/project";
 import { retimeScene } from "../../src/kit/studio";
@@ -173,6 +174,7 @@ export const PropertiesPanel: React.FC<Props> = ({ doc, beatId, setBeatId, setDo
       </div>
       <div className="look-motion" data-testid="look-motion">
         <h3>Look & motion</h3>
+        <MotionControls doc={doc} segId={(beat as { segmentId?: string }).segmentId ?? null} setDoc={setDoc} />
         <div className="field-row">
           <label className="field">
             <span>camera</span>
@@ -278,7 +280,7 @@ export const PropertiesPanel: React.FC<Props> = ({ doc, beatId, setBeatId, setDo
           <Field key={k} name={k} value={v} path={k} onChange={(nv) => update({ props: { ...props, [k]: nv } })} />
         ))}
       </div>
-      <p className="muted small">Refs: {beat.refs.join(", ")}</p>
+      <p className="muted small">Refs: {(beat.refs ?? []).join(", ") || "none"}</p>
     </div>
   );
 };

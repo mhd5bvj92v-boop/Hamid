@@ -36,11 +36,13 @@ export const popPose = (t: number, p: PopoverProps) => {
   const trigger = ease("arriveGently", local(t, 0, 0.3)) * (1 - ease("leaveSoft", local(t, p.outAt + d.closeDur, p.outAt + d.closeDur + 0.25)));
   // the press: a 0.12 s dip just before it opens (feedback), then back
   const press = Math.sin(Math.PI * local(t, d.openAt - 0.12, d.openAt + 0.05));
-  const open = ease("arriveGently", local(t, d.openAt, d.openAt + d.openDur));
-  const close = ease("leaveDecisively", local(t, p.outAt, p.outAt + d.closeDur));
+  const openRaw = local(t, d.openAt, d.openAt + d.openDur);
+  const closeRaw = local(t, p.outAt, p.outAt + d.closeDur);
+  const open = ease("arriveGently", openRaw);
+  const close = ease("leaveDecisively", closeRaw);
   const opacity = Math.min(1, local(t, d.openAt, d.openAt + d.openDur * 0.5)) * (1 - close);
   const rows = d.rows.map((_, i) => ease("arriveGently", local(t, d.openAt + 0.15 + staggerAt(i, d.rows.length, 0.07, 0.25), d.openAt + 0.45 + staggerAt(i, d.rows.length, 0.07, 0.25))));
-  return { trigger, press, open, close, opacity, scale: 0.96 + 0.04 * open - 0.04 * close, rows };
+  return { trigger, press, open, close, openRaw, closeRaw, opacity, scale: 0.96 + 0.04 * open - 0.04 * close, rows };
 };
 
 export const popoverTiming: BeatTiming<PopoverProps> = {

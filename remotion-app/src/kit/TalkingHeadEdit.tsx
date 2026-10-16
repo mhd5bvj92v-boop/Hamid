@@ -14,7 +14,7 @@ import { customComponents } from "./custom/components";
 import { SoundPreview, SoundPreviewData } from "./SoundPreview";
 import { FocusWindow, SourceFootage, ZoomWindow } from "./SourceFootage";
 import type { EditConstants } from "./project";
-import { CameraIntensity, CameraMove, CameraStyle, DesignCanvas, EditStyleProvider } from "./style";
+import { CameraIntensity, CameraMove, CameraStyle, DesignCanvas, EditStyleProvider, MotionProvider, mergeMotion } from "./style";
 import { TimingRegistry, beatWindow, kitTiming } from "./timing";
 import { Backdrop } from "./backgrounds";
 import { FlowMotion, RUN_GAP, StageCamera, StageFade, StageScene, planStage } from "./stage";
@@ -93,6 +93,8 @@ export const TalkingHeadEdit: React.FC<TalkingHeadEditProps> = ({
         (constants?.cameraIntensity as CameraIntensity) ?? "medium",
       )
     : [];
+  // motion controls: the project's, overridden per scene (Properties → Motion)
+  const motionOf = (beat: Beat) => mergeMotion(constants?.motion, constants?.sceneMotion?.[(beat as { segmentId?: string }).segmentId ?? ""]);
   const runOf = (id: string) => runs.find((r) => r.segs.some((g) => g.id === id));
   const total = durationInFrames / fps;
 
@@ -134,9 +136,11 @@ export const TalkingHeadEdit: React.FC<TalkingHeadEditProps> = ({
                 <DesignCanvas>
                   <StageScene>
                     <StageCamera run={run} t0={w.from / fps}>
-                      <FlowMotion dur={w.durationInFrames / fps}>
-                        <Component {...(beat.props as object)} />
-                      </FlowMotion>
+                      <MotionProvider value={motionOf(beat)}>
+                        <FlowMotion dur={w.durationInFrames / fps}>
+                          <Component {...(beat.props as object)} />
+                        </FlowMotion>
+                      </MotionProvider>
                     </StageCamera>
                   </StageScene>
                 </DesignCanvas>
@@ -159,10 +163,14 @@ export const TalkingHeadEdit: React.FC<TalkingHeadEditProps> = ({
                     move={(beat.camera?.move ?? constants?.camera) as CameraStyle}
                     intensity={(beat.camera?.intensity ?? constants?.cameraIntensity) as CameraIntensity | undefined}
                   >
-                    <Component {...(beat.props as object)} />
+                    <MotionProvider value={motionOf(beat)}>
+                      <Component {...(beat.props as object)} />
+                    </MotionProvider>
                   </CameraMove>
                 ) : (
-                  <Component {...(beat.props as object)} />
+                  <MotionProvider value={motionOf(beat)}>
+                    <Component {...(beat.props as object)} />
+                  </MotionProvider>
                 )}
               </DesignCanvas>
             </Sequence>

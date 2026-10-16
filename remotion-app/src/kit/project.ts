@@ -91,6 +91,10 @@ export type EditConstants = {
   platform?: "tiktok" | "shorts" | "youtube";
   /** the short art-direction note: feeling, foundation, harmony, who may use the accent */
   artDirection?: string;
+  /** Motion controls for the whole project (Properties → Motion); a scene can override them in sceneMotion. */
+  motion?: MotionSettings;
+  /** Per-scene motion overrides by segment id (kept here so rebuilding a scene never loses them). */
+  sceneMotion?: Record<string, MotionSettings>;
   accentFont: "Instrument Serif" | "Playfair Display" | "JetBrains Mono" | "none";
   uiStyle: "dark-glass" | "light-glass" | "neon-rim" | "editorial";
   transitions: string;
@@ -207,7 +211,27 @@ export type BuildVersion = {
   match?: { quality: string; done: boolean; how?: string; why?: string }[];
 };
 
-export type RequestType = "concepts" | "implement" | "revision" | "background";
+export type RequestType = "concepts" | "implement" | "revision" | "background" | "analysis";
+// ------------------------------------------------------------------ motion controls
+/** Plain-language motion controls (all optional; missing values fall back to the project, then the defaults). */
+export type MotionSettings = {
+  /** where elements enter from (they leave on the opposite side) */
+  direction?: "right" | "left" | "bottom" | "top";
+  /** 0 crisp and quick .. 1 soft and slow (durations x0.75 .. x1.4, gentler curves) */
+  softness?: number;
+  /** 0 no overshoot .. 1 a clear settle (about 10 %) */
+  bounce?: number;
+  /** 0 no glow .. 0.5 house default .. 1 double */
+  glow?: number;
+  /** 0 sharp entrances .. 0.5 house default .. 1 strong blur-in */
+  blur?: number;
+  /** shape morphs for meaningful state changes (path interpolation); off by default */
+  morph?: boolean;
+  /** camera motion blur on fast travel; off by default (costs render time) */
+  motionBlur?: "off" | "light" | "strong";
+};
+export const MOTION_DEFAULTS: Required<MotionSettings> = { direction: "right", softness: 0.5, bounce: 0.2, glow: 0.5, blur: 0.5, morph: false, motionBlur: "off" };
+
 // ------------------------------------------------------------------ references attached to ideas, scenes and the project
 // A saved reference asset (built-in ONS/TXT/FUL-###, the user's MY-###, a D upload, a URL) is stored once;
 // an attachment is a scoped link to it with a role, an influence and a note. Removing an attachment never

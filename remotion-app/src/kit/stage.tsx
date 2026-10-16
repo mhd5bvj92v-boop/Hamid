@@ -9,7 +9,7 @@
 import React from "react";
 import { AbsoluteFill, useCurrentFrame } from "remotion";
 import { E, clamp, lerp } from "./motion";
-import { StageScene, useCanvas, useStage } from "./style";
+import { StageScene, dirVec, useCanvas, useMotion, useStage } from "./style";
 import type { CameraIntensity } from "./style";
 
 // the context lives in style.tsx (CameraMove needs it); re-exported here
@@ -93,19 +93,26 @@ export const StageFade: React.FC<{ dur: number; fadeIn: boolean; fadeOut: boolea
   return <AbsoluteFill style={{ opacity: o }}>{children}</AbsoluteFill>;
 };
 
-/** Scene content flow: in from slightly right (opacity + blur clearing), out quickly to the left, inside the frame. */
+/**
+ * Scene content flow: in from slightly beside its entrance side (the motion control's direction, default
+ * right) with opacity and blur clearing, out quickly to the opposite side, inside the frame.
+ */
 export const FlowMotion: React.FC<{ dur: number; children: React.ReactNode }> = ({ dur, children }) => {
   const frame = useCurrentFrame();
-  const { fps, width } = useCanvas();
+  const { fps, width, height } = useCanvas();
+  const m = useMotion();
   const t = frame / fps;
-  const k = E.outQuart(clamp(t / 0.45));
-  const e = E.inCubic(clamp((t - (dur - 0.3)) / 0.3));
+  const k = m.arrive(clamp(t / 0.45));
+  const e = m.leave(clamp((t - (dur - 0.3)) / 0.3));
+  const [vx, vy] = dirVec(m.direction);
+  const span = vx ? width : height;
+  const off = ((1 - k) * 0.045 - e * 0.06) * span;
   return (
     <AbsoluteFill
       style={{
-        opacity: k * (1 - e),
-        transform: `translateX(${((1 - k) * 0.045 - e * 0.06) * width}px)`,
-        filter: k < 1 || e > 0 ? `blur(${(1 - k) * 6 + e * 3}px)` : undefined,
+        opacity: Math.min(1, Math.max(0, k)) * (1 - e),
+        transform: `translate(${vx * off}px, ${vy * off}px)`,
+        filter: k < 1 || e > 0 ? `blur(${((1 - Math.min(1, k)) * 6 + e * 3) * m.blurK}px)` : undefined,
       }}
     >
       {children}

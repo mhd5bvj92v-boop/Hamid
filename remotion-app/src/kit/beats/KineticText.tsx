@@ -4,7 +4,7 @@ import { SANS } from "../../fonts";
 import { Backdrop } from "../backgrounds";
 import { clamp, lerp } from "../motion";
 import { alpha } from "../premium";
-import { useCanvas, useInk, usePalette } from "../style";
+import { useCanvas, useInk, useMotion, usePalette } from "../style";
 import { KineticTextProps, splitWords, textDefaults, textScene, wordProg } from "./kineticText.timing";
 
 const SIZE = { s: 54, m: 72, l: 104, xl: 140 } as const;
@@ -16,6 +16,9 @@ export const KineticText: React.FC<KineticTextProps> = (p) => {
   const { fps, width: W, height: H, landscape } = useCanvas();
   const pal = usePalette();
   const ink = useInk();
+  const mo = useMotion();
+  const B = mo.blurK;
+  const G = mo.glowK;
   const t = frame / fps;
   const d = textDefaults(p);
   const sc = textScene(t, p);
@@ -43,8 +46,8 @@ export const KineticText: React.FC<KineticTextProps> = (p) => {
     const color = acc ? pal.c10 : onPaper ? ink.ink : "#FFFFFF";
     const glow = acc
       ? onPaper
-        ? `0 0 ${fs * 0.3}px ${alpha(pal.c10, 0.35)}`
-        : `0 0 ${fs * 0.35}px ${alpha(pal.c10, 0.85)}, 0 0 ${fs * 0.9}px ${alpha(pal.c10, 0.45)}`
+        ? G > 0 ? `0 0 ${fs * 0.3 * G}px ${alpha(pal.c10, Math.min(1, 0.35 * G))}` : "none"
+        : G > 0 ? `0 0 ${fs * 0.35 * G}px ${alpha(pal.c10, Math.min(1, 0.85 * G))}, 0 0 ${fs * 0.9 * G}px ${alpha(pal.c10, Math.min(1, 0.45 * G))}` : "none"
       : onPaper
         ? ink.shadow
         : "0 4px 24px rgba(0,0,0,.45)";
@@ -66,7 +69,7 @@ export const KineticText: React.FC<KineticTextProps> = (p) => {
                 return <span key={c} style={{ opacity: t >= start ? 1 : 0 }}>{done ? ch : g}</span>;
               }
               return (
-                <span key={c} style={{ display: "inline-block", opacity: lk, transform: `translateY(${(1 - lk) * -0.6 * fs}px) rotate(${(1 - lk) * -12}deg)`, filter: `blur(${(1 - lk) * 6}px)` }}>
+                <span key={c} style={{ display: "inline-block", opacity: lk, transform: `translateY(${(1 - lk) * -0.6 * fs}px) rotate(${(1 - lk) * -12}deg)`, filter: `blur(${(1 - lk) * 6 * B}px)` }}>
                   {ch}
                 </span>
               );
@@ -77,9 +80,9 @@ export const KineticText: React.FC<KineticTextProps> = (p) => {
       case "word-pop":
         return <span key={i} style={{ ...base, opacity: clamp(k * 2), transform: `scale(${lerp(0.4, 1, k)})` }}>{w}</span>;
       case "scale-punch":
-        return <span key={i} style={{ ...base, opacity: clamp(k * 1.6), transform: `scale(${lerp(1.8, 1, k)})`, filter: `blur(${(1 - k) * 14}px)` }}>{w}</span>;
+        return <span key={i} style={{ ...base, opacity: clamp(k * 1.6), transform: `scale(${lerp(1.8, 1, k)})`, filter: `blur(${(1 - k) * 14 * B}px)` }}>{w}</span>;
       case "blur-in":
-        return <span key={i} style={{ ...base, opacity: k, filter: `blur(${(1 - k) * 22}px)`, letterSpacing: `${(1 - k) * 0.4}em` }}>{w}</span>;
+        return <span key={i} style={{ ...base, opacity: k, filter: `blur(${(1 - k) * 22 * B}px)`, letterSpacing: `${(1 - k) * 0.4}em` }}>{w}</span>;
       case "mask-reveal":
         return (
           <span key={i} style={{ display: "inline-block", overflow: "hidden", verticalAlign: "bottom", marginRight: "0.26em" }}>
@@ -87,7 +90,7 @@ export const KineticText: React.FC<KineticTextProps> = (p) => {
           </span>
         );
       case "slide-stack":
-        return <span key={i} style={{ ...base, opacity: k, transform: `translateX(${(1 - k) * (li % 2 ? 1 : -1) * W * 0.35}px)`, filter: `blur(${(1 - k) * 8}px)` }}>{w}</span>;
+        return <span key={i} style={{ ...base, opacity: k, transform: `translateX(${(1 - k) * (li % 2 ? 1 : -1) * W * 0.35}px)`, filter: `blur(${(1 - k) * 8 * B}px)` }}>{w}</span>;
       case "karaoke":
         return <span key={i} style={{ ...base, color: k ? color : onPaper ? ink.soft : "rgba(255,255,255,.38)", textShadow: k ? glow : "none", transform: `scale(${k ? 1.04 : 1})` }}>{w}</span>;
       case "highlight-sweep": {
@@ -103,7 +106,7 @@ export const KineticText: React.FC<KineticTextProps> = (p) => {
         );
       }
       default: // word-rise, glitch
-        return <span key={i} style={{ ...base, opacity: k, transform: `translateY(${(1 - k) * 0.5 * fs}px)`, filter: `blur(${(1 - k) * 10}px)` }}>{w}</span>;
+        return <span key={i} style={{ ...base, opacity: k, transform: `translateY(${(1 - k) * 0.5 * fs}px)`, filter: `blur(${(1 - k) * 10 * B}px)` }}>{w}</span>;
     }
   };
 
@@ -122,7 +125,7 @@ export const KineticText: React.FC<KineticTextProps> = (p) => {
         lineHeight: 1.12,
         letterSpacing: "-0.02em",
         opacity: 1 - sc.out,
-        filter: sc.out ? `blur(${sc.out * 12}px)` : undefined,
+        filter: sc.out ? `blur(${sc.out * 12 * B}px)` : undefined,
         transform: glitching ? `translateX(${(random(`g${frame}`) - 0.5) * 30}px)` : undefined,
       }}
     >

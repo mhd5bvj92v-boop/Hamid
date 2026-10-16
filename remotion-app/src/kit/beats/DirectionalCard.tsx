@@ -4,7 +4,7 @@ import { SANS } from "../../fonts";
 import { Backdrop } from "../backgrounds";
 import { RADII, TYPE } from "../motionTokens";
 import { LineIcon, RimGlow, alpha, surface } from "../premium";
-import { useCanvas, useInk, useLayout, usePalette } from "../style";
+import { useCanvas, useInk, useLayout, useMotion, usePalette } from "../style";
 import { DirectionalCardProps, dcDefaults, dcPose } from "./directionalCard.timing";
 
 /** Recipe "Directional card": arrive, settle, one state change, continue out (directionalCard.timing.ts). */
@@ -18,7 +18,10 @@ export const DirectionalCard: React.FC<DirectionalCardProps> = (p) => {
   const fg2 = ink.light ? "rgba(20,22,28,.6)" : "rgba(255,255,255,.62)";
   const t = frame / fps;
   const d = dcDefaults(p);
-  const pose = dcPose(t, p);
+  const m = useMotion();
+  const raw = dcPose(t, p);
+  // the motion controls shape the curves inside the authored timing (sound sync unchanged)
+  const pose = { ...raw, enter: m.arrive(raw.enterRaw), exit: m.leave(raw.exitRaw), scale: 0.97 + 0.03 * Math.min(1, m.arrive(raw.enterRaw)) };
   const accent = d.accent ?? pal.c10;
   const T = landscape ? TYPE.landscape : TYPE.portrait;
 
@@ -37,7 +40,7 @@ export const DirectionalCard: React.FC<DirectionalCardProps> = (p) => {
   };
   const short = { right: W * 0.06, left: W * 0.06, bottom: H * 0.05 };
   const dist = d.travel === "offscreen" ? off : short;
-  const from = d.enterFrom;
+  const from = p.enterFrom ?? (m.direction === "top" ? "bottom" : m.direction);
   const to = d.exit === "return" ? from : from === "right" ? "left" : from === "left" ? "right" : "top";
   const vec = (side: string) => (side === "right" ? [1, 0] : side === "left" ? [-1, 0] : side === "bottom" ? [0, 1] : [0, -1]);
   const [ix, iy] = vec(from);
@@ -61,7 +64,7 @@ export const DirectionalCard: React.FC<DirectionalCardProps> = (p) => {
         color: on ? "#fff" : fg2,
         background: on ? accent : ink.light ? "rgba(20,22,28,.05)" : "rgba(255,255,255,.08)",
         border: `1px solid ${on ? alpha(accent, 0.9) : ink.light ? "rgba(20,22,28,.12)" : "rgba(255,255,255,.14)"}`,
-        boxShadow: on ? `0 0 ${18 + 30 * pose.pulse}px ${alpha(accent, 0.45 + 0.35 * pose.pulse)}` : "none",
+        boxShadow: on && m.glowK > 0 ? `0 0 ${(18 + 30 * pose.pulse) * m.glowK}px ${alpha(accent, Math.min(1, (0.45 + 0.35 * pose.pulse) * m.glowK))}` : "none",
         transform: `scale(${on ? 0.92 + 0.08 * pose.change : 1})`,
         whiteSpace: "nowrap",
       }}
@@ -85,11 +88,12 @@ export const DirectionalCard: React.FC<DirectionalCardProps> = (p) => {
           height: ch,
           opacity: pose.opacity,
           transform: `translate(${dx}px, ${dy}px) scale(${pose.scale})`,
+          filter: m.blurK > 0 && (raw.enterRaw < 1 || raw.exitRaw > 0) ? `blur(${((1 - Math.min(1, pose.enter)) * 10 + pose.exit * 6) * m.blurK}px)` : undefined,
           transformOrigin: from === "right" ? "100% 50%" : from === "left" ? "0% 50%" : "50% 100%",
         }}
       >
         <div style={{ ...surface(ink.light, { radius: RADII.card * (cw / 700) }), position: "absolute", inset: 0, padding: ch * 0.12, display: "flex", flexDirection: "column", justifyContent: "space-between", color: fg }}>
-          <RimGlow color={accent} strength={0.55 + 0.6 * pose.pulse} />
+          <RimGlow color={accent} strength={(0.55 + 0.6 * pose.pulse) * m.glowK} />
           <div style={{ position: "relative", display: "flex", alignItems: "center", gap: ch * 0.06 }}>
             {p.icon ? (
               <span style={{ display: "grid", placeItems: "center", width: ch * 0.2, height: ch * 0.2, borderRadius: RADII.chip, background: alpha(accent, 0.18), border: `1px solid ${alpha(accent, 0.45)}` }}>

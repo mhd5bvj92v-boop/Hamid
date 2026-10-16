@@ -9,7 +9,8 @@
 import React, { createContext, useContext } from "react";
 import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
 import { E, clamp, lerp } from "./motion";
-import type { EditConstants } from "./project";
+import type { EditConstants, MotionSettings } from "./project";
+import { MOTION_DEFAULTS } from "./project";
 
 export type CameraStyle =
   | "push-in"
@@ -223,3 +224,44 @@ export const useLayout = () => {
     span: (n: number) => n * colW + (n - 1) * gutter,
   };
 };
+
+// ------------------------------------------------------------ motion controls (Properties → Motion)
+const MotionCtx = createContext<Required<MotionSettings>>(MOTION_DEFAULTS);
+/** Project motion merged with a scene's override (scene wins per field). */
+export const mergeMotion = (project?: MotionSettings | null, scene?: MotionSettings | null): Required<MotionSettings> => ({
+  ...MOTION_DEFAULTS,
+  ...Object.fromEntries(Object.entries(project ?? {}).filter(([, v]) => v !== undefined && v !== null)),
+  ...Object.fromEntries(Object.entries(scene ?? {}).filter(([, v]) => v !== undefined && v !== null)),
+});
+export const MotionProvider: React.FC<{ value: Required<MotionSettings>; children: React.ReactNode }> = ({ value, children }) => <MotionCtx.Provider value={value}>{children}</MotionCtx.Provider>;
+/**
+ * The motion controls as functions components use. Softness and bounce shape the curves INSIDE the authored
+ * timing (event times and sound sync never move); glow and blur multiply glow strength and entrance blur
+ * (1 = house default); direction is the entrance side.
+ */
+export const useMotion = () => {
+  const m = useContext(MotionCtx);
+  const s = m.softness;
+  const outExpo = (x: number) => (x >= 1 ? 1 : 1 - Math.pow(2, -10 * x));
+  const outQuart = (x: number) => 1 - Math.pow(1 - x, 4);
+  const inOutSine = (x: number) => -(Math.cos(Math.PI * x) - 1) / 2;
+  const mix = (a: number, b: number, k: number) => a + (b - a) * k;
+  return {
+    ...m,
+    glowK: m.glow * 2,
+    blurK: m.blur * 2,
+    /** arrive: crisp (outExpo) .. house (outQuart) .. soft (inOutSine), plus an overshoot of up to ~6 % */
+    arrive: (x: number) => {
+      const p = Math.min(1, Math.max(0, x));
+      const base = s < 0.5 ? mix(outExpo(p), outQuart(p), s * 2) : mix(outQuart(p), inOutSine(p), (s - 0.5) * 2);
+      return base + m.bounce * 0.17 * Math.sin(Math.PI * p) * p;
+    },
+    /** leave: decisive (x^4) .. house (x^3) .. soft (inOutSine) */
+    leave: (x: number) => {
+      const p = Math.min(1, Math.max(0, x));
+      return s < 0.5 ? mix(p ** 4, p ** 3, s * 2) : mix(p ** 3, inOutSine(p), (s - 0.5) * 2);
+    },
+  };
+};
+/** Unit vector of the entrance side (elements leave on the opposite side). */
+export const dirVec = (d: MotionSettings["direction"]) => (d === "left" ? [-1, 0] : d === "bottom" ? [0, 1] : d === "top" ? [0, -1] : [1, 0]);

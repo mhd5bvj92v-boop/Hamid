@@ -596,3 +596,10 @@ label.wide { grid-column: 1 / -1; }
 .d-add { flex-wrap: wrap; }
 .d-add input:not([type="file"]) { flex: 1 1 180px; width: auto; }
 .d-add .file, .d-add button { flex: none; }
+
+/* motion controls */
+.motion-controls { display: grid; gap: 6px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+.motion-controls .seg-toggle { display: inline-flex; gap: 4px; margin-left: 6px; }
+.motion-controls .chip { min-height: 24px; padding: 1px 8px; font-size: 11px; border-radius: 99px; }
+.motion-controls .chip.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.field.slider { display: grid; grid-template-columns: 110px auto 1fr auto; gap: 6px; align-items: center; }

@@ -4,7 +4,7 @@ import { SANS } from "../../fonts";
 import { Backdrop } from "../backgrounds";
 import { RADII, TYPE } from "../motionTokens";
 import { LineIcon, alpha, surface } from "../premium";
-import { useCanvas, useInk, useLayout, usePalette } from "../style";
+import { useCanvas, useInk, useLayout, useMotion, usePalette } from "../style";
 import { PopoverProps, popDefaults, popPose } from "./popover.timing";
 
 /** Recipe "Anchored popover" / "notification" (popover.timing.ts). */
@@ -17,7 +17,12 @@ export const Popover: React.FC<PopoverProps> = (p) => {
   const fg = ink.light ? ink.ink : "#fff";
   const t = frame / fps;
   const d = popDefaults(p);
-  const pose = popPose(t, p);
+  const mo = useMotion();
+  const raw = popPose(t, p);
+  // motion controls shape the open/close curves inside the authored timing
+  const open = mo.arrive(raw.openRaw);
+  const close = mo.leave(raw.closeRaw);
+  const pose = { ...raw, open, close, scale: 0.96 + 0.04 * Math.min(1.02, open) - 0.04 * close };
   const accent = p.accent ?? pal.c10;
   const T = landscape ? TYPE.landscape : TYPE.portrait;
   const pw = Math.min(landscape ? L.span(5) : W * 0.74, 820);
@@ -31,6 +36,7 @@ export const Popover: React.FC<PopoverProps> = (p) => {
         width: pw,
         opacity: pose.opacity,
         transform: `scale(${pose.scale})`,
+        filter: mo.blurK > 0 && (raw.openRaw < 1 || raw.closeRaw > 0) ? `blur(${((1 - Math.min(1, open)) * 8 + close * 5) * mo.blurK}px)` : undefined,
         transformOrigin: origin,
         ...style,
       }}
@@ -109,7 +115,7 @@ export const Popover: React.FC<PopoverProps> = (p) => {
           color: "#fff",
           fontWeight: 700,
           fontSize: T.ui,
-          boxShadow: `0 10px 30px ${alpha(accent, 0.45)}, inset 0 1px 0 rgba(255,255,255,.35)`,
+          boxShadow: `0 10px ${30 * Math.max(0.3, mo.glowK)}px ${alpha(accent, Math.min(1, 0.45 * mo.glowK))}, inset 0 1px 0 rgba(255,255,255,.35)`,
           whiteSpace: "nowrap",
         }}
       >
