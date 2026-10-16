@@ -1,8 +1,34 @@
 import React, { useEffect, useState } from "react";
+import type { CreativeSegment, EditDoc } from "../../src/kit/project";
+import { kindOf, newAttachment } from "../../src/kit/refs";
 import { api, Ref } from "../api";
+import { attach, detach, draftOf } from "../dDraft";
 
 /** Browse the visual reference library (the skill's original images) and pick references for option D. */
-export const ReferencesPanel: React.FC<{ picked: string[]; setPicked: (r: string[]) => void }> = ({ picked, setPicked }) => {
+/**
+ * The libraries (My library + the built-in references). "use for D" attaches a reference to the selected
+ * scene's idea, the same attachment the D editor shows (no separate copied list); "whole project" attaches
+ * it once for every scene. Removing it here or in the D editor is the same operation and never deletes it.
+ */
+export const ReferencesPanel: React.FC<{ doc: EditDoc; segment: CreativeSegment | null; setDoc: (d: EditDoc) => void }> = ({ doc, segment, setDoc }) => {
+  const picked = segment ? draftOf(segment).attachments.map((a) => a.id) : [];
+  const inProject = new Set((doc.refs ?? []).map((a) => a.id));
+  const toggle = (id: string) => {
+    if (!segment) return;
+    setDoc(picked.includes(id) ? detach(doc, segment.id, id, "idea") : attach(doc, segment.id, id, kindOf(id)));
+  };
+  const toggleProject = (id: string) =>
+    setDoc(inProject.has(id) ? { ...doc, refs: (doc.refs ?? []).filter((a) => a.id !== id) } : { ...doc, refs: [...(doc.refs ?? []), { ...newAttachment(id, kindOf(id)), scope: "project" }] });
+  const refButtons = (id: string) => (
+    <div className="row small">
+      <button className="ghost small" disabled={!segment} onClick={() => toggle(id)} data-testid={`ref-use-${id}`} title={segment ? `attach to ${segment.id}'s idea (D)` : "select a scene first"}>
+        {picked.includes(id) ? "remove from D" : "use for D"}
+      </button>
+      <button className="ghost small" onClick={() => toggleProject(id)} data-testid={`ref-project-${id}`} title="every scene inherits it (a scene can opt out)">
+        {inProject.has(id) ? "✓ whole project" : "whole project"}
+      </button>
+    </div>
+  );
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("");
   const [refs, setRefs] = useState<Ref[]>([]);
@@ -111,9 +137,7 @@ export const ReferencesPanel: React.FC<{ picked: string[]; setPicked: (r: string
                 <b>{r.id}</b> {r.kind} · {r.tags.join(", ")}
               </div>
               {r.note ? <div className="muted small">{r.note}</div> : null}
-              <button className="ghost small" onClick={() => setPicked(picked.includes(r.id) ? picked.filter((x) => x !== r.id) : [...picked, r.id])}>
-                {picked.includes(r.id) ? "remove" : "use for D"}
-              </button>
+              {refButtons(r.id)}
             </div>
           ))}
         </div>
@@ -128,14 +152,15 @@ export const ReferencesPanel: React.FC<{ picked: string[]; setPicked: (r: string
           <option value="FUL">Full-screen</option>
         </select>
       </div>
-      {picked.length ? (
-        <p className="small">
-          Picked for D: {picked.join(", ")}{" "}
-          <button className="ghost small" onClick={() => setPicked([])}>
-            clear
-          </button>
-        </p>
-      ) : null}
+      <p className="small" data-testid="refs-target">
+        {segment ? (
+          <>
+            Attaching to <b>{segment.id}</b>’s idea (D){picked.length ? `: ${picked.join(", ")}` : ""}. Edit scope, role and notes in the A/B/C/D tab.
+          </>
+        ) : (
+          "Select a scene to attach references to its idea (D)."
+        )}
+      </p>
       {big ? (
         <div className="ref-big" onClick={() => setBig(null)}>
           <img src={big.img} alt={big.id} />
@@ -151,9 +176,7 @@ export const ReferencesPanel: React.FC<{ picked: string[]; setPicked: (r: string
             <div className="small">
               <b>{r.id}</b> {r.title}
             </div>
-            <button className="ghost small" onClick={() => setPicked(picked.includes(r.id) ? picked.filter((x) => x !== r.id) : [...picked, r.id])}>
-              {picked.includes(r.id) ? "remove" : "use for D"}
-            </button>
+            {refButtons(r.id)}
           </div>
         ))}
       </div>

@@ -556,3 +556,29 @@ h3 { font-size: 11.5px; margin: 16px 0 8px; text-transform: uppercase; letter-sp
 .my-lib-drop { grid-column: 1 / -1; display: flex; align-items: center; justify-content: center; min-height: 64px; padding: 10px; border: 1.5px dashed var(--line-2); border-radius: 10px; cursor: pointer; color: var(--ink-2); text-align: center; }
 .my-lib-drop input { display: none; }
 .my-lib-add.drag .my-lib-drop, .my-lib-drop:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--ink); }
+
+/* Option D editor: references attached right here (scope, role, influence, note) */
+.d-editor { display: grid; gap: 8px; border-radius: 10px; }
+.d-editor.drag { outline: 2px dashed var(--accent); outline-offset: 4px; background: var(--accent-soft); }
+.d-editor textarea { min-height: 90px; resize: vertical; }
+.d-refs { display: grid; gap: 6px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); }
+.d-refs-head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.d-add { display: flex; gap: 6px; align-items: center; }
+.d-add input:not([type="file"]) { flex: 1; min-width: 0; }
+.d-hits { display: flex; gap: 6px; flex-wrap: wrap; }
+.d-hit { display: grid; gap: 2px; padding: 4px; width: 92px; font-size: 10.5px; }
+.d-hit img { width: 100%; height: 54px; object-fit: cover; border-radius: 5px; }
+.d-atts { display: grid; gap: 6px; }
+.d-att { display: grid; grid-template-columns: 56px 1fr auto; gap: 8px; align-items: start; padding: 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+.d-att.off { opacity: .5; }
+.d-att img, .d-att-link { width: 56px; height: 40px; object-fit: cover; border-radius: 5px; display: grid; place-items: center; background: var(--panel-3); }
+.d-att-body { display: grid; gap: 4px; min-width: 0; }
+.d-att-top { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 12px; }
+.d-att-ctl { display: flex; gap: 4px; flex-wrap: wrap; }
+.d-att-ctl select { min-height: 26px; padding: 2px 6px; font-size: 11.5px; }
+.d-att-body input { min-height: 26px; font-size: 11.5px; }
+.badge { font-size: 10px; padding: 1px 6px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); }
+.d-hints { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.d-summary { padding: 8px 10px; border-left: 3px solid var(--accent); background: var(--accent-soft); border-radius: 6px; font-size: 12px; }
+.d-summary ul { margin: 4px 0 0; padding-left: 16px; display: grid; gap: 2px; }
+.d-summary .warn { color: #d97706; }

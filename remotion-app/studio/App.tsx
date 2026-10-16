@@ -86,7 +86,6 @@ export const App: React.FC = () => {
   const [sounds, setSounds] = useState<SoundMeta[]>([]);
   const [previewConcept, setPreviewConcept] =
     useState<StudioEditProps["concept"]>(null);
-  const [extraRefs, setExtraRefs] = useState<string[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
   const [showKeys, setShowKeys] = useState(false);
@@ -515,7 +514,6 @@ export const App: React.FC = () => {
           if (c && seg)
             seek(seg.start + Math.min(1, (seg.end - seg.start) / 2));
         }}
-        extraRefs={extraRefs}
         onBuilt={(id) => {
           setBeatId(id);
           setPreviewConcept(null);
@@ -941,7 +939,7 @@ export const App: React.FC = () => {
                 />
               ) : null}
               {tab === "references" ? (
-                <ReferencesPanel picked={extraRefs} setPicked={setExtraRefs} />
+                <ReferencesPanel doc={doc} segment={segment} setDoc={setDoc} />
               ) : null}
               {tab === "export" ? (
                 <ExportPanel

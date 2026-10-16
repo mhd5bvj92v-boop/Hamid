@@ -18,6 +18,8 @@ import {
 import type { StudioEditProps } from "../../src/kit/StudioEdit";
 import { kitTiming } from "../../src/kit/timing";
 import { api } from "../api";
+import { draftOf } from "../dDraft";
+import { DEditor } from "./DEditor";
 
 type Props = {
   doc: EditDoc;
@@ -27,7 +29,6 @@ type Props = {
   setError: (e: string | null) => void;
   previewConcept: StudioEditProps["concept"];
   setPreviewConcept: (c: StudioEditProps["concept"]) => void;
-  extraRefs: string[];
   onBuilt: (beatId: string) => void;
   seek: (t: number) => void;
 };
@@ -79,19 +80,11 @@ export const CreativePanel: React.FC<Props> = (p) => {
   const { doc, segment: seg } = p;
   const [busy, setBusy] = useState<string | null>(null);
   const [set, setSet] = useState<"claude" | "draft">("claude");
-  const [custom, setCustom] = useState("");
-  const [basedOn, setBasedOn] = useState<"" | ConceptOption>("");
-  const [combine, setCombine] = useState<string[]>([]);
-  const [uploads, setUploads] = useState<{ path: string; url: string }[]>([]);
   const [feedback, setFeedback] = useState("");
   const [quote, setQuote] = useState("");
-  // each segment opens on Claude Concepts, with an empty D
+  // each segment opens on Claude Concepts; its D draft is kept in edit.json (seg.dDraft)
   useEffect(() => {
     setSet("claude");
-    setCustom("");
-    setBasedOn("");
-    setCombine([]);
-    setUploads([]);
     setFeedback("");
   }, [seg?.id]);
 
@@ -186,13 +179,10 @@ export const CreativePanel: React.FC<Props> = (p) => {
         option,
         set: from,
         ...(option === "D"
-          ? {
-              custom,
-              basedOn: basedOn || undefined,
-              combine,
-              refs: p.extraRefs,
-              uploads: uploads.map((u) => u.path),
-            }
+          ? (() => {
+              const d = draftOf(seg);
+              return { custom: d.text, basedOn: d.basedOn || undefined, combine: d.combine ?? [], draft: d };
+            })()
           : {}),
       });
       p.fromServer(r.doc);
@@ -413,100 +403,7 @@ export const CreativePanel: React.FC<Props> = (p) => {
             is saved exactly as you write it and Claude Code implements all of
             it (anything it cannot do is listed, not skipped).
           </p>
-          <textarea
-            value={custom}
-            onChange={(e) => setCustom(e.target.value)}
-            data-testid="d-text"
-            placeholder="e.g. Take B's card, but make it red, slide it in from the right, and add a soft glitch when it leaves."
-          />
-          {hasClaude ? (
-            <div className="row small">
-              <label>
-                based on
-                <select
-                  value={basedOn}
-                  onChange={(e) => setBasedOn(e.target.value as never)}
-                  data-testid="d-based"
-                >
-                  <option value="">—</option>
-                  {OPTS.filter((k) => seg.concepts[k]).map((k) => (
-                    <option key={k} value={k}>
-                      {k}: {seg.concepts[k]!.title}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <span>combine</span>
-              {OPTS.filter((k) => seg.concepts[k]).map((k) => (
-                <label key={k}>
-                  <input
-                    type="checkbox"
-                    checked={combine.includes(k)}
-                    onChange={(e) =>
-                      setCombine(
-                        e.target.checked
-                          ? [...combine, k]
-                          : combine.filter((x) => x !== k),
-                      )
-                    }
-                    data-testid={`d-combine-${k}`}
-                  />{" "}
-                  {k}
-                </label>
-              ))}
-            </div>
-          ) : null}
-          <div className="row small">
-            <span className="muted">
-              Library references:{" "}
-              {p.extraRefs.length
-                ? p.extraRefs.join(", ")
-                : "add them in the References tab"}
-            </span>
-          </div>
-          <div className="row small">
-            <label className="file">
-              Add reference images
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/webp,image/gif"
-                multiple
-                data-testid="d-upload"
-                onChange={(e) => {
-                  const files = Array.from(e.target.files ?? []);
-                  wrap("upload", async () => {
-                    for (const f of files) {
-                      const data = await new Promise<string>((ok) => {
-                        const fr = new FileReader();
-                        fr.onload = () =>
-                          ok(String(fr.result).split(",")[1] ?? "");
-                        fr.readAsDataURL(f);
-                      });
-                      const r = await api.upload(doc.slug, f.name, data);
-                      setUploads((u) => [...u, r]);
-                    }
-                  });
-                }}
-              />
-            </label>
-            {uploads.map((u) => (
-              <img
-                key={u.path}
-                src={u.url}
-                className="upload-thumb"
-                alt="your reference"
-                title={u.path}
-              />
-            ))}
-          </div>
-          <button
-            className="primary small"
-            disabled={!custom.trim() || !!busy}
-            onClick={() => choose("D", "claude")}
-            data-testid="choose-D"
-          >
-            Save my idea (D) for Claude Code
-          </button>
+          <DEditor doc={doc} seg={seg} setDoc={p.setDoc} busy={busy} wrap={wrap} onSave={() => choose("D", "claude")} />
         </div>
       ) : null}
 

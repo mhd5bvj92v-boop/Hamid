@@ -7,11 +7,12 @@ import { createReadStream, existsSync, mkdirSync, readFileSync, readdirSync, ren
 import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
 import type { Plugin, ViteDevServer } from "vite";
-import type { Concept, ConceptOption, CreativeSegment, EditDoc, SfxItem } from "../../src/kit/project";
+import type { Concept, ConceptOption, CreativeSegment, DDraft, EditDoc, SfxItem } from "../../src/kit/project";
 import { GAIN_PRESETS, OPEN_REQUEST, detectFormat, normalizeDoc, parseTranscript, validateTranscript } from "../../src/kit/project";
 import type { SoundMeta } from "../../src/kit/studio";
 import type { DocPatch } from "../../src/kit/patch";
 import { applyPatch } from "../../src/kit/patch";
+import { kindOf, newAttachment, resolveRefs } from "../../src/kit/refs";
 import { draftConcepts } from "./drafts";
 import { APP, getBundle, invalidateBundle, media, still } from "./render";
 
@@ -544,8 +545,27 @@ const routes: [string, RegExp, (c: Ctx) => Promise<unknown> | unknown][] = [
         args.push(`--custom=${String(b.custom)}`); // exactly as typed
         if ((b.combine as string[] | undefined)?.length) args.push(`--combine=${(b.combine as string[]).join(",")}`);
         if (b.basedOn) args.push(`--based-on=${String(b.basedOn)}`);
-        if ((b.refs as string[] | undefined)?.length) args.push(`--refs=${(b.refs as string[]).join(",")}`);
-        if ((b.uploads as string[] | undefined)?.length) args.push(`--uploads=${(b.uploads as string[]).join(",")}`);
+        // the effective references: this idea's attachments + the scene's + the inherited project ones, exclusions applied
+        const doc = readDoc(slug);
+        const seg = doc.segments.find((s) => s.id === b.segmentId);
+        if (!seg) throw new Error("unknown segment");
+        const draft = b.draft as DDraft | undefined;
+        if (draft) {
+          seg.dDraft = { ...draft, text: String(b.custom) };
+          writeDoc(slug, doc);
+        }
+        const legacy = [...((b.refs as string[] | undefined) ?? []).map((id) => newAttachment(id, kindOf(id))), ...((b.uploads as string[] | undefined) ?? []).map((p) => newAttachment(`UP-${path.basename(p)}`, "upload", { path: p }))];
+        const resolved = resolveRefs(doc, seg, [...(draft?.attachments ?? []), ...legacy]);
+        const mine = userRefs();
+        const active = resolved.active.map((a) => (a.kind === "mine" ? { ...a, path: mine.find((m) => m.id === a.id)?.file ?? a.path } : a));
+        const snap = path.join(workDir(slug), "refs", `decision-${String(b.segmentId)}-${Date.now()}.json`);
+        mkdirSync(path.dirname(snap), { recursive: true });
+        writeFileSync(snap, JSON.stringify({ attachments: active, excluded: resolved.excluded.map((x) => x.id), hints: draft?.hints ?? null, draftRev: draft?.rev ?? null }, null, 1));
+        args.push(`--attachments-file=${snap}`);
+        const lib = active.filter((a) => a.kind === "library" || a.kind === "mine").map((a) => a.id);
+        const ups = active.filter((a) => a.kind === "upload" && a.path).map((a) => a.path as string);
+        if (lib.length) args.push(`--refs=${lib.join(",")}`);
+        if (ups.length) args.push(`--uploads=${ups.join(",")}`);
       }
       if (b.quote) args.push(`--quote=${String(b.quote)}`);
       const out = await decisions(args);

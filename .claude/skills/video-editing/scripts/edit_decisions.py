@@ -73,6 +73,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import vedit as V  # noqa: E402
+import vvlib  # noqa: E402
 
 OPTIONS = ("A", "B", "C")
 GATES = ("direction", "preview", "final")
@@ -511,14 +512,26 @@ def cmd_decide(app, slug, a):
         raise SystemExit("--choice D needs --custom with the user's own idea, exactly as they wrote it")
     split = lambda s: [x.strip() for x in s.split(",") if x.strip()] if s else []
     uploads = split(a.uploads) + ([a.reference_image] if a.reference_image else [])
+    # D: the effective references snapshot (idea + scene + inherited project, exclusions applied) the Studio resolved
+    snap = json.loads(Path(a.attachments_file).read_text(encoding="utf-8")) if getattr(a, "attachments_file", None) else {}
     for mid in ids:
         m = seg_by_id(log, mid)
         if choice in OPTIONS and (m.get("concepts") or {}).get(choice, {}).get("author") != "claude":
             raise SystemExit(f"{mid}: no Claude Concept {choice} yet (process the concepts request first)")
         source = "own" if choice == "D" else ("claude" if choice in OPTIONS else None)
+        # applying the same decision again is idempotent: the open request for it stays, nothing is duplicated
+        same_inputs = lambda d: (d.get("custom"), d.get("combine") or [], d.get("basedOn"), d.get("attachments") or [], d.get("refs") or [], d.get("uploads") or [])
+        prev = m.get("decision") or {}
+        cur_req = next((r for r in open_requests(log, mid, ("implement",)) if r["id"] == prev.get("requestId")), None)
+        new_inputs = (custom if choice == "D" else None, [c.upper() for c in split(a.combine)], a.based_on.upper() if a.based_on else None,
+                      snap.get("attachments") or [], split(a.refs), uploads)
+        if cur_req and prev.get("choice") == choice and prev.get("source") == source and same_inputs(prev) == new_inputs:
+            print(f"{mid}: the same decision is already waiting for Claude Code as {cur_req['id']} (nothing duplicated)")
+            continue
         withdraw_on_change(log, m, (choice, source))
-        # anything still waiting for Claude Code on this segment is superseded by this decision
-        for r in open_requests(log, mid, ("implement", "revision")):
+        # anything still waiting for (or failed in) Claude Code on this segment is superseded by this decision,
+        # so an older request can never be built over the newer decision
+        for r in [x for x in log["requests"] if x["segmentId"] == mid and x["type"] in ("implement", "revision") and x["status"] in (*OPEN, "failed")]:
             set_status(r, "cancelled", result="superseded by a new decision")
         if choice != "none":
             m["plan"] = {"status": "approved", "approvedAt": now(), "via": "choice", **({"quote": a.quote} if a.quote else {})}
@@ -528,7 +541,10 @@ def cmd_decide(app, slug, a):
                          **({"combine": [c.upper() for c in split(a.combine)]} if a.combine else {}),
                          **({"basedOn": a.based_on.upper()} if a.based_on else {}),
                          **({"refs": split(a.refs)} if a.refs else {}),
-                         **({"uploads": uploads} if uploads else {})}
+                         **({"uploads": uploads} if uploads else {}),
+                         **({"attachments": snap.get("attachments") or [], "excluded": snap.get("excluded") or []} if choice == "D" and snap else {}),
+                         **({"hints": snap["hints"]} if choice == "D" and snap.get("hints") else {}),
+                         **({"draftRev": snap["draftRev"]} if choice == "D" and snap.get("draftRev") is not None else {})}
         if choice == "none" or m.get("type") == "sound":
             print(f"decided {mid}: {choice}")
             continue
@@ -537,7 +553,8 @@ def cmd_decide(app, slug, a):
             extra["concept"] = m["concepts"][choice]
         else:
             d = m["decision"]
-            extra.update(custom=custom, combine=d.get("combine"), basedOn=d.get("basedOn"), refs=d.get("refs"), uploads=d.get("uploads"))
+            extra.update(custom=custom, combine=d.get("combine"), basedOn=d.get("basedOn"), refs=d.get("refs"), uploads=d.get("uploads"),
+                         attachments=d.get("attachments"), excluded=d.get("excluded"), hints=d.get("hints"), draftRev=d.get("draftRev"))
             pools = {**{k: v for k, v in (m.get("concepts") or {}).items() if v}}
             if d.get("basedOn") or d.get("combine"):
                 extra["note"] = "Concepts the user referred to: " + json.dumps({k: pools.get(k, {}).get("title") for k in [d.get("basedOn"), *(d.get("combine") or [])] if k})
@@ -755,6 +772,51 @@ GUIDE = {
 }
 
 
+BUILTIN_ID = re.compile(r"^(ONS|TXT|FUL)-\d{3}$")
+
+
+def user_library():
+    lib = V.SKILL_ROOT.parents[2] / "library" / "references.json"
+    return json.loads(lib.read_text(encoding="utf-8")) if lib.exists() else []
+
+
+def ref_file(att, cat=None, mine=None):
+    """The file a reference attachment points to (built-in image, My-library file, upload) or its URL."""
+    rid = att.get("id", "")
+    if att.get("kind") == "url" or att.get("url"):
+        return att.get("url")
+    if BUILTIN_ID.match(rid):
+        cat = cat or vvlib.load_catalog()
+        hit = next((x for x in cat["references"] if x["id"] == rid), None)
+        return str(V.SKILL_ROOT / hit["file"]) if hit else None
+    if rid.startswith("MY-"):
+        hit = next((x for x in (mine if mine is not None else user_library()) if x["id"] == rid), None)
+        return hit["file"] if hit else att.get("path")
+    return att.get("path")
+
+
+def brief_attachments(b):
+    """The effective references of a request: the D snapshot, or (older requests) its refs/uploads."""
+    if b.get("attachments") is not None:
+        return b["attachments"]
+    return [*({"id": x, "kind": "mine" if x.startswith("MY-") else "library", "scope": "idea", "role": "style", "influence": "use", "from": "idea"} for x in (b.get("refs") or [])),
+            *({"id": "UP-" + Path(u).name, "kind": "upload", "path": u, "scope": "idea", "role": "style", "influence": "use", "from": "idea"} for u in (b.get("uploads") or []))]
+
+
+def check_current(log, r):
+    """An older request never builds over a newer decision: implement requests must be the scene's current decision's,
+    revisions the newest revision of the scene."""
+    seg = seg_by_id(log, r["segmentId"])
+    d = seg.get("decision") or {}
+    if r["type"] == "implement" and d.get("requestId") and d["requestId"] != r["id"]:
+        raise SystemExit(f"{r['id']} is out of date: {seg['id']}'s current decision ({d.get('choice')}) belongs to {d['requestId']}. "
+                         f"Nothing was built; process {d['requestId']} instead.")
+    if r["type"] == "revision":
+        newest = [x for x in log["requests"] if x["segmentId"] == seg["id"] and x["type"] == "revision"][-1]
+        if newest["id"] != r["id"]:
+            raise SystemExit(f"{r['id']} is out of date: {newest['id']} is the newest revision of {seg['id']}. Nothing was built.")
+
+
 def cmd_show(app, slug, a):
     log = load(app, slug)
     r = find_request(log, a.request)
@@ -773,7 +835,17 @@ def cmd_show(app, slug, a):
         c = b["constants"]
         print("CONSTANTS FOR THE WHOLE EDIT: " + "; ".join(f"{k}: {v}" for k, v in c.items() if v not in ("", None)))
     if b.get("custom") is not None:
-        print("\nTHE USER'S OWN IDEA (D), verbatim - implement all of it:\n" + "-" * 60 + f"\n{b['custom']}\n" + "-" * 60)
+        print("\nTHE USER'S OWN IDEA (D), verbatim - implement all of it (it wins over any reference):\n" + "-" * 60 + f"\n{b['custom']}\n" + "-" * 60)
+        seg0 = seg_by_id(log, r["segmentId"])
+        pools = {**(seg0.get("concepts") or {})}
+        for k in [b.get("basedOn"), *(b.get("combine") or [])]:
+            if k and pools.get(k):
+                c = pools[k]
+                print(f"  the user builds on concept {k} ({'based on' if k == b.get('basedOn') else 'combine'}): {c['title']} - {c['description']}"
+                      f"\n    enter: {c.get('enter')} | move: {c.get('move')} | exit: {c.get('exit')}")
+        h = {k: v for k, v in (b.get("hints") or {}).items() if v}
+        if h:
+            print("  the user's structured hints: " + "; ".join(f"{k}: {v}" for k, v in h.items()))
     if b.get("feedback") is not None:
         print("\nTHE USER'S FEEDBACK, verbatim - apply all of it:\n" + "-" * 60 + f"\n{b['feedback']}\n" + "-" * 60)
         for f in b.get("earlierFeedback") or []:
@@ -809,8 +881,16 @@ def cmd_show(app, slug, a):
     print("\nsuggested references (keyword match; open the images before using them):")
     for x in b["references"]["suggested"]:
         print(f"  {x['id']}  {x['family']:16} {x['title'][:60]}  {x['file']}")
-    if b.get("refs") or b.get("uploads"):
-        print(f"references the user added: {', '.join(b.get('refs') or [])} {' '.join(b.get('uploads') or [])}")
+    atts = brief_attachments(b)
+    if atts or b.get("excluded"):
+        cat, mine = vvlib.load_catalog(), user_library()
+        print("\nTHIS SCENE WILL USE (the user's references for this decision; idea > scene > project, exclusions applied):")
+        for x in atts:
+            print(f"  {x['id']:12} {x.get('influence', 'use'):6} {x.get('role', 'style'):12} from {x.get('from', x.get('scope', 'idea')):7} {ref_file(x, cat, mine) or '(missing file)'}"
+                  + (f"  - {x['note']}" if x.get("note") else ""))
+        if b.get("excluded"):
+            print(f"  excluded (do NOT use): {', '.join(b['excluded'])}")
+        print("  use = adopt its visible qualities for the given role; light = a hint only. A still image does not prove motion.")
     if b["timeline"]:
         print("existing timeline items (leave them unchanged): " + ", ".join(f"{t['id']} {t['kind']} @{t['at']}s" for t in b["timeline"]))
     print()
@@ -921,9 +1001,12 @@ def beat_hash(beat):
 def style_refs(log, seg, r):
     """What the build must hold up against: the concept's style reference (+ its refs) or the user's references/uploads (D)."""
     c = r["brief"].get("concept") or {}
-    refs = [x for x in [c.get("styleRef"), *(c.get("refs") or []), *(r["brief"].get("refs") or [])] if x]
-    uploads = [u for u in (r["brief"].get("uploads") or []) if Path(u).exists()]
-    return list(dict.fromkeys(refs))[:2], uploads[:2]
+    atts = [x for x in brief_attachments(r["brief"]) if x.get("influence", "use") != "exclude"]
+    # built-in ids go to the sheet as references; My-library files and uploads go as images
+    refs = [x for x in [c.get("styleRef"), *(c.get("refs") or []), *(x["id"] for x in atts)] if x and BUILTIN_ID.match(x)]
+    mine = user_library()
+    uploads = [f for f in (ref_file(x, None, mine) for x in atts if not BUILTIN_ID.match(x["id"]) and x.get("kind") != "url") if f and Path(f).exists()]
+    return list(dict.fromkeys(refs))[:2], list(dict.fromkeys(uploads))[:2]
 
 
 def check_assets_used(seg, needs, b):
@@ -971,6 +1054,7 @@ def cmd_preview(app, slug, a):
     log = load(app, slug)
     r = find_request(log, a.request)
     take(r, ("implement", "revision"))
+    check_current(log, r)
     seg = seg_by_id(log, r["segmentId"])
     needs, missing = asset_needs(log, seg, r)
     if missing:
@@ -1029,6 +1113,7 @@ def cmd_built(app, slug, a):
     log = load(app, slug)
     r = find_request(log, a.request)
     take(r, ("implement", "revision"))
+    check_current(log, r)
     seg = seg_by_id(log, r["segmentId"])
     needs, missing = asset_needs(log, seg, r)
     if missing:
@@ -1133,7 +1218,9 @@ def cmd_review(app, slug, a):
     d = seg.get("decision") or {}
     pool = seg.get("drafts") if d.get("source") == "draft" else seg.get("concepts")
     req = new_request(log, "revision", seg, feedback=a.changes, earlierFeedback=earlier, version=seg.get("activeVersion"), currentBeat=cur,
-                      choice=d.get("choice"), custom=d.get("custom"), concept=(pool or {}).get(d.get("choice")) if d.get("choice") in OPTIONS else None)
+                      choice=d.get("choice"), custom=d.get("custom"), concept=(pool or {}).get(d.get("choice")) if d.get("choice") in OPTIONS else None,
+                      combine=d.get("combine"), basedOn=d.get("basedOn"), refs=d.get("refs"), uploads=d.get("uploads"),
+                      attachments=d.get("attachments"), excluded=d.get("excluded"), hints=d.get("hints"))
     seg["review"] = {"status": "changes-requested", "version": seg.get("activeVersion"), "at": now(), "note": a.changes}
     save(app, slug, log)
     print(f"{req['id']} pending: revision of {seg['id']} v{seg.get('activeVersion')} - \"{a.changes}\"")
@@ -1163,8 +1250,11 @@ def cmd_plan_approve(app, slug, a):
             pool = m.get("drafts") if d.get("source") == "draft" else m.get("concepts")
             extra.update(conceptSet=d.get("source"), concept=(pool or {}).get(d["choice"]))
         elif d.get("choice") == "D":
-            extra.update(custom=d.get("custom"), combine=d.get("combine"), basedOn=d.get("basedOn"), refs=d.get("refs"), uploads=d.get("uploads"))
+            extra.update(custom=d.get("custom"), combine=d.get("combine"), basedOn=d.get("basedOn"), refs=d.get("refs"), uploads=d.get("uploads"),
+                         attachments=d.get("attachments"), excluded=d.get("excluded"), hints=d.get("hints"))
         req = new_request(log, "implement", m, **extra)
+        if d.get("choice"):
+            d["requestId"] = req["id"]
         made.append(f"{sid} -> {req['id']}")
     save(app, slug, log)
     print("scene plans approved: " + (", ".join(made) if made else "nothing new") + ("  (build requests pending for Claude Code)" if made else ""))
@@ -1235,6 +1325,7 @@ def main():
     ap.add_argument("--file"); ap.add_argument("--moments"); ap.add_argument("--choice")
     ap.add_argument("--set", choices=["claude", "draft"], default="claude", help="decide: which A/B/C (Claude Concepts; Quick Drafts are chosen in the Studio)")
     ap.add_argument("--custom"); ap.add_argument("--combine"); ap.add_argument("--based-on"); ap.add_argument("--refs"); ap.add_argument("--uploads")
+    ap.add_argument("--attachments-file", help="JSON snapshot of the effective references (written by the Studio)")
     ap.add_argument("--reference-image")
     ap.add_argument("--quote"); ap.add_argument("--note"); ap.add_argument("--scope")
     ap.add_argument("--gate", choices=GATES); ap.add_argument("--change", action="append")

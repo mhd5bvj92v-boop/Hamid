@@ -49,6 +49,7 @@
     "studio:test": "node studio/tests/e2e.mjs",
     "studio:test:claude": "node studio/tests/claude-workflow.mjs",
     "studio:test:plan": "node studio/tests/scene-planning.mjs",
-    "studio:test:assets": "node studio/tests/assets.mjs"
+    "studio:test:assets": "node studio/tests/assets.mjs",
+    "studio:test:d": "node studio/tests/option-d.mjs"
   }
 }

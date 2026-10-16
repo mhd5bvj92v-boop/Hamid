@@ -202,6 +202,42 @@ export type BuildVersion = {
 };
 
 export type RequestType = "concepts" | "implement" | "revision" | "background";
+// ------------------------------------------------------------------ references attached to ideas, scenes and the project
+// A saved reference asset (built-in ONS/TXT/FUL-###, the user's MY-###, a D upload, a URL) is stored once;
+// an attachment is a scoped link to it with a role, an influence and a note. Removing an attachment never
+// deletes the asset. The effective set for a decision is resolved in src/kit/refs.ts.
+export type RefScope = "idea" | "scene" | "project";
+export type RefRole = "style" | "motion" | "typography" | "color" | "composition" | "subject";
+export type RefInfluence = "use" | "light" | "exclude";
+export type RefAttachment = {
+  /** ONS-024 / TXT-003 / FUL-072 (built-in), MY-001 (My library), UP-<file> (upload), URL-<n> (link) */
+  id: string;
+  kind: "library" | "mine" | "upload" | "url";
+  /** upload: absolute path on disk; mine: filled in when resolved */
+  path?: string;
+  url?: string;
+  scope: RefScope;
+  role: RefRole;
+  influence: RefInfluence;
+  /** "use this" / "avoid this" */
+  note?: string;
+  added: string;
+};
+/** Option D as the user is writing it: kept per scene in edit.json, so tabs, scenes and reloads never lose it. */
+export type DDraft = {
+  /** exactly as typed (line breaks and punctuation kept) */
+  text: string;
+  basedOn?: ConceptOption | "";
+  combine?: string[];
+  /** attachments of this idea (scope "idea") */
+  attachments: RefAttachment[];
+  /** optional structured hints; the free text stays the source instruction */
+  hints?: { composition?: string; animation?: string; typography?: string; background?: string; sound?: string };
+  /** bumped on every change of the draft; a decision records the revision it was made from */
+  rev: number;
+  updated: string;
+};
+
 export type RequestStatus = "pending" | "in_progress" | "completed" | "partial" | "failed" | "cancelled";
 
 /** Snapshot of everything Claude Code needs to process a request (taken when it is created). */
@@ -227,6 +263,11 @@ export type RequestBrief = {
   basedOn?: ConceptOption;
   refs?: string[];
   uploads?: string[];
+  /** D: the effective references (idea + scene + inherited project, exclusions applied), snapshot at decision time. */
+  attachments?: RefAttachment[];
+  excluded?: string[];
+  hints?: DDraft["hints"];
+  draftRev?: number;
   /** The approved scene plan and the edit-wide constants (Scene Planning). */
   plan?: { sceneType: SceneType | null; sceneLabel: string; onScreen: string; status: string };
   constants?: EditConstants;
@@ -268,6 +309,11 @@ export type Decision = {
   basedOn?: ConceptOption;
   refs?: string[];
   uploads?: string[];
+  /** D: the effective references snapshot this decision was made with (see RequestBrief.attachments). */
+  attachments?: RefAttachment[];
+  excluded?: string[];
+  hints?: DDraft["hints"];
+  draftRev?: number;
   quote?: string;
   note?: string;
   /** The implementation request created for this decision (Claude Concepts and D). */
@@ -307,6 +353,27 @@ export type CreativeSegment = {
   plan?: ScenePlan;
   /** 3D / realistic assets the user provided for this scene, by need id (A1...) or their own (U1...). */
   assets?: Record<string, ProvidedAsset>;
+  /** Option D being written (persisted; survives tabs, scene switches and reloads). */
+  dDraft?: DDraft;
+  /** References attached to this whole scene (scope "scene"). */
+  refs?: RefAttachment[];
+  /** Project references this scene does not inherit (ids). */
+  refExclude?: string[];
+  /** Short scene brief: what the viewer must understand, the one visual idea, reading order, what the next scene inherits. */
+  brief?: SceneBrief;
+};
+
+/** The concise direction of a scene (brief §5), shown in the Studio and passed to Claude Code. */
+export type SceneBrief = {
+  understand?: string;
+  idea?: string;
+  why?: string;
+  focus?: string;
+  enterExit?: string;
+  inherits?: string;
+  sound?: string;
+  /** an intentional still hold (e.g. a dense visual that needs attention) */
+  stillHold?: boolean;
 };
 
 export type SfxItem = {
@@ -327,6 +394,11 @@ export type SfxItem = {
 export type Approval = { gate: "direction" | "preview" | "final"; at: string; quote: string; scope?: string };
 
 export type EditDoc = {
+  /** Schema revision (2: scoped references, D drafts, scene briefs) and what migrations ran, non-destructively. */
+  schema?: number;
+  migrations?: { to: number; at: string; notes: string }[];
+  /** References attached to the whole project (scope "project"): every scene inherits them unless it excludes them. */
+  refs?: RefAttachment[];
   /** Camera moves on the talking-head footage (Timeline "Zoom" track); look only, never timing. */
   zooms?: import("./SourceFootage").ZoomWindow[];
   version: 1;
@@ -356,7 +428,26 @@ export const OPEN_REQUEST: RequestStatus[] = ["pending", "in_progress"];
 export const isDecided = (s: CreativeSegment) => !!s.decision || s.plan?.status === "approved";
 
 /** Defaults for older documents; Quick Drafts that older versions stored as concepts move to drafts. */
+export const SCHEMA = 2;
 export const normalizeDoc = (doc: EditDoc): EditDoc => {
+  if ((doc.schema ?? 1) < SCHEMA) {
+    // v1 -> v2: D decisions get an attachments snapshot built from their legacy refs/uploads (kept as they were)
+    let n = 0;
+    for (const s of doc.segments) {
+      const d = s.decision;
+      if (d?.choice === "D" && !d.attachments && ((d.refs?.length ?? 0) || (d.uploads?.length ?? 0))) {
+        const at = d.decided ?? new Date().toISOString();
+        d.attachments = [
+          ...(d.refs ?? []).map((id): RefAttachment => ({ id, kind: id.startsWith("MY-") ? "mine" : "library", scope: "idea", role: "style", influence: "use", added: at })),
+          ...(d.uploads ?? []).map((p): RefAttachment => ({ id: `UP-${p.split(/[\\/]/).pop()}`, kind: "upload", path: p, scope: "idea", role: "style", influence: "use", added: at })),
+        ];
+        n++;
+      }
+    }
+    doc.migrations = [...(doc.migrations ?? []), { to: SCHEMA, at: new Date().toISOString(), notes: `scoped references; ${n} D decision(s) got an attachments snapshot from their refs/uploads` }];
+    doc.schema = SCHEMA;
+  }
+  doc.refs ??= [];
   doc.requests ??= [];
   doc.nextRequest ??= doc.requests.length + 1;
   doc.rev ??= 0;
