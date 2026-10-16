@@ -1,7 +1,7 @@
 // Client for the Studio API (studio/server/api.ts). Every call reads or writes edit.json.
 import type { DocPatch } from "../src/kit/patch";
 import { applyPatch, makePatch } from "../src/kit/patch";
-import type { ConceptOption, EditDoc, TranscriptIssue } from "../src/kit/project";
+import type { ConceptOption, EditDoc, Preference, TranscriptIssue } from "../src/kit/project";
 import type { SoundMeta } from "../src/kit/studio";
 
 /** edit.json was written by someone else (Claude Code, the CLI) since this copy was loaded. */
@@ -149,6 +149,8 @@ export const api = {
   upload: (slug: string, name: string, data: string) => call<{ path: string; url: string }>("POST", `/api/project/${slug}/upload`, { name, data }),
   askBackground: (slug: string, segmentId: string, prompt: string) =>
     call<{ doc: EditDoc; out: string }>("POST", `/api/project/${slug}/ask-background`, { segmentId, prompt }),
+  preferences: () => call<{ preferences: Preference[] }>("GET", "/api/preferences"),
+  savePreferences: (preferences: Preference[]) => call<{ preferences: Preference[] }>("PUT", "/api/preferences", { preferences }),
   refAnalysis: (ref: string) => call<{ analysis: RefAnalysisRecord | null }>("GET", `/api/ref-analysis?ref=${encodeURIComponent(ref)}`),
   askAnalysis: (slug: string, segmentId: string, ref: string, refresh: boolean) =>
     call<{ doc: EditDoc; analysis: RefAnalysisRecord | null; message: string }>("POST", `/api/project/${slug}/analyze-ref`, { segmentId, ref, refresh }),

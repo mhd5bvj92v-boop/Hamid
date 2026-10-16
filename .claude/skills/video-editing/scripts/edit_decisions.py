@@ -790,8 +790,12 @@ GUIDE = {
 BUILTIN_ID = re.compile(r"^(ONS|TXT|FUL)-\d{3}$")
 
 
+def library_dir():
+    return Path(os.environ.get("VV_LIBRARY") or (V.SKILL_ROOT.parents[2] / "library"))
+
+
 def user_library():
-    lib = V.SKILL_ROOT.parents[2] / "library" / "references.json"
+    lib = library_dir() / "references.json"
     return json.loads(lib.read_text(encoding="utf-8")) if lib.exists() else []
 
 
@@ -849,6 +853,15 @@ def cmd_show(app, slug, a):
     if b.get("constants"):
         c = b["constants"]
         print("CONSTANTS FOR THE WHOLE EDIT: " + "; ".join(f"{k}: {v}" for k, v in c.items() if v not in ("", None)))
+    # the user's saved preferences that apply here (scene ones only on their own scene; never generalise them)
+    fut = library_dir() / "preferences.json"
+    prefs = [p for p in (log.get("preferences") or []) if p.get("active") and (p.get("scope") != "scene" or p.get("segmentId") == r["segmentId"])]
+    prefs += [p for p in (json.loads(fut.read_text(encoding="utf-8")) if fut.exists() else []) if p.get("active")]
+    if prefs:
+        label = {"scene": f"this scene only ({r['segmentId']})", "project": "this whole video", "future": "every video"}
+        print("\nTHE USER'S SAVED PREFERENCES (apply each within its scope only):")
+        for p in prefs:
+            print(f"  [{p['id']} · {label.get(p['scope'], p['scope'])} · {p.get('kind', 'rule')}] {p['text']}")
     sb = b.get("sceneBrief") or {}
     if sb:
         names = {"understand": "viewer must understand", "idea": "one visual idea", "why": "why a visual", "focus": "focus & reading order",
@@ -892,7 +905,7 @@ def cmd_show(app, slug, a):
         if missing and r["type"] != "concepts":
             print(f"WAITING FOR THE USER: {', '.join(missing)} not provided yet. Ask them to upload it in the Studio (the scene's 3D assets"
                   f" box) or to give you the file path, then: {ED} asset {slug} --segment {seg['id']} --need <id> --file <path>. Do not build before.")
-    lib = V.SKILL_ROOT.parents[2] / "library" / "references.json"
+    lib = library_dir() / "references.json"
     if lib.exists():
         mine = json.loads(lib.read_text())
         if mine:

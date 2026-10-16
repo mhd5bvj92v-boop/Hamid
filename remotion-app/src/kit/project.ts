@@ -393,6 +393,21 @@ export type CreativeSegment = {
   brief?: SceneBrief;
 };
 
+/** The user's saved feedback as a preference (brief §35): scoped, never promoted to a wider scope by itself. */
+export type Preference = {
+  id: string;
+  text: string;
+  kind: "like" | "avoid" | "rule";
+  /** scene: only that scene; project: this video; future: every later video (library/preferences.json) */
+  scope: "scene" | "project" | "future";
+  segmentId?: string;
+  /** the version of the scene the feedback was about */
+  version?: number;
+  active: boolean;
+  at: string;
+  source?: "review" | "manual";
+};
+
 /** The concise direction of a scene (brief §5), shown in the Studio and passed to Claude Code. */
 export type SceneBrief = {
   understand?: string;
@@ -427,6 +442,8 @@ export type EditDoc = {
   /** Schema revision (2: scoped references, D drafts, scene briefs) and what migrations ran, non-destructively. */
   schema?: number;
   migrations?: { to: number; at: string; notes: string }[];
+  /** Saved feedback preferences of this video (scene and project scope; future ones live in the library). */
+  preferences?: Preference[];
   /** References attached to the whole project (scope "project"): every scene inherits them unless it excludes them. */
   refs?: RefAttachment[];
   /** Camera moves on the talking-head footage (Timeline "Zoom" track); look only, never timing. */

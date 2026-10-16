@@ -250,3 +250,26 @@ It is committed with the project's Remotion source, so the decisions survive the
 ```bash
 python3 scripts/edit_decisions.py status <slug>          # where the project stands, what is open, Studio requests for Claude
 ```
+
+
+## Saved preferences (feedback that should last)
+
+The user's feedback can be kept as a preference with an explicit scope:
+
+| Scope | Stored in | Applies to |
+| --- | --- | --- |
+| `scene` | `edit.json` `preferences` (with `segmentId` and the version the feedback was about) | That scene only |
+| `project` | `edit.json` `preferences` | Every scene of this video |
+| `future` | `<repo>/library/preferences.json` (local, not in git) | Every later video |
+
+**How preferences are made:**
+- In the Studio: A/B/C/D → **Saved preferences** (add, edit, switch off, remove, change scope).
+- When asking for changes: **Remember this as a preference** (default: no, this revision only).
+
+**What Claude Code sees:** `show` prints the active preferences that apply under THE USER'S SAVED PREFERENCES, each labelled with its scope.
+
+**Rules:**
+- Apply each preference within its scope only.
+- Never promote one to a wider scope on your own. "Less glow here" stays on that scene until the user widens it.
+- A rejected version stays restorable in the scene's versions and never feeds the next prompt.
+- When the user says "more premium", diagnose the weak property (motion-recipes.md, diagnosis table) and propose a concrete change. Don't save the vague word as a rule.

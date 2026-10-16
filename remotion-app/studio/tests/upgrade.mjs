@@ -11,6 +11,9 @@
 //     ref_analysis.py) show as "analysed", with inferred motion kept apart; a still cannot get observed motion
 //  A4 the analysis is reused in another scene; refresh re-measures and keeps the earlier observations in history
 //  A5 Claude Code's build request prints the analysis of its references
+//  P1 preferences saved in the Studio: project ones in edit.json, future ones in the library; they survive a reload
+//  P2 "Remember this" on a change request saves a scene preference; Claude Code sees it on that scene only
+//  P3 switching a preference off removes it from Claude Code's view; widening its scope is an explicit change
 // Usage: node studio/tests/upgrade.mjs [--keep]
 import { execSync, spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
@@ -92,12 +95,16 @@ if (r.status) throw new Error(r.out);
   };
   const seg = (id, t, start, end, text) => ({ id, transcriptIds: [t], start, end, text, type: "fullscreen", major: true, round: 0, concepts: {}, history: [], decision: null, beatId: id, requests: [] });
   d.segments = [seg("S01", "T001", 0.3, 3.6, "Your invoice was paid this morning"), seg("S02", "T002", 4.0, 7.6, "Every payment shows up the same way")];
+  // S01 is built (v1, the user's own idea), so it can be reviewed and changes requested
+  d.segments[0].decision = { choice: "D", round: 0, decided: "2026-10-16T00:00:00", source: "own", custom: "A card that turns Paid" };
   d.beats = [
     { id: "S01", kind: "DirectionalCard", at: 0.3, segmentId: "S01", props: { label: "Invoice #212", title: "Payment from Nova Studio", status: { from: "Pending", to: "Paid" }, icon: "check", fullscreen: true, background: "midnight-blue", travel: "offscreen", changeAt: 1.4, outAt: 2.9 } },
     { id: "S02", kind: "KineticText", at: 4.0, segmentId: "S02", props: { text: "Every payment shows up the same way", style: "word-rise", placement: "fullscreen", background: "near-black-light", accent: ["same way"], outAt: 3.2 } },
   ];
   // the constants the Studio fills in on its first save (DEFAULT_CONSTANTS), so the baseline matches it
   d.constants = { color60: "#0A0F1F", color30: "#1E2A44", accentColor: "#2F6BFF", camera: "push-in", cameraIntensity: "medium" };
+  d.segments[0].versions = [{ v: 1, source: "own", beat: d.beats[0], sfx: [], status: "built", at: "2026-10-16T00:00:00" }];
+  d.segments[0].activeVersion = 1;
   writeDoc(d);
 }
 // baseline stills before any motion setting (the defaults must render exactly as before)
@@ -273,6 +280,53 @@ try {
   const bshow = py("edit_decisions.py", "show", SLUG, "--request", breq.id);
   check("A5", /analysis of ONS-024\s+\[measured\]/.test(bshow.out) && /palette:/.test(bshow.out),
     "Claude Code's build request prints the stored analysis of each reference (status, measured facts)");
+
+  // ---------------------------------------------------------------- P1 preferences saved and reloaded
+  await openD("S01");
+  await page.getByTestId("prefs-toggle").locator("summary").click();
+  await page.getByTestId("pref-new-kind").selectOption("avoid");
+  await page.getByTestId("pref-new-text").fill("neon colours");
+  await page.getByTestId("pref-new-scope").selectOption("project");
+  await page.getByTestId("pref-add").click();
+  await page.getByTestId("pref-new-kind").selectOption("like");
+  await page.getByTestId("pref-new-text").fill("cards on the left third");
+  await page.getByTestId("pref-new-scope").selectOption("future");
+  await page.getByTestId("pref-add").click();
+  await waitFor(() => (docOf().preferences ?? []).some((x) => x.text === "neon colours" && x.scope === "project") && existsSync(path.join(LIB, "preferences.json")), "the saved preferences");
+  await page.reload();
+  await openD("S01");
+  await page.getByTestId("prefs-toggle").locator("summary").click();
+  const prefTexts = () => page.locator('[data-testid^="pref-text-"]').evaluateAll((els) => els.map((e) => e.value).join(" | "));
+  await waitFor(async () => /cards on the left third/.test(await prefTexts()), "the future-videos preference in the list");
+  const listed = await prefTexts();
+  const fut = JSON.parse(readFileSync(path.join(LIB, "preferences.json"), "utf8"));
+  check("P1", /neon colours/.test(listed) && /cards on the left third/.test(listed) && fut.length === 1 && fut[0].scope === "future" && !(docOf().preferences ?? []).some((x) => x.scope === "future"),
+    "a project preference is saved in edit.json and a future-videos one in the local library (library/preferences.json); both are listed again after a reload");
+
+  // ---------------------------------------------------------------- P2 remember a change request for this scene
+  await page.getByTestId("changes-text").fill("Make the card glow less");
+  await page.getByTestId("changes-remember").selectOption("scene");
+  await page.getByTestId("request-changes").click();
+  await waitFor(() => (docOf().preferences ?? []).some((x) => x.text === "Make the card glow less" && x.scope === "scene" && x.segmentId === "S01" && x.version === 1), "the scene preference");
+  const rev = docOf().requests.find((q) => q.type === "revision" && q.segmentId === "S01");
+  const s1show = py("edit_decisions.py", "show", SLUG, "--request", rev.id).out;
+  const s2req = docOf().requests.find((q) => q.type === "implement" && q.segmentId === "S02" && q.status === "pending");
+  const s2show = py("edit_decisions.py", "show", SLUG, "--request", s2req.id).out;
+  check("P2", /this scene only \(S01\).*Make the card glow less/.test(s1show) && !/Make the card glow less/.test(s2show) && /this whole video.*neon colours/.test(s2show) && /every video.*cards on the left third/.test(s2show),
+    "\"Remember this\" saves the change request as a preference for S01 (version 1); Claude Code sees it on S01's revision only, while the project and future-videos ones apply to S02 too");
+
+  // ---------------------------------------------------------------- P3 off / explicit widening
+  const neon = docOf().preferences.find((x) => x.text === "neon colours");
+  const glow = docOf().preferences.find((x) => x.text === "Make the card glow less");
+  await page.reload();
+  await openD("S01");
+  await page.getByTestId("prefs-toggle").locator("summary").click();
+  await page.getByTestId(`pref-active-${neon.id}`).uncheck();
+  await page.getByTestId(`pref-scope-${glow.id}`).selectOption("project");
+  await waitFor(() => docOf().preferences.find((x) => x.id === neon.id)?.active === false && docOf().preferences.find((x) => x.id === glow.id)?.scope === "project", "the preference changes");
+  const s2after = py("edit_decisions.py", "show", SLUG, "--request", s2req.id).out;
+  check("P3", !/neon colours/.test(s2after) && /this whole video.*Make the card glow less/.test(s2after),
+    "a switched-off preference disappears from Claude Code's view; S01's preference reaches S02 only after the user widens it to the project");
 
   check("errors", pageErrors.length === 0, `no page errors (${pageErrors.slice(0, 2).join(" | ")})`);
 } catch (e) {

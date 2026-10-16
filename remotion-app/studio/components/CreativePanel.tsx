@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import type {
+  Preference,
   AssetNeed,
   ClaudeRequest,
   Concept,
@@ -21,6 +22,7 @@ import { api } from "../api";
 import { draftOf } from "../dDraft";
 import { DEditor } from "./DEditor";
 import { SceneBriefPanel } from "./SceneBriefPanel";
+import { PreferencesPanel, nextPrefId } from "./PreferencesPanel";
 
 type Props = {
   doc: EditDoc;
@@ -212,6 +214,10 @@ export const CreativePanel: React.FC<Props> = (p) => {
           </button>
         </div>
         <SceneBriefPanel doc={doc} seg={seg} setDoc={p.setDoc} />
+        <details className="prefs-wrap" data-testid="prefs-toggle">
+          <summary className="small">Saved preferences ({(doc.preferences ?? []).filter((x) => x.active && (x.scope !== "scene" || x.segmentId === seg.id)).length} for this scene)</summary>
+          <PreferencesPanel doc={doc} segId={seg.id} setDoc={p.setDoc} />
+        </details>
         <div className="type-row">
           {SEGMENT_TYPES.map((t) => (
             <button
@@ -254,6 +260,7 @@ export const CreativePanel: React.FC<Props> = (p) => {
           setFeedback={setFeedback}
           generate={generate}
           seek={p.seek}
+          setDoc={p.setDoc}
         />
       ) : null}
       {visual ? (
@@ -682,6 +689,7 @@ const BuildPanel: React.FC<{
   setFeedback: (s: string) => void;
   generate: (l: string) => void;
   seek: (t: number) => void;
+  setDoc: (d: EditDoc) => void;
 }> = ({
   doc,
   seg,
@@ -693,7 +701,10 @@ const BuildPanel: React.FC<{
   setFeedback,
   generate,
   seek,
+  setDoc,
 }) => {
+  // "Remember this": the feedback also becomes a preference, in the scope the user picks (default: not remembered)
+  const [remember, setRemember] = useState<"" | Preference["scope"]>("");
   if (!seg.decision || seg.decision.choice === "none") return null;
   const { state, request: req, version: ver } = build;
   const versions = seg.versions ?? [];
@@ -875,6 +886,15 @@ const BuildPanel: React.FC<{
             onChange={(e) => setFeedback(e.target.value)}
             data-testid="changes-text"
           />
+          <label className="small remember">
+            Remember this as a preference:{" "}
+            <select value={remember} onChange={(e) => setRemember(e.target.value as "" | Preference["scope"])} data-testid="changes-remember">
+              <option value="">no (this revision only)</option>
+              <option value="scene">for this scene</option>
+              <option value="project">for this project</option>
+              <option value="future">for future videos</option>
+            </select>
+          </label>
           <button
             className="small"
             disabled={!feedback.trim() || !!busy}
@@ -888,6 +908,23 @@ const BuildPanel: React.FC<{
                   feedback,
                 );
                 fromServer(r.doc);
+                if (remember) {
+                  // ids are unique across this video and the future-videos list
+                  const fut = (await api.preferences()).preferences;
+                  const pref: Preference = {
+                    id: nextPrefId([...(r.doc.preferences ?? []), ...fut]),
+                    text: feedback.trim(),
+                    kind: "rule",
+                    scope: remember,
+                    active: true,
+                    at: new Date().toISOString(),
+                    source: "review",
+                    ...(remember === "scene" ? { segmentId: seg.id, version: seg.activeVersion ?? undefined } : {}),
+                  };
+                  if (remember === "future") await api.savePreferences([...fut, pref]);
+                  else setDoc({ ...r.doc, preferences: [...(r.doc.preferences ?? []), pref] });
+                  setRemember("");
+                }
                 setFeedback("");
               })
             }

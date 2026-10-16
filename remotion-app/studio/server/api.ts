@@ -437,6 +437,15 @@ const routes: [string, RegExp, (c: Ctx) => Promise<unknown> | unknown][] = [
     }
   }],
   // the kit's library: backgrounds, camera moves, text styles
+  // the user's preferences for future videos (scene / project ones live in edit.json)
+  ["GET", /^\/api\/preferences$/, () => ({ preferences: existsSync(path.join(LIBRARY, "preferences.json")) ? JSON.parse(readFileSync(path.join(LIBRARY, "preferences.json"), "utf8")) : [] })],
+  ["PUT", /^\/api\/preferences$/, async ({ req }) => {
+    const b = await body(req);
+    const list = (Array.isArray(b.preferences) ? b.preferences : []).filter((p: { scope?: string; text?: string }) => p && p.scope === "future" && String(p.text ?? "").trim());
+    mkdirSync(LIBRARY, { recursive: true });
+    writeFileSync(path.join(LIBRARY, "preferences.json"), JSON.stringify(list, null, 1));
+    return { preferences: list };
+  }],
   // stored reference analysis (ref_analysis.py): measured facts, Claude Code's observations, inferred motion apart
   ["GET", /^\/api\/ref-analysis$/, async ({ req }) => {
     const ref = new URL(req.url ?? "", "http://x").searchParams.get("ref") ?? "";
