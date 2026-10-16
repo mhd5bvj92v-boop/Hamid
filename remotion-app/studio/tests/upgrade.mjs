@@ -14,6 +14,9 @@
 //  P1 preferences saved in the Studio: project ones in edit.json, future ones in the library; they survive a reload
 //  P2 "Remember this" on a change request saves a scene preference; Claude Code sees it on that scene only
 //  P3 switching a preference off removes it from Claude Code's view; widening its scope is an explicit change
+//  Q1 preview presets in the Studio: draft = 1/3 size, review = 1/2; each measured time is recorded and shown
+//  Q2 draft keeps the layout and timing (same positions as review) and only drops decorative effects
+//  Q3 the CLI preview takes --quality too and records its time
 // Usage: node studio/tests/upgrade.mjs [--keep]
 import { execSync, spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
@@ -327,6 +330,46 @@ try {
   const s2after = py("edit_decisions.py", "show", SLUG, "--request", s2req.id).out;
   check("P3", !/neon colours/.test(s2after) && /this whole video.*Make the card glow less/.test(s2after),
     "a switched-off preference disappears from Claude Code's view; S01's preference reaches S02 only after the user widens it to the project");
+
+  // ---------------------------------------------------------------- Q1 presets in the Studio
+  const renderPreset = async (q) => {
+    await page.getByTestId("tab-export").click();
+    await page.getByTestId("preview-quality").selectOption(q);
+    const note = await page.getByTestId("preview-quality-note").innerText();
+    const n0 = existsSync(path.join(REPO, "work", SLUG, "previews")) ? readdirSync(path.join(REPO, "work", SLUG, "previews")).length : 0;
+    await page.getByTestId("render-preview").click();
+    await waitFor(() => existsSync(path.join(REPO, "work", SLUG, "render-times.json")) && JSON.parse(readFileSync(path.join(REPO, "work", SLUG, "render-times.json"), "utf8")).filter((t) => t.quality === q).length > 0 &&
+      readdirSync(path.join(REPO, "work", SLUG, "previews")).length > n0, `the ${q} preview`, 300000);
+    const files = readdirSync(path.join(REPO, "work", SLUG, "previews")).filter((f) => /^preview_v\d+\.mp4$/.test(f)).sort((a, b) => Number(a.match(/\d+/)[0]) - Number(b.match(/\d+/)[0]));
+    const f = path.join(REPO, "work", SLUG, "previews", files[files.length - 1]);
+    const [w, h] = execSync(`ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "${f}"`).toString().trim().split(",").map(Number);
+    return { f, w, h, note };
+  };
+  const dr = await renderPreset("draft");
+  const rv = await renderPreset("review");
+  await page.reload();
+  await page.getByTestId("tab-export").click();
+  const opts = await page.getByTestId("preview-quality").locator("option").allInnerTexts();
+  const times = JSON.parse(readFileSync(path.join(REPO, "work", SLUG, "render-times.json"), "utf8"));
+  check("Q1", dr.w === 640 && dr.h === 360 && rv.w === 960 && rv.h === 540 && /decorative effects off/.test(dr.note) && opts.some((o) => /Draft · last [\d.]+s for \d+ frames/.test(o)) && opts.some((o) => /Review · last/.test(o)),
+    `draft ${dr.w}x${dr.h} and review ${rv.w}x${rv.h} previews from the Studio; measured times shown on the presets (${times.map((t) => `${t.quality} ${t.seconds}s/${t.frames}f`).join(", ")}); the draft says what it leaves out`);
+
+  // ---------------------------------------------------------------- Q2 same layout, fewer effects
+  const grab = (f, t, out) => execSync(`ffmpeg -v error -y -ss ${t} -i "${f}" -frames:v 1 -vf scale=640:360 "${out}"`);
+  grab(dr.f, 2.3, path.join(tmp, "q-draft.png"));
+  grab(rv.f, 2.3, path.join(tmp, "q-review.png"));
+  const xd = centreX(path.join(tmp, "q-draft.png"));
+  const xr = centreX(path.join(tmp, "q-review.png"));
+  const dq = diff(path.join(tmp, "q-draft.png"), path.join(tmp, "q-review.png"));
+  check("Q2", Math.abs(xd - xr) < 0.02 && dq > 0.05 && dq < 12,
+    `at 2.3 s the card sits at the same place in draft and review (centre x ${xd.toFixed(3)} vs ${xr.toFixed(3)}); the frames differ only by the decorative layers (mean diff ${dq.toFixed(2)})`);
+
+  // ---------------------------------------------------------------- Q3 CLI
+  const cli = py("edit_render.py", "preview", SLUG, "--all", "--quality", "draft");
+  const cliOut = (cli.out.match(/preview (\S+\.mp4)\s+(\d+)x(\d+)/) ?? []);
+  const cliTimes = JSON.parse(readFileSync(path.join(REPO, "work", SLUG, "render-times.json"), "utf8")).filter((t) => t.via === "cli");
+  check("Q3", cli.status === 0 && cliOut[2] === "640" && cliTimes.length === 1 && /quality draft: rendered \d+ frames in [\d.]+ s/.test(cli.out),
+    `edit_render.py preview --quality draft: ${cliOut[2]}x${cliOut[3]}, ${cli.out.match(/rendered \d+ frames in [\d.]+ s/)?.[0]}, recorded in render-times.json`);
 
   check("errors", pageErrors.length === 0, `no page errors (${pageErrors.slice(0, 2).join(" | ")})`);
 } catch (e) {

@@ -12,6 +12,7 @@ import { GAIN_PRESETS, OPEN_REQUEST, detectFormat, normalizeDoc, parseTranscript
 import type { SoundMeta } from "../../src/kit/studio";
 import type { DocPatch } from "../../src/kit/patch";
 import { applyPatch } from "../../src/kit/patch";
+import { QUALITY, Quality } from "../../src/kit/quality";
 import { kindOf, newAttachment, resolveRefs } from "../../src/kit/refs";
 import { draftConcepts } from "./drafts";
 import { APP, getBundle, invalidateBundle, media, still } from "./render";
@@ -437,6 +438,10 @@ const routes: [string, RegExp, (c: Ctx) => Promise<unknown> | unknown][] = [
     }
   }],
   // the kit's library: backgrounds, camera moves, text styles
+  ["GET", /^\/api\/project\/([\w-]+)\/render-times$/, ({ m }) => {
+    const tf = path.join(workDir(m[1]), "render-times.json");
+    return { times: existsSync(tf) ? JSON.parse(readFileSync(tf, "utf8")) : [] };
+  }],
   // the user's preferences for future videos (scene / project ones live in edit.json)
   ["GET", /^\/api\/preferences$/, () => ({ preferences: existsSync(path.join(LIBRARY, "preferences.json")) ? JSON.parse(readFileSync(path.join(LIBRARY, "preferences.json"), "utf8")) : [] })],
   ["PUT", /^\/api\/preferences$/, async ({ req }) => {
@@ -682,10 +687,27 @@ const routes: [string, RegExp, (c: Ctx) => Promise<unknown> | unknown][] = [
           const v = nextVersion(dir, "preview_v");
           const out = path.join(dir, `preview_v${v}.mp4`);
           const range = (b.frameRange as [number, number]) ?? null;
-          j.log.push(`Remotion: half-resolution preview${range ? ` frames ${range[0]}-${range[1]}` : ""} with dialogue + ${audio.length} draft sound(s)...`);
-          await media({ doc, layers: "all", concept: null, audio }, out, { scale: Number(b.scale ?? 0.5), frameRange: range, onProgress: (p) => (j.progress = p) });
+          // quality preset: draft (1/3, effects reduced), review (1/2, full), final (full size); same composition and timing
+          const q = (["draft", "review", "final"].includes(String(b.quality)) ? String(b.quality) : "review") as Quality;
+          const Q = QUALITY[q];
+          j.log.push(`Remotion: ${Q.label} preview (${Q.note})${range ? ` frames ${range[0]}-${range[1]}` : ""} with dialogue + ${audio.length} draft sound(s)...`);
+          await getBundle(); // bundling is a one-off cost: keep it out of the measured render time
+          const t0 = Date.now();
+          const docQ = { ...doc, constants: { ...(doc.constants ?? {}), renderQuality: q } } as EditDoc;
+          await media({ doc: docQ, layers: "all", concept: null, audio }, out, {
+            scale: b.scale ? Number(b.scale) : Q.scale, crf: Q.crf, jpegQuality: Q.jpegQuality, frameRange: range, onProgress: (p) => (j.progress = p),
+          });
+          const seconds = (Date.now() - t0) / 1000;
           j.outputs.preview = out;
           j.outputs.url = `/api/file/${slug}/previews/preview_v${v}.mp4`;
+          j.outputs.quality = q;
+          j.outputs.seconds = seconds.toFixed(1);
+          // measured render times per preset (shown next to the preset; nothing is estimated)
+          const tf = path.join(workDir(slug), "render-times.json");
+          const times = existsSync(tf) ? JSON.parse(readFileSync(tf, "utf8")) : [];
+          times.push({ quality: q, seconds: Number(seconds.toFixed(1)), frames: range ? range[1] - range[0] + 1 : doc.source.durationInFrames, at: now() });
+          writeFileSync(tf, JSON.stringify(times.slice(-50), null, 1));
+          j.log.push(`done in ${seconds.toFixed(1)} s`);
         }
         j.status = "done";
         j.progress = 1;

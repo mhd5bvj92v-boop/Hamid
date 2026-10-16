@@ -8,6 +8,7 @@
 import React from "react";
 import { AbsoluteFill } from "remotion";
 import { clamp, lerp } from "./motion";
+import { useQuality } from "./style";
 
 /** Hex colour + alpha (0..1) -> #RRGGBBAA. */
 export const alpha = (hex: string, a: number) => `${hex.slice(0, 7)}${Math.round(clamp(a) * 255).toString(16).padStart(2, "0")}`;
@@ -95,7 +96,7 @@ const GRAIN = `url("data:image/svg+xml;utf8,${encodeURIComponent(
 ).replace(/%2523/g, "%23")}")`;
 
 /** Film grain over a panel or the whole frame (kills the flat, digital look). */
-export const Grain: React.FC<{ opacity?: number; full?: boolean }> = ({ opacity = 0.07, full }) => {
+const GrainFull: React.FC<{ opacity?: number; full?: boolean }> = ({ opacity = 0.07, full }) => {
   const style: React.CSSProperties = { pointerEvents: "none", opacity, backgroundImage: GRAIN, mixBlendMode: "overlay" };
   return full ? <AbsoluteFill style={style} /> : <div style={{ position: "absolute", inset: 0, ...style }} />;
 };
@@ -171,7 +172,7 @@ export const LineIcon: React.FC<{ name?: string; size?: number; color?: string; 
 // haze -> grade. These layers turn flat CSS shapes into light (references/premium-motion.md).
 
 /** Bloom: the children plus a blurred, brightened copy screened on top (light that glows past its edges). */
-export const Bloom: React.FC<{ children: React.ReactNode; radius?: number; strength?: number }> = ({ children, radius = 28, strength = 0.9 }) => (
+const BloomFull: React.FC<{ children: React.ReactNode; radius?: number; strength?: number }> = ({ children, radius = 28, strength = 0.9 }) => (
   <AbsoluteFill>
     <AbsoluteFill>{children}</AbsoluteFill>
     <AbsoluteFill style={{ filter: `blur(${radius}px) brightness(1.6)`, opacity: strength, mixBlendMode: "screen", pointerEvents: "none" }}>{children}</AbsoluteFill>
@@ -184,7 +185,7 @@ export const Vignette: React.FC<{ strength?: number }> = ({ strength = 0.7 }) =>
 );
 
 /** Volumetric light rays fanning out from a point (x, y in frame fractions); t = seconds, for a slow drift. */
-export const LightRays: React.FC<{ x?: number; y?: number; color?: string; t?: number; strength?: number; spread?: number }> = ({ x = 0.5, y = 0.35, color = "#9CC7FF", t = 0, strength = 1, spread = 70 }) => (
+const LightRaysFull: React.FC<{ x?: number; y?: number; color?: string; t?: number; strength?: number; spread?: number }> = ({ x = 0.5, y = 0.35, color = "#9CC7FF", t = 0, strength = 1, spread = 70 }) => (
   <AbsoluteFill
     style={{
       pointerEvents: "none",
@@ -199,7 +200,7 @@ export const LightRays: React.FC<{ x?: number; y?: number; color?: string; t?: n
 );
 
 /** Deterministic floating dust / embers (seeded, so every render is identical); t = seconds. */
-export const Dust: React.FC<{ count?: number; color?: string; t?: number; seed?: string; size?: number; strength?: number }> = ({ count = 60, color = "#CFE3FF", t = 0, seed = "dust", size = 3, strength = 1 }) => {
+const DustFull: React.FC<{ count?: number; color?: string; t?: number; seed?: string; size?: number; strength?: number }> = ({ count = 60, color = "#CFE3FF", t = 0, seed = "dust", size = 3, strength = 1 }) => {
   const rnd = (i: number, k: number) => {
     let h = 2166136261;
     for (const c of `${seed}:${i}:${k}`) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
@@ -242,3 +243,10 @@ export const CinematicFinish: React.FC<{ grain?: number; vignette?: number; wash
     <Grain full opacity={grain} />
   </>
 );
+
+// Draft renders skip the decorative layers (they cost time and do not change layout or timing).
+type P<T> = T extends React.FC<infer X> ? X : never;
+export const Grain: React.FC<P<typeof GrainFull>> = (p) => (useQuality() === "draft" ? null : <GrainFull {...p} />);
+export const Bloom: React.FC<P<typeof BloomFull>> = (p) => (useQuality() === "draft" ? <AbsoluteFill>{p.children}</AbsoluteFill> : <BloomFull {...p} />);
+export const LightRays: React.FC<P<typeof LightRaysFull>> = (p) => (useQuality() === "draft" ? null : <LightRaysFull {...p} />);
+export const Dust: React.FC<P<typeof DustFull>> = (p) => (useQuality() === "draft" ? null : <DustFull {...p} />);

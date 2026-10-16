@@ -165,7 +165,9 @@ export const api = {
   approvePlans: (slug: string, segmentIds: string[], quote: string) => call<DocResult>("POST", `/api/project/${slug}/plan-approve`, { segmentIds, quote }),
   approve: (slug: string, gate: string, quote: string) => call<DocResult>("POST", `/api/project/${slug}/approve`, { gate, quote }),
   feedback: (slug: string, quote: string, changes: string[]) => call<DocResult>("POST", `/api/project/${slug}/feedback`, { quote, changes }),
-  render: (slug: string, type: "preview" | "final", frameRange?: [number, number]) => call<{ job: string }>("POST", `/api/project/${slug}/render`, { type, frameRange }),
+  render: (slug: string, type: "preview" | "final", frameRange?: [number, number], quality?: "draft" | "review" | "final") =>
+    call<{ job: string }>("POST", `/api/project/${slug}/render`, { type, frameRange, quality }),
+  renderTimes: (slug: string) => call<{ times: { quality: string; seconds: number; frames: number; at: string }[] }>("GET", `/api/project/${slug}/render-times`),
   proxy: (slug: string) => call<{ doc: EditDoc; frames: number; duration: number }>("POST", `/api/project/${slug}/proxy`),
   job: (id: string) => call<Job>("GET", `/api/jobs/${id}`),
 };

@@ -24,6 +24,7 @@ reads); its own mix is never the deliverable. --scale N renders a picture master
 2 for a 2160x3840 source); `edit_render.py downscale` makes the 1080x1920 picture from it.
 """
 import argparse
+import datetime
 import hashlib
 import json
 import os
@@ -65,12 +66,18 @@ def require_final_approval(app, pj):
                  f"  python3 scripts/edit_decisions.py approve {pj['slug']} --gate final --quote \"<the user's words>\"")
 
 
-def render_props(app, pj, extra):
+# render quality presets (mirrors remotion-app/src/kit/quality.ts): same composition and timing, different cost
+QUALITY = {"draft": {"scale": 1 / 3, "crf": 30, "jpeg": 60}, "review": {"scale": 0.5, "crf": 23, "jpeg": 80}, "final": {"scale": 1.0, "crf": 18, "jpeg": 92}}
+
+
+def render_props(app, pj, extra, quality="final"):
     """Write the render's input props to a file: the composition's options plus the CURRENT edit.json
     (beats, constants, focus, zooms), so a render never uses data from a stale bundle. A file, not a
     command-line string (Windows limits command lines)."""
     doc = creative_log(app, pj["slug"]) or {}
-    props = {**extra, "doc": {k: doc.get(k) for k in ("beats", "constants", "focus", "zooms") if k in doc} or None}
+    d = {k: doc.get(k) for k in ("beats", "constants", "focus", "zooms") if k in doc}
+    d["constants"] = {**(d.get("constants") or {}), "renderQuality": quality}
+    props = {**extra, "doc": d}
     out = Path(pj["work"]) / "renders" / f"props-{hashlib.sha1(json.dumps(props, sort_keys=True).encode()).hexdigest()[:10]}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(props), encoding="utf-8")
@@ -317,9 +324,19 @@ def cmd_preview(app, pj, a):
     n = 1 + len(list((wd / "previews").glob(f"{name}_v*.mp4")))
     out = wd / "previews" / f"{name}_v{n}.mp4"
     out.parent.mkdir(parents=True, exist_ok=True)
-    props = render_props(app, pj, {"layers": "all", "concept": concept})
-    npx(app, ["remotion", "render", pj["remotion"]["composition"], str(out), *H264, f"--props={props}", f"--frames={f0}-{f1}",
-              f"--scale={a.scale or 0.5}"], out.with_suffix(".log"))
+    q = QUALITY[a.quality]
+    props = render_props(app, pj, {"layers": "all", "concept": concept}, a.quality)
+    import time
+    t0 = time.time()
+    npx(app, ["remotion", "render", pj["remotion"]["composition"], str(out), *[x for x in H264 if not x.startswith(("--crf", "--image-format"))],
+              f"--crf={q['crf']}", "--image-format=jpeg", f"--jpeg-quality={q['jpeg']}", f"--props={props}", f"--frames={f0}-{f1}",
+              f"--scale={a.scale or q['scale']}"], out.with_suffix(".log"))
+    secs = time.time() - t0
+    tf = wd / "render-times.json"
+    times = json.loads(tf.read_text()) if tf.exists() else []
+    times.append({"quality": a.quality, "seconds": round(secs, 1), "frames": f1 - f0 + 1, "at": datetime.datetime.now().isoformat(timespec="seconds"), "via": "cli"})
+    tf.write_text(json.dumps(times[-50:], indent=1))
+    print(f"quality {a.quality}: rendered {f1 - f0 + 1} frames in {secs:.1f} s")
     info = V.probe(out)
     print(f"preview {out}  {info['width']}x{info['height']}  {f0 / fps:.2f}-{(f1 + 1) / fps:.2f}s of the timeline "
           f"({info['duration']:.2f}s, {'with audio' if info['audio'] else 'no audio'})")
@@ -381,6 +398,8 @@ def main():
     ap.add_argument("--concept", help="M03:A - render a proposed concept instead of the approved beats")
     ap.add_argument("--moment"); ap.add_argument("--options"); ap.add_argument("--sequence", action="store_true")
     ap.add_argument("--beat"); ap.add_argument("--all", action="store_true"); ap.add_argument("--handles", type=float)
+    ap.add_argument("--quality", choices=["draft", "review", "final"], default="review",
+                    help="preview: draft = 1/3 size, decorative effects off (timing and layout only); review = 1/2, all effects; final = full size")
     a = ap.parse_args()
     app = V.find_app(a.app)
     pj = V.load_project(app, a.slug, a.work)

@@ -95,6 +95,8 @@ export type EditConstants = {
   motion?: MotionSettings;
   /** Per-scene motion overrides by segment id (kept here so rebuilding a scene never loses them). */
   sceneMotion?: Record<string, MotionSettings>;
+  /** Set by the renderers only (not a creative setting): the quality preset of this render (src/kit/quality.ts). */
+  renderQuality?: import("./quality").Quality;
   accentFont: "Instrument Serif" | "Playfair Display" | "JetBrains Mono" | "none";
   uiStyle: "dark-glass" | "light-glass" | "neon-rim" | "editorial";
   transitions: string;

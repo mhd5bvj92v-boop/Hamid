@@ -74,7 +74,7 @@ export const still = async (props: StudioEditProps, frame: number, out: string, 
 export const media = async (
   props: StudioEditProps,
   out: string,
-  opts: { scale?: number; frameRange?: [number, number] | null; onProgress?: (p: number) => void; final?: boolean },
+  opts: { scale?: number; frameRange?: [number, number] | null; onProgress?: (p: number) => void; final?: boolean; crf?: number; jpegQuality?: number },
 ) => {
   const serveUrl = await getBundle();
   const composition = await selectComposition({ serveUrl, id: "StudioEdit", inputProps: props, ...common() });
@@ -84,12 +84,13 @@ export const media = async (
     inputProps: props,
     codec: "h264",
     outputLocation: out,
-    crf: opts.final ? 18 : 23,
+    crf: opts.crf ?? (opts.final ? 18 : 23),
     pixelFormat: "yuv420p",
     colorSpace: "bt709",
     audioCodec: "aac",
     audioBitrate: opts.final ? "320k" : "192k",
     imageFormat: "jpeg",
+    jpegQuality: opts.jpegQuality ?? (opts.final ? 92 : 80),
     scale: opts.scale ?? 1,
     frameRange: opts.frameRange ?? null,
     onProgress: ({ progress }) => opts.onProgress?.(progress),

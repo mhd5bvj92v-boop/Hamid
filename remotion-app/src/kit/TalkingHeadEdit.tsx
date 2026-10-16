@@ -14,7 +14,7 @@ import { customComponents } from "./custom/components";
 import { SoundPreview, SoundPreviewData } from "./SoundPreview";
 import { FocusWindow, SourceFootage, ZoomWindow } from "./SourceFootage";
 import type { EditConstants } from "./project";
-import { CameraIntensity, CameraMove, CameraStyle, DesignCanvas, EditStyleProvider, MotionProvider, mergeMotion } from "./style";
+import { CameraIntensity, CameraMove, CameraStyle, DesignCanvas, EditStyleProvider, MotionProvider, QualityProvider, mergeMotion } from "./style";
 import { TimingRegistry, beatWindow, kitTiming } from "./timing";
 import { Backdrop } from "./backgrounds";
 import { FlowMotion, RUN_GAP, StageCamera, StageFade, StageScene, planStage } from "./stage";
@@ -100,6 +100,7 @@ export const TalkingHeadEdit: React.FC<TalkingHeadEditProps> = ({
 
   return (
     <EditStyleProvider constants={constants}>
+      <QualityProvider value={constants?.renderQuality ?? "final"}>
       <AbsoluteFill style={{ backgroundColor: "black" }}>
         {layers === "all" ? (
           <SourceFootage source={source} focus={focus} zooms={zooms} />
@@ -178,6 +179,7 @@ export const TalkingHeadEdit: React.FC<TalkingHeadEditProps> = ({
         })}
         {layers === "all" && sound ? <SoundPreview data={sound} /> : null}
       </AbsoluteFill>
+      </QualityProvider>
     </EditStyleProvider>
   );
 };

@@ -1,12 +1,19 @@
 import React, { useEffect, useState } from "react";
 import type { EditDoc } from "../../src/kit/project";
 import { api, Job } from "../api";
+import { QUALITY, Quality } from "../../src/kit/quality";
 
 /** Approvals (Creative Director gates), preview renders and the final export, all from edit.json. */
 export const ExportPanel: React.FC<{ doc: EditDoc; fromServer: (d: EditDoc) => void; setError: (e: string | null) => void }> = ({ doc, fromServer, setError }) => {
   const [quote, setQuote] = useState("");
   const [feedback, setFeedback] = useState("");
   const [job, setJob] = useState<Job | null>(null);
+  const [quality, setQuality] = useState<Quality>("review");
+  const [times, setTimes] = useState<{ quality: string; seconds: number; frames: number }[]>([]);
+  useEffect(() => {
+    api.renderTimes(doc.slug).then((r) => setTimes(r.times)).catch(() => setTimes([]));
+  }, [doc.slug, job?.status]);
+  const lastTime = (q: Quality) => [...times].reverse().find((t) => t.quality === q);
   const has = (g: string) => doc.approvals.some((a) => a.gate === g);
   useEffect(() => {
     if (!job || job.status !== "running") return;
@@ -25,7 +32,7 @@ export const ExportPanel: React.FC<{ doc: EditDoc; fromServer: (d: EditDoc) => v
   const waiting = (doc.requests ?? []).filter((r) => (r.type === "implement" || r.type === "revision") && (r.status === "pending" || r.status === "in_progress"));
   const start = async (type: "preview" | "final") => {
     try {
-      const r = await api.render(doc.slug, type);
+      const r = await api.render(doc.slug, type, undefined, type === "preview" ? quality : undefined);
       setJob({ id: r.job, status: "running", progress: 0, log: [], outputs: {} });
     } catch (e) {
       setError(String((e as Error).message));
@@ -45,10 +52,24 @@ export const ExportPanel: React.FC<{ doc: EditDoc; fromServer: (d: EditDoc) => v
         })}
       </ol>
       <div className="row">
+        <select value={quality} onChange={(e) => setQuality(e.target.value as Quality)} data-testid="preview-quality" title={QUALITY[quality].note}>
+          {(Object.keys(QUALITY) as Quality[]).map((q) => {
+            const t = lastTime(q);
+            return (
+              <option key={q} value={q}>
+                {QUALITY[q].label}
+                {t ? ` · last ${t.seconds}s for ${t.frames} frames` : ""}
+              </option>
+            );
+          })}
+        </select>
         <button className="primary" onClick={() => start("preview")} disabled={job?.status === "running"} data-testid="render-preview">
-          Render motion preview (½ resolution, draft sound)
+          Render motion preview ({QUALITY[quality].label.toLowerCase()}, draft sound)
         </button>
       </div>
+      <p className="muted small" data-testid="preview-quality-note">
+        {QUALITY[quality].label}: {QUALITY[quality].note}. The final export is always full quality.
+      </p>
       <h3>Feedback</h3>
       <div className="row">
         <input placeholder="What should change?" value={feedback} onChange={(e) => setFeedback(e.target.value)} />

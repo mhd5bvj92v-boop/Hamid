@@ -265,3 +265,21 @@ export const useMotion = () => {
 };
 /** Unit vector of the entrance side (elements leave on the opposite side). */
 export const dirVec = (d: MotionSettings["direction"]) => (d === "left" ? [-1, 0] : d === "bottom" ? [0, 1] : d === "top" ? [0, -1] : [1, 0]);
+
+// ------------------------------------------------------------ render quality (draft / review / final)
+const QualityCtx = createContext<import("./quality").Quality>("final");
+export const QualityProvider: React.FC<{ value: import("./quality").Quality; children: React.ReactNode }> = ({ value, children }) => (
+  <QualityCtx.Provider value={value}>
+    {value === "draft" ? (
+      // draft: no background blur behind glass anywhere (the most expensive decorative effect)
+      <AbsoluteFill className="q-draft">
+        <style>{".q-draft, .q-draft * { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }"}</style>
+        {children}
+      </AbsoluteFill>
+    ) : (
+      children
+    )}
+  </QualityCtx.Provider>
+);
+/** The render's quality preset; decorative components skip themselves in "draft". */
+export const useQuality = () => useContext(QualityCtx);
