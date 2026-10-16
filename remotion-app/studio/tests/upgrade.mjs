@@ -17,6 +17,10 @@
 //  Q1 preview presets in the Studio: draft = 1/3 size, review = 1/2; each measured time is recorded and shown
 //  Q2 draft keeps the layout and timing (same positions as review) and only drops decorative effects
 //  Q3 the CLI preview takes --quality too and records its time
+//  G1 "Shape morph" is off by default (the status icon crossfades); switched on in the Studio it is saved,
+//     survives a reload and changes the export frame mid-change only (settled frames stay identical)
+//  B1 "Motion blur" is off by default; light is saved with its render-cost note, changes the export frame
+//     during the card's entrance only (a held frame stays identical), and its review render time is measured
 // Usage: node studio/tests/upgrade.mjs [--keep]
 import { execSync, spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
@@ -66,6 +70,16 @@ box = ${box ? JSON.stringify(box) : "None"}
 if box:
     w, h = a.size; c = (int(box[0]*w), int(box[1]*h), int(box[2]*w), int(box[3]*h)); a = a.crop(c); b = b.crop(c)
 print(sum(ImageStat.Stat(ImageChops.difference(a, b)).mean) / 3)
+`], { encoding: "utf8" }).stdout.trim(),
+  );
+/** number of pixels that changed clearly (any channel by more than 40): finds small, local changes */
+const changed = (a, b) =>
+  Number(
+    spawnSync("python3", ["-c", `
+from PIL import Image, ImageChops
+a = Image.open(${JSON.stringify(a)}).convert("RGB"); b = Image.open(${JSON.stringify(b)}).convert("RGB")
+d = ImageChops.difference(a, b).convert("L").point(lambda v: 255 if v > 40 else 0)
+print(d.histogram()[255])
 `], { encoding: "utf8" }).stdout.trim(),
   );
 /** horizontal centre of mass of bright pixels (0..1) */
@@ -370,6 +384,50 @@ try {
   const cliTimes = JSON.parse(readFileSync(path.join(REPO, "work", SLUG, "render-times.json"), "utf8")).filter((t) => t.via === "cli");
   check("Q3", cli.status === 0 && cliOut[2] === "640" && cliTimes.length === 1 && /quality draft: rendered \d+ frames in [\d.]+ s/.test(cli.out),
     `edit_render.py preview --quality draft: ${cliOut[2]}x${cliOut[3]}, ${cli.out.match(/rendered \d+ frames in [\d.]+ s/)?.[0]}, recorded in render-times.json`);
+
+  // ---------------------------------------------------------------- G1 shape morph
+  {
+    const d = docOf();
+    d.beats[0].props.statusIcon = { from: "ring", to: "check" };
+    writeDoc(d);
+  }
+  const T_MID = 0.3 + 1.4 + 0.05; // the status change in progress (the ring is folding into the check)
+  const gOff = { mid: still("g-off-mid", T_MID), hold: still("g-off-hold", T_HOLD) };
+  await page.reload();
+  await openProps("S01");
+  const morphDefault = await page.getByTestId("motion-morph").isChecked();
+  await page.getByTestId("motion-scope-project").click();
+  await page.getByTestId("motion-morph").check();
+  await waitFor(() => docOf().constants?.motion?.morph === true, "morph in edit.json");
+  await page.reload();
+  await openProps("S01");
+  await page.getByTestId("motion-scope-project").click();
+  const morphAfter = await page.getByTestId("motion-morph").isChecked();
+  const gOn = { mid: still("g-on-mid", T_MID), hold: still("g-on-hold", T_HOLD) };
+  const gMid = changed(gOff.mid, gOn.mid);
+  const gHold = changed(gOff.hold, gOn.hold);
+  check("G1", morphDefault === false && morphAfter === true && gMid > 40 && gHold === 0,
+    `shape morph off by default, on after a reload (constants.motion.morph); mid-change the icon differs (${gMid} pixels changed), the settled frame is identical (${gHold} pixels)`);
+
+  // ---------------------------------------------------------------- B1 motion blur
+  const bOff = { enter: still("b-off-enter", T_ENTER), hold: still("b-off-hold", T_HOLD) };
+  const blurDefault = await page.getByTestId("motion-blur-mode").inputValue();
+  const noteBefore = await page.getByTestId("motion-blur-note").count();
+  await page.getByTestId("motion-blur-mode").selectOption("light");
+  await waitFor(() => docOf().constants?.motion?.motionBlur === "light", "motion blur in edit.json");
+  await page.reload();
+  await openProps("S01");
+  await page.getByTestId("motion-scope-project").click();
+  const blurAfter = await page.getByTestId("motion-blur-mode").inputValue();
+  const note = await page.getByTestId("motion-blur-note").innerText();
+  const bOn = { enter: still("b-on-enter", T_ENTER), hold: still("b-on-hold", T_HOLD) };
+  const bEnter = diff(bOff.enter, bOn.enter);
+  const bHold = diff(bOff.hold, bOn.hold);
+  const rvBlur = py("edit_render.py", "preview", SLUG, "--all", "--quality", "review");
+  const tBlur = rvBlur.out.match(/rendered (\d+) frames in ([\d.]+) s/);
+  check("B1", blurDefault === "off" && noteBefore === 0 && blurAfter === "light" && /render cost/.test(note) && bEnter > 0.2 && bHold < 0.005 && rvBlur.status === 0,
+    `motion blur off by default, light after a reload with its cost note; entrance frame differs (diff ${bEnter.toFixed(2)}), held frame identical (diff ${bHold.toFixed(4)}); review render with light blur: ${tBlur?.[1]} frames in ${tBlur?.[2]} s (without: ${times.find((t) => t.quality === "review")?.seconds} s)`);
+  await shot("motion-blur-controls");
 
   check("errors", pageErrors.length === 0, `no page errors (${pageErrors.slice(0, 2).join(" | ")})`);
 } catch (e) {

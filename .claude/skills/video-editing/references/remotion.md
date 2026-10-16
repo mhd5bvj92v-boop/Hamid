@@ -96,7 +96,7 @@ The other templates (`progress-grid` for ONS-004, `ai-input-bar` for ONS-034/044
 | Still preview | `edit_render.py still <slug> --t S [--graphics] [--concept S03:A]` | PNG at the composition size |
 | Concept preview frames (Phase 2) | `edit_render.py concept-frames <slug> --moment S03 [--sequence]` | A, B, C side by side over the real footage (half resolution, one bundle reused) |
 | Draft sound (Phase 4) | `edit_render.py draft-sound <slug>` | `sound_mix.py` on the current cue sheet with the original as picture; stems + session, no export; updates the Studio preview |
-| Motion preview (Phase 4) | `edit_render.py preview <slug> --beat ID / --concept S03:B / --all` | half resolution (`--scale 0.5`), the beat ±0.6 s, H.264 with dialogue + draft sound |
+| Motion preview (Phase 4) | `edit_render.py preview <slug> --beat ID / --concept S03:B / --all [--quality draft\|review\|final]` | `review` by default (half size, all effects); `draft` = one third size with grain, dust, light rays, bloom, glass blur and motion blur off (layout and timing unchanged); the beat ±0.6 s, H.264 with dialogue + draft sound; each render time is recorded in `work/<slug>/render-times.json` |
 | **Final (Phase 5)** | `edit_render.py final <slug> [--session session.json]` | **the deliverable, rendered by Remotion**: `Edit-<slug>` with every layer and the sound placements of `sound-preview.ts`; refuses without the final approval and while builds wait; H.264, yuv420p, BT.709 limited range, CRF 18, AAC 320k 48 kHz, the approved fps; then `edit_qc.py --sfx` on it |
 | Picture (Phase 5) | `edit_render.py picture <slug>` | the same composition for analysis/masters (refuses without the final approval) |
 | Graphics only | `edit_render.py picture <slug> --graphics` | beats over black (review, motion measurement) |
@@ -112,6 +112,17 @@ The other templates (`progress-grid` for ONS-004, `ai-input-bar` for ONS-034/044
 **Browser:** Remotion downloads its own Chrome Headless Shell. Where that is blocked (the Claude Code cloud sandbox blocks `remotion.media`), `vedit.browser_env()` uses a local Chromium headless shell (`REMOTION_BROWSER_EXECUTABLE`), which `remotion.config.ts` reads. Output is identical; capture is slower.
 
 **No cloud:** render locally only. Never set up Remotion Lambda/Cloud Run or a paid render service, and never commit rendered media (`out/`, `work/` and `public/projects/` are git-ignored).
+
+### 5b. Quality presets and the optional effects
+
+| Setting | Where it lives | What it changes | Render cost |
+|---|---|---|---|
+| Quality preset `draft` / `review` / `final` | Export tab (preview), `--quality` on the CLI; renderers set `constants.renderQuality` for that render only | size (1/3, 1/2, full), encoding (CRF 30/23/18), and in draft the decorative layers (`src/kit/quality.ts`) | measured per render, shown on the preset |
+| Motion: direction, softness, bounce, glow, blur | Properties → Motion (this scene / whole project), `constants.motion` / `constants.sceneMotion` | entrance side, curve shape inside the authored timing (events and sound never move), glow and blur-in strength | none |
+| Shape morph (`motion.morph`, off) | Properties → Motion | a `statusIcon` folds into its new shape (`src/kit/morph.tsx`, `@remotion/paths` `interpolatePath`); off, or for unmatched shapes, it crossfades | negligible |
+| Motion blur (`motion.motionBlur`: off / light / strong) | Properties → Motion, with the cost note | `CameraMotionBlur` (`@remotion/motion-blur`) on the `DirectionalCard` card while it travels; never on holds, never on the background or video, skipped in draft (`src/kit/motionBlur.tsx`) | light = 5 samples, strong = 8, on travel frames only; measured: an 8 s review preview went from 11.7 s to 19.7 s with light |
+
+Good composition, type and timing make the result; these effects only support them, so both stay off unless a scene asks for them.
 
 ## 6. Performance
 

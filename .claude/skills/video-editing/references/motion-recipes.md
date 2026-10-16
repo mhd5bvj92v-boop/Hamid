@@ -53,7 +53,7 @@ Load this when you animate a scene. Values are house starting points (`src/kit/m
 
 | Kind | Behaviour | Constraint |
 | --- | --- | --- |
-| `DirectionalCard` | Arrive, settle, ONE state change (`status.from → to`), continue out (`exit: "return"` to go back) | Text holds still; the exit clears card, shadow and glow |
+| `DirectionalCard` | Arrive, settle, ONE state change (`status.from → to`, optional `statusIcon: {from, to}` from `MORPH_SHAPES`: ring, check, dot, arrow), continue out (`exit: "return"` to go back) | Text holds still; the exit clears card, shadow and glow |
 | `Popover` (`variant: "popover"`) | Trigger appears, is pressed, the popover grows from it with 1–3 rows, returns into it | Trigger, origin and destination stay readable |
 | `Popover` (`variant: "notification"`) | A notice arrives at the top of the safe area, is read, clears upward | Clear of platform zones |
 | `KineticText` | Phrase / line reveals (12 styles) | Keep word groups; mask with room for accents and descenders |

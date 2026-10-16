@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import type { EditDoc, MotionSettings } from "../../src/kit/project";
 import { MOTION_DEFAULTS } from "../../src/kit/project";
 import { mergeMotion } from "../../src/kit/style";
+import { MOTION_BLUR } from "../../src/kit/motionBlur";
 
 type Key = "softness" | "bounce" | "glow" | "blur";
 const SLIDERS: { k: Key; label: string; lo: string; hi: string }[] = [
@@ -72,6 +73,29 @@ export const MotionControls: React.FC<{ doc: EditDoc; segId: string | null; setD
           <span className="muted small">{s.hi}</span>
         </label>
       ))}
+      <label className="field check">
+        <input type="checkbox" checked={Boolean(scope === "scene" ? eff.morph : (c.motion?.morph ?? MOTION_DEFAULTS.morph))} onChange={(e) => set({ morph: e.target.checked })} data-testid="motion-morph" />
+        <span>
+          Shape morph {scope === "scene" && overridden("morph") ? <i className="badge">scene</i> : null}
+        </span>
+        <span className="muted small">status icons fold into their new shape (ring to check, dot to arrow); off = a clean crossfade. Cheap to render.</span>
+      </label>
+      <label className="field">
+        <span>Motion blur {scope === "scene" && overridden("motionBlur") ? <i className="badge">scene</i> : null}</span>
+        <select value={(scope === "scene" ? eff.motionBlur : (c.motion?.motionBlur ?? MOTION_DEFAULTS.motionBlur)) as string} onChange={(e) => set({ motionBlur: e.target.value as MotionSettings["motionBlur"] })} data-testid="motion-blur-mode">
+          <option value="off">off (no extra render cost)</option>
+          <option value="light">light</option>
+          <option value="strong">strong</option>
+        </select>
+      </label>
+      {(() => {
+        const mb = (scope === "scene" ? eff.motionBlur : (c.motion?.motionBlur ?? "off")) as MotionSettings["motionBlur"];
+        return mb && mb !== "off" ? (
+          <p className="muted small" data-testid="motion-blur-note">
+            Motion blur {mb}: {MOTION_BLUR[mb].note}. Only cards in motion; skipped in draft previews.
+          </p>
+        ) : null;
+      })()}
       <p className="muted small">
         {scope === "scene" ? "Changes apply to this scene only (badge = overrides the project)." : "Changes apply to every scene without its own override."} Timing and sound sync never change.
       </p>

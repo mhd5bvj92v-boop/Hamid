@@ -14,6 +14,9 @@ export type DirectionalCardProps = {
   title: string;
   /** the one state change the card shows (e.g. Pending -> Approved); omit for a card without a change */
   status?: { from: string; to: string };
+  /** an icon that changes with the status (MORPH_SHAPES in morph.tsx: ring, check, dot, arrow). It morphs
+   *  when the motion control "Shape morph" is on, else it crossfades */
+  statusIcon?: { from: string; to: string };
   /** LineIcon name (premium.tsx) */
   icon?: string;
   /** seconds from the beat start at which the state changes (default: middle of the hold) */

@@ -3,12 +3,30 @@ import { AbsoluteFill, useCurrentFrame } from "remotion";
 import { SANS } from "../../fonts";
 import { Backdrop } from "../backgrounds";
 import { RADII, TYPE } from "../motionTokens";
+import { MorphIcon } from "../morph";
+import { TravelBlur } from "../motionBlur";
 import { LineIcon, RimGlow, alpha, surface } from "../premium";
 import { useCanvas, useInk, useLayout, useMotion, usePalette } from "../style";
 import { DirectionalCardProps, dcDefaults, dcPose } from "./directionalCard.timing";
 
-/** Recipe "Directional card": arrive, settle, one state change, continue out (directionalCard.timing.ts). */
+/** Recipe "Directional card": arrive, settle, one state change, continue out (directionalCard.timing.ts).
+ *  The optional motion blur samples the card (not its background) during the entrance and exit only. */
 export const DirectionalCard: React.FC<DirectionalCardProps> = (p) => {
+  const frame = useCurrentFrame();
+  const { fps } = useCanvas();
+  const raw = dcPose(frame / fps, p);
+  const travelling = (raw.enterRaw > 0 && raw.enterRaw < 1) || (raw.exitRaw > 0 && raw.exitRaw < 1);
+  return (
+    <AbsoluteFill>
+      {p.fullscreen ? <Backdrop preset={p.background ?? "near-black-light"} /> : null}
+      <TravelBlur active={travelling}>
+        <CardLayer {...p} />
+      </TravelBlur>
+    </AbsoluteFill>
+  );
+};
+
+const CardLayer: React.FC<DirectionalCardProps> = (p) => {
   const frame = useCurrentFrame();
   const { fps, width: W, height: H, landscape } = useCanvas();
   const L = useLayout();
@@ -75,7 +93,6 @@ export const DirectionalCard: React.FC<DirectionalCardProps> = (p) => {
 
   return (
     <AbsoluteFill style={{ fontFamily: SANS }}>
-      {p.fullscreen ? <Backdrop preset={p.background ?? "near-black-light"} /> : null}
       {p.scrim ? (
         <AbsoluteFill style={{ opacity: pose.opacity * 0.75, background: `radial-gradient(${cw * 0.9}px ${ch * 1.2}px at ${x0 + dx}px ${y0 + dy}px, rgba(0,0,0,.55), transparent 70%)` }} />
       ) : null}
@@ -106,7 +123,10 @@ export const DirectionalCard: React.FC<DirectionalCardProps> = (p) => {
             <div style={{ fontSize: Math.min(T.key * 0.8, cw * 0.075), fontWeight: 700, letterSpacing: "-0.015em", lineHeight: 1.1, textWrap: "balance" }}>{p.title}</div>
             {p.status ? (
               <div style={{ position: "relative", height: T.ui * 1.6 }}>
-                <span style={{ position: "absolute", left: 0, top: 0, fontSize: T.ui * 0.85, color: fg2 }}>Status</span>
+                <span style={{ position: "absolute", left: 0, top: 0, display: "flex", alignItems: "center", gap: T.ui * 0.4, fontSize: T.ui * 0.85, color: fg2 }}>
+                  {p.statusIcon ? <MorphIcon from={p.statusIcon.from} to={p.statusIcon.to} p={pose.change} morph={m.morph} size={T.ui * 1.15} color={accent} stroke={2} /> : null}
+                  Status
+                </span>
                 {pill(p.status.from, false, 1 - pose.change)}
                 {pill(p.status.to, true, pose.change)}
               </div>
