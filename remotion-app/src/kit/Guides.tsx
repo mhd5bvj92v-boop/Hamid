@@ -7,7 +7,9 @@ import React from "react";
 import { AbsoluteFill } from "remotion";
 import { useLayout } from "./style";
 
-export type GuideSettings = { thirds?: boolean; center?: boolean; safe?: boolean; platform?: "" | "tiktok" | "shorts" | "youtube" };
+export type PlatformZone = { name: string; box: [number, number, number, number] };
+/** `zones`: the user's edited zones for this platform (edit.json constants.platformZones), else the preset */
+export type GuideSettings = { thirds?: boolean; center?: boolean; safe?: boolean; platform?: "" | "tiktok" | "shorts" | "youtube"; zones?: PlatformZone[] | null };
 
 /** Zones as frame fractions [x0, y0, x1, y1]; last reviewed by eye, not against official specs. */
 export const PLATFORM_ZONES: Record<"tiktok" | "shorts" | "youtube", { label: string; zones: { name: string; box: [number, number, number, number] }[]; checked: string }> = {
@@ -43,9 +45,9 @@ export const Guides: React.FC<{ g: GuideSettings }> = ({ g }) => {
   const L = useLayout();
   const line = "rgba(255,64,160,.55)";
   const hair = (style: React.CSSProperties) => <div style={{ position: "absolute", background: line, ...style }} />;
-  const z = g.platform ? PLATFORM_ZONES[g.platform] : null;
+  const z = g.platform ? { zones: g.zones ?? PLATFORM_ZONES[g.platform].zones } : null;
   return (
-    <AbsoluteFill style={{ pointerEvents: "none" }}>
+    <AbsoluteFill style={{ pointerEvents: "none" }} data-guides="">
       {g.thirds ? (
         <>
           {L.thirds.x.map((x) => hair({ left: x, top: 0, width: 1.5, height: L.H }))}
@@ -68,6 +70,7 @@ export const Guides: React.FC<{ g: GuideSettings }> = ({ g }) => {
         ? z.zones.map((zz) => (
             <div
               key={zz.name}
+              data-zone={zz.name}
               style={{
                 position: "absolute",
                 left: zz.box[0] * L.W,

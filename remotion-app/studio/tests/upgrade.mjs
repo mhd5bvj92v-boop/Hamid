@@ -21,6 +21,8 @@
 //     survives a reload and changes the export frame mid-change only (settled frames stay identical)
 //  B1 "Motion blur" is off by default; light is saved with its render-cost note, changes the export frame
 //     during the card's entrance only (a held frame stays identical), and its review render time is measured
+//  Z1 platform zones: the preset is labelled unverified; the user's edited zones are saved in edit.json, drawn by
+//     the Player guides, survive a reload, never reach the export, and reset back to the preset
 // Usage: node studio/tests/upgrade.mjs [--keep]
 import { execSync, spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
@@ -428,6 +430,31 @@ try {
   check("B1", blurDefault === "off" && noteBefore === 0 && blurAfter === "light" && /render cost/.test(note) && bEnter > 0.2 && bHold < 0.005 && rvBlur.status === 0,
     `motion blur off by default, light after a reload with its cost note; entrance frame differs (diff ${bEnter.toFixed(2)}), held frame identical (diff ${bHold.toFixed(4)}); review render with light blur: ${tBlur?.[1]} frames in ${tBlur?.[2]} s (without: ${times.find((t) => t.quality === "review")?.seconds} s)`);
   await shot("motion-blur-controls");
+
+  // ---------------------------------------------------------------- Z1 editable platform zones
+  const zBefore = still("z-before", T_HOLD);
+  await page.getByTestId("guide-platform").selectOption("tiktok");
+  await page.getByTestId("zones-edit").click();
+  const zPreset = await page.getByTestId("zones-status").innerText();
+  await page.getByTestId("zone-0-left").fill("70");
+  await waitFor(() => docOf().constants?.platformZones?.tiktok?.[0]?.box?.[0] === 0.7, "the edited zone in edit.json");
+  await page.reload();
+  await page.getByTestId("ruler").waitFor();
+  await page.getByTestId("zones-edit").click();
+  const zMine = await page.getByTestId("zones-status").innerText();
+  const zVal = await page.getByTestId("zone-0-left").inputValue();
+  const zLabel = await page.getByTestId("guide-platform").locator("option:checked").innerText();
+  const zBox = await page.locator('[data-zone="right actions"]').boundingBox();
+  const plBox = await page.locator("[data-guides]").boundingBox();
+  const zAfter = still("z-after", T_HOLD);
+  const zExport = changed(zBefore, zAfter);
+  await page.getByTestId("zones-reset").click();
+  await waitFor(() => !docOf().constants?.platformZones?.tiktok, "the reset to the preset");
+  const zReset = await page.getByTestId("zones-status").innerText();
+  const relX = zBox && plBox ? (zBox.x - plBox.x) / plBox.width : -1;
+  check("Z1", /unverified preset/.test(zPreset) && /your values/.test(zMine) && zVal === "70" && /yours/.test(zLabel) && relX > 0.66 && relX < 0.74 && zExport === 0 && /unverified/.test(zReset),
+    `the TikTok preset is labelled "${zPreset.slice(0, 40)}…"; the edited zone (left 70 %) is saved in edit.json, drawn by the Player at ${(relX * 100).toFixed(1)} % and kept after a reload ("${zMine}"); the export is unchanged (${zExport} pixels); reset returns to the preset`);
+  await shot("platform-zones");
 
   check("errors", pageErrors.length === 0, `no page errors (${pageErrors.slice(0, 2).join(" | ")})`);
 } catch (e) {

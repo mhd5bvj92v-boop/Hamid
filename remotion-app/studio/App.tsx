@@ -37,6 +37,7 @@ import { PropertiesPanel } from "./components/PropertiesPanel";
 import { ScenePlanning } from "./components/ScenePlanning";
 import { ReferencesPanel } from "./components/ReferencesPanel";
 import { GuideSettings, PLATFORM_ZONES } from "../src/kit/Guides";
+import { PlatformZonesEditor } from "./components/PlatformZonesEditor";
 import { SoundPanel } from "./components/SoundPanel";
 import { Timeline } from "./components/Timeline";
 import { TranscriptPanel } from "./components/TranscriptPanel";
@@ -410,7 +411,7 @@ export const App: React.FC = () => {
       layers: "all",
       concept: previewConcept,
       audio: previewConcept ? null : audio,
-      guides: guidesOn ? guides : null,
+      guides: guidesOn ? { ...guides, zones: guides.platform ? (doc?.constants?.platformZones?.[guides.platform] ?? null) : null } : null,
     }),
     [doc, previewConcept, audio, guides, guidesOn],
   );
@@ -914,9 +915,11 @@ export const App: React.FC = () => {
                 {Object.entries(PLATFORM_ZONES).map(([k, v]) => (
                   <option key={k} value={k}>
                     {v.label}
+                    {doc?.constants?.platformZones?.[k as keyof typeof PLATFORM_ZONES] ? " · yours" : ""}
                   </option>
                 ))}
               </select>
+              {guides.platform && doc ? <PlatformZonesEditor doc={doc} platform={guides.platform} setDoc={setDoc} /> : null}
             </div>
           </div>
         </section>

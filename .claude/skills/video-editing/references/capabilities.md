@@ -22,25 +22,28 @@ What the Studio and the kit actually do, and how it was checked. Update this aft
 | Deterministic rendering (same frame, same pixels, any order) | all kit layers | frames 50 / 170 / 233 rendered twice in different orders: identical SHA-256 |
 | Preview-only guides (thirds, centre, safe area, approximate platform zones) | `Guides.tsx` via StudioEdit `guides` (Player only) | Studio screenshot; renders never pass `guides` |
 | Light surfaces on light bases (`surface()`, `useInk()`) | `premium.tsx`, `style.tsx` | `Demo-Popover`, paper-grid renders |
+| Motion controls per scene or project: direction, softness, bounce, glow, blur; reset to project; timing and sound sync unchanged | Properties → Motion (`MotionControls.tsx`), `constants.motion` / `sceneMotion`, `useMotion()` | `npm run studio:test:upgrade` M1–M3 (saved, survive a reload, change the export render; defaults render identically) |
+| Stored reference analysis: measured facts (palette, size, duration, frame strip) cached by content hash; Claude Code's observations kept apart from inferred motion; stills cannot get observed motion; unreachable links labelled "not accessible" with an upload fallback; reuse across scenes; refresh keeps history | `ref_analysis.py`, `library/analysis/`, `RefAnalysis.tsx`, analysis requests | `studio:test:upgrade` A1–A5 |
+| Saved feedback preferences per scope (scene / project / future videos), on/off, explicit widening; "Remember this" on change requests; Claude Code reads the active ones in `show` | `doc.preferences`, `library/preferences.json`, `PreferencesPanel.tsx` | `studio:test:upgrade` P1–P3 |
+| Draft / review / final quality presets; measured render time recorded per preset and shown in the Export tab; draft keeps layout and timing and drops only decorative layers | `src/kit/quality.ts`, `--quality`, `render-times.json` | `studio:test:upgrade` Q1–Q3; times below |
+| Shape morph (optional, off): `statusIcon` ring→check, dot→arrow via `@remotion/paths`; crossfade when off or unmatched | `src/kit/morph.tsx`, `DirectionalCard` | `studio:test:upgrade` G1; in-between frames inspected |
+| Camera motion blur (optional, off; light 5 / strong 8 samples) on travelling cards only; never on holds or video; skipped in draft | `src/kit/motionBlur.tsx` (`@remotion/motion-blur` 4.0.535) | `studio:test:upgrade` B1 (held frame identical, entrance changed, cost measured) |
+| Editable platform zones: presets labelled "unverified"; the user's values saved per project and drawn by the Player guides only | `PlatformZonesEditor.tsx`, `constants.platformZones` | `studio:test:upgrade` Z1 (export unchanged) |
 
 ## Implemented with a known limitation
 
 | Capability | Limitation |
 | --- | --- |
-| Platform safe zones | Approximate starting points, not checked against current app versions; adjustable only in code (`PLATFORM_ZONES`). |
-| Reference links (URL attachments) | Stored and passed to Claude Code; not fetched or analysed automatically. Claude opens them only if reachable, and says so otherwise. |
-| Reference analysis | Claude Code looks at the images during a build; there is no stored, cached per-asset analysis yet. |
-| Motion controls in the Studio | Camera, intensity, background, text style and stage are editable. Per-scene easing, direction and softness controls exist in the recipes' props (Properties tab, raw values), without dedicated sliders. |
+| Platform safe zones | The presets are approximate and NOT verified against current app versions (labelled so in the Studio). The user can replace them per project with measured values; they are preview guides and do not move content automatically. |
+| Reference links (URL attachments) | Fetched only when the host is reachable from this machine; a page link is measured as the page, not the video it embeds. Blocked links are labelled "not accessible" and the user uploads a screenshot or clip instead. |
+| Reference analysis | "Measured" facts are computed by code; "observed" is only what Claude Code recorded after looking at the files; motion from a still is always inferred (a guess). Video references are inspected as a 6-frame strip, not watched in real time. |
+| Shape morph | Four built-in shapes, single path each; other pairs crossfade. Used by `DirectionalCard` only. |
+| Motion blur | `DirectionalCard` only. Stage scenes (`FlowMotion`) travel only 4–6 % of the frame, where blur barely reads, and can contain video, which each sample would decode again. |
 | Encoded-output review | Checked on stills and by playback of the MP4 file structure; no listening review is possible in this environment. |
 
 ## Not implemented (documented options only)
 
-- Camera motion blur (`@remotion/motion-blur` is not installed).
-- Path morphing (`@remotion/paths` is installed but not used by a recipe yet).
-- React Three Fiber / real 3D: realistic objects come from the user as assets (SKILL rule 11).
-- Draft / review / final render quality presets: preview renders are half resolution, finals full.
-- Stored feedback preferences per scope (brief §35).
-- A cached reference-analysis store (brief §15).
+- React Three Fiber / real 3D: deferred until a scene needs it; realistic objects come from the user as assets (SKILL rule 11).
 
 ## Checkpoint (for the next session)
 

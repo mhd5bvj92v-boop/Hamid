@@ -89,6 +89,9 @@ export type EditConstants = {
   mode?: "natural" | "visuals" | "ui-saas";
   /** delivery: changes layout checks and guides only, never the pacing */
   platform?: "tiktok" | "shorts" | "youtube";
+  /** the user's own platform UI zones (frame fractions [x0, y0, x1, y1]), replacing the approximate preset for
+   *  that platform in the Studio guides; preview-only, never rendered */
+  platformZones?: Partial<Record<"tiktok" | "shorts" | "youtube", { name: string; box: [number, number, number, number] }[]>>;
   /** the short art-direction note: feeling, foundation, harmony, who may use the accent */
   artDirection?: string;
   /** Motion controls for the whole project (Properties → Motion); a scene can override them in sceneMotion. */
