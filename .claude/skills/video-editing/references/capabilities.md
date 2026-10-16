@@ -45,17 +45,22 @@ What the Studio and the kit actually do, and how it was checked. Update this aft
 
 - React Three Fiber / real 3D: deferred until a scene needs it; realistic objects come from the user as assets (SKILL rule 11).
 
+## Measured render times (2026-10-16, this sandbox: 4 CPUs, local Chromium headless shell)
+
+Demo `controls-demo`: 12.6 s at 30 fps (378 frames), 1080×1920, three full-screen `DirectionalCard` scenes over a footage file (defaults; shape morph; strong motion blur on scene 3), with audio. `edit_render.py preview --all --quality …`, wall time including bundling (about 5 s of fixed overhead, measured with a single still).
+
+| Preset | Output | With strong motion blur on one card | Without motion blur |
+| --- | --- | --- | --- |
+| draft | 360×640, CRF 30, decorative layers off | 50.6 s (blur skipped in draft) | — |
+| review | 540×960, CRF 23 | 63.2 s | 50.5 s |
+| final | 1080×1920, CRF 18 | 156.7 s | 86.0 s |
+
+Findings: on this machine `draft` is barely faster than `review` (per-frame page and footage cost dominate, not pixel count); its value is the smaller file and a quick layout/timing check. `final` costs about 1.7× `review`. Strong motion blur on one card (about 33 travelling frames of 378) adds about 25 % to review and 80 % to final, which is why it is off by default and per scene. In `studio:test:upgrade` (8 s, 1920×1080, no footage): draft 12.6 s, review 11.2–11.7 s, review with light blur 18.4–19.7 s. Times on the user's Windows machine will differ; the Studio shows the last measured time per preset.
+
 ## Checkpoint (for the next session)
 
-Done (pushed on `claude/vibrant-cerf-gmkijt`):
-- D and scoped references (data, Studio, CLI, migration, tests);
-- design tokens (`motionTokens.ts`);
-- the two recipes, background families, focus backing, guides, scene brief;
-- creative mode, platform and art-direction constants;
-- the focused docs (art-direction, motion-recipes, references-and-d, this file).
+Done (pushed on `claude/vibrant-cerf-gmkijt`): D and scoped references; design tokens; the two recipes, background families, guides, scene brief; creative mode, platform and art direction; and the six follow-ups: per-scene motion controls, stored reference analysis, saved feedback preferences, quality presets with measured times, optional shape morph, optional camera motion blur, plus editable platform zones.
 
-Next, in this order:
-1. Per-scene motion controls with plain labels (direction, softness, bounce, glow, blur) mapped to recipe props, with reset-to-project.
-2. A stored reference analysis per asset (visible observations vs inferred motion), cached by content hash.
-3. Scoped feedback preferences.
-4. Draft / review / final quality presets with measured render times.
+Still needs the user: playback and listening review of the demo and of real edits on their own machine (motion feel, blur strength, morph speed, Windows render times); measured platform zones from their own app screenshots if they want them exact.
+
+Deferred by choice: real 3D (React Three Fiber) until a scene requires it.
