@@ -719,6 +719,14 @@ GUIDE = {
  3. Use it on this scene if it has a full-screen beat (props.background = "<id>"), preview it
     ({ed} preview ... for an open build, or render a still with edit_render.py still), and look at it.
  4. Finish: {ed} done {slug} --request {rid} --reason "added background <id>: ..." """,
+    "analysis": """WHAT TO DO (Claude Code): the user asked you to ANALYSE a reference (shown above with its measured facts).
+ 1. Open the file (or, for a clip, the frame strip printed above) and LOOK at it. If it cannot be opened, do not
+    analyse it: tell the user it was not accessible and ask for an upload.
+ 2. Write what you actually see as "observed" (color, typography, layout, materials, hierarchy, composition, notes).
+    Motion: a still image shows none - write it as "inferredMotion" (a labelled guess). Only a clip may have
+    "observedMotion" ([{{"t": seconds, "what": "..."}}], from its frames). Add "takeaways" (what to use from it).
+ 3. python3 .claude/skills/video-editing/scripts/ref_analysis.py record "<ref>" --file analysis.json
+ 4. Finish: {ed} done {slug} --request {rid} --reason "analysed <ref>: <one line>" """,
     "concepts": """WHAT TO DO (Claude Code, with the video-editing skill):
  1. Read .claude/skills/video-editing/SKILL.md and references/creative-director.md (Phase 2), plus the system doc
     for this category (system-a-on-screen.md / system-b-text.md / system-c-full-screen.md) and design-language.md.
@@ -893,6 +901,11 @@ def cmd_show(app, slug, a):
                 print(f"  {x['id']}  {x.get('kind', 'style'):6} {', '.join(x.get('tags') or [])[:50]:50}  {x['file']}" + (f"  - {x['note']}" if x.get("note") else ""))
     if r["type"] == "background":
         print(f"\nTHE USER'S BACKGROUND REQUEST, verbatim:\n{b.get('note', '')}")
+    if r["type"] == "analysis":
+        import ref_analysis as RA
+        ref = b.get("ref")
+        a0 = RA.measure(ref)
+        print(f"\nREFERENCE TO ANALYSE: {ref}  (file: {a0.get('downloaded') or a0.get('source')})\n" + RA.describe(a0))
     print("\nsuggested references (keyword match; open the images before using them):")
     for x in b["references"]["suggested"]:
         print(f"  {x['id']}  {x['family']:16} {x['title'][:60]}  {x['file']}")
@@ -905,6 +918,16 @@ def cmd_show(app, slug, a):
                   + (f"  - {x['note']}" if x.get("note") else ""))
         if b.get("excluded"):
             print(f"  excluded (do NOT use): {', '.join(b['excluded'])}")
+        import ref_analysis as RA
+        for x in atts:
+            ref = x.get("url") or (x["id"] if BUILTIN_ID.match(x["id"]) or x["id"].startswith("MY-") else x.get("path"))
+            try:
+                kind, path, url, _ = RA.resolve(ref) if ref else (None, None, None, None)
+                an = RA.load(RA.key_of(kind, path, url)) if kind else None
+            except SystemExit:
+                an = None
+            if an:
+                print("  analysis of " + RA.describe(an).replace("\n", "\n    "))
         print("  use = adopt its visible qualities for the given role; light = a hint only. A still image does not prove motion.")
     if b["timeline"]:
         print("existing timeline items (leave them unchanged): " + ", ".join(f"{t['id']} {t['kind']} @{t['at']}s" for t in b["timeline"]))
@@ -925,10 +948,28 @@ def cmd_ask_background(app, slug, a):
     print(f"{req['id']} pending: a new library background for {seg['id']} - \"{a.note.strip()}\"")
 
 
+def cmd_ask_analysis(app, slug, a):
+    """The user asked Claude Code to analyse a reference (Studio: Analyse / Refresh on an attachment)."""
+    import ref_analysis as RA
+    log = load(app, slug)
+    seg = seg_by_id(log, a.segment)
+    an = RA.measure(a.ref, refresh=a.refresh)
+    if an["status"] == "inaccessible":
+        print(f"{a.ref} is not accessible ({an.get('error')}): nothing to analyse; upload the image or clip instead")
+        return
+    for r in open_requests(log, seg["id"], ("analysis",)):
+        if r["brief"].get("ref") == a.ref:
+            print(f"{r['id']} already asks for this analysis")
+            return
+    req = new_request(log, "analysis", seg, ref=a.ref, note=f"analyse {a.ref}")
+    save(app, slug, log)
+    print(f"{req['id']} pending: analyse {a.ref} (measured; Claude Code adds its observations)")
+
+
 def cmd_done(app, slug, a):
     log = load(app, slug)
     r = find_request(log, a.request)
-    take(r, ("background",))
+    take(r, ("background", "analysis"))
     if not (a.reason or "").strip():
         raise SystemExit("--reason: say what was made")
     set_status(r, "completed", result=a.reason.strip())
@@ -1335,12 +1376,14 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("cmd", choices=["init", "analyze", "propose", "decide", "approve", "feedback", "status", "storyboard",
                                     "request", "pending", "show", "claim", "preview", "built", "fail", "cancel", "review", "restore", "plan-approve", "asset",
-                                    "ask-background", "done"])
+                                    "ask-background", "done", "ask-analysis"])
     ap.add_argument("slug", nargs="?")
     ap.add_argument("--file"); ap.add_argument("--moments"); ap.add_argument("--choice")
     ap.add_argument("--set", choices=["claude", "draft"], default="claude", help="decide: which A/B/C (Claude Concepts; Quick Drafts are chosen in the Studio)")
     ap.add_argument("--custom"); ap.add_argument("--combine"); ap.add_argument("--based-on"); ap.add_argument("--refs"); ap.add_argument("--uploads")
     ap.add_argument("--attachments-file", help="JSON snapshot of the effective references (written by the Studio)")
+    ap.add_argument("--ref", help="ask-analysis: the reference (ONS-024, MY-003, a file path or a link)")
+    ap.add_argument("--refresh", action="store_true", help="ask-analysis: measure again (earlier observations move to its history)")
     ap.add_argument("--reference-image")
     ap.add_argument("--quote"); ap.add_argument("--note"); ap.add_argument("--scope")
     ap.add_argument("--gate", choices=GATES); ap.add_argument("--change", action="append")
@@ -1362,7 +1405,7 @@ def main():
         sys.exit("--gate required")
     if a.cmd in ("show", "claim", "preview", "built", "fail", "cancel", "done") and not a.request:
         sys.exit("--request REQ-#### required")
-    if a.cmd in ("request", "review", "restore", "asset", "ask-background") and not a.segment:
+    if a.cmd in ("request", "review", "restore", "asset", "ask-background", "ask-analysis") and not a.segment:
         sys.exit("--segment required")
     if a.cmd == "plan-approve" and not a.segments:
         sys.exit("--segments S01,S02 required")
@@ -1372,7 +1415,7 @@ def main():
      "feedback": cmd_feedback, "status": cmd_status, "storyboard": cmd_storyboard, "request": cmd_request, "pending": cmd_pending,
      "show": cmd_show, "claim": cmd_claim, "preview": cmd_preview, "built": cmd_built, "fail": cmd_fail,
      "cancel": lambda ap_, s, x: cmd_fail(ap_, s, x, status="cancelled"), "review": cmd_review, "restore": cmd_restore,
-     "plan-approve": cmd_plan_approve, "asset": cmd_asset, "ask-background": cmd_ask_background, "done": cmd_done}[a.cmd](app, a.slug, a)
+     "plan-approve": cmd_plan_approve, "asset": cmd_asset, "ask-background": cmd_ask_background, "done": cmd_done, "ask-analysis": cmd_ask_analysis}[a.cmd](app, a.slug, a)
 
 
 if __name__ == "__main__":

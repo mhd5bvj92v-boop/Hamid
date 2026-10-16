@@ -20,7 +20,7 @@ const SKILL = path.resolve(APP, "..", ".claude", "skills", "video-editing");
 const SCRIPTS = path.join(SKILL, "scripts");
 const PROJECTS = path.join(APP, "src", "projects");
 /** The user's own library (references they add in the Studio): local, never in git; Claude Code reads it. */
-const LIBRARY = path.resolve(APP, "..", "library");
+const LIBRARY = process.env.VV_LIBRARY ? path.resolve(process.env.VV_LIBRARY) : path.resolve(APP, "..", "library");
 const userRefsPath = path.join(LIBRARY, "references.json");
 type UserRef = { id: string; file: string; name: string; tags: string[]; note: string; kind: string; added: string; sha256?: string };
 const userRefs = (): UserRef[] => (existsSync(userRefsPath) ? JSON.parse(readFileSync(userRefsPath, "utf8")) : []);
@@ -437,6 +437,27 @@ const routes: [string, RegExp, (c: Ctx) => Promise<unknown> | unknown][] = [
     }
   }],
   // the kit's library: backgrounds, camera moves, text styles
+  // stored reference analysis (ref_analysis.py): measured facts, Claude Code's observations, inferred motion apart
+  ["GET", /^\/api\/ref-analysis$/, async ({ req }) => {
+    const ref = new URL(req.url ?? "", "http://x").searchParams.get("ref") ?? "";
+    if (!ref) throw new Error("ref required");
+    const shown = await py("ref_analysis.py", ["show", ref, "--json"]);
+    let out = shown.code ? "null" : shown.out.trim().split("\n").pop() ?? "null";
+    if (out === "null") {
+      const m = await py("ref_analysis.py", ["measure", ref, "--json"]);
+      if (m.code) throw new Error(m.out.trim().split("\n").slice(-2).join(" "));
+      out = m.out.trim().split("\n").pop() ?? "null";
+    }
+    return { analysis: JSON.parse(out) };
+  }],
+  ["POST", /^\/api\/project\/([\w-]+)\/analyze-ref$/, async ({ req, m }) => {
+    const b = await body(req);
+    const ref = String(b.ref ?? "");
+    if (!ref) throw new Error("ref required");
+    const message = await decisions(["ask-analysis", m[1], `--segment=${String(b.segmentId)}`, `--ref=${ref}`, ...(b.refresh ? ["--refresh"] : [])]);
+    const shown = await py("ref_analysis.py", ["show", ref, "--json"]);
+    return { doc: readDoc(m[1]), analysis: JSON.parse(shown.out.trim().split("\n").pop() ?? "null"), message };
+  }],
   ["GET", /^\/api\/library$/, async () => ({ ...(await library()), references: userRefs() })],
   // the user's own reference library (images, video stills): Claude Code reads library/references.json
   ["POST", /^\/api\/library\/reference$/, async ({ req }) => {

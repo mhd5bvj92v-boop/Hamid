@@ -97,6 +97,21 @@ const call = async <T,>(method: string, url: string, body?: unknown): Promise<T>
 
 export type ProjectInfo = { slug: string; duration: number; fps: number; segments: number; beats: number; scriptOnly: boolean; openRequests: number };
 export type Loaded = { doc: EditDoc; issues: TranscriptIssue[]; errors: string[]; manifest: { source: { path: string | null } } | null };
+export type RefAnalysisRecord = {
+  key: string;
+  ref: string;
+  label: string;
+  status: "measured" | "analysed" | "inaccessible";
+  media?: "image" | "video";
+  error?: string;
+  measured?: { width: number; height: number; durationS?: number; fps?: number; foundation: string; luminance: number; contrast: number; saturation: number; detail: number; palette: { hex: string; share: number }[] };
+  observed?: Record<string, string> | null;
+  observedMotion?: { t: number; what: string }[];
+  inferredMotion?: string | null;
+  takeaways?: string | null;
+  analysedAt?: string | null;
+  frames?: string;
+};
 export type Ref = { id: string; title: string; category: string; family: string; tags: string[]; img: string };
 export type Job = { id: string; status: "running" | "done" | "error" | "unknown"; progress: number; log: string[]; outputs: Record<string, string> };
 type DocResult = { doc: EditDoc; out?: string };
@@ -134,6 +149,9 @@ export const api = {
   upload: (slug: string, name: string, data: string) => call<{ path: string; url: string }>("POST", `/api/project/${slug}/upload`, { name, data }),
   askBackground: (slug: string, segmentId: string, prompt: string) =>
     call<{ doc: EditDoc; out: string }>("POST", `/api/project/${slug}/ask-background`, { segmentId, prompt }),
+  refAnalysis: (ref: string) => call<{ analysis: RefAnalysisRecord | null }>("GET", `/api/ref-analysis?ref=${encodeURIComponent(ref)}`),
+  askAnalysis: (slug: string, segmentId: string, ref: string, refresh: boolean) =>
+    call<{ doc: EditDoc; analysis: RefAnalysisRecord | null; message: string }>("POST", `/api/project/${slug}/analyze-ref`, { segmentId, ref, refresh }),
   library: () =>
     call<{ backgrounds: { id: string; label: string; description: string }[]; cameraMoves: { id: string; label: string }[]; textStyles: string[];
       references: { id: string; name: string; tags: string[]; note: string; kind: string }[] }>("GET", "/api/library"),

@@ -5,9 +5,15 @@
 //  M1 motion controls set in the Studio are saved in edit.json and survive a reload
 //  M2 the export render follows them: direction, glow and blur change the frame; defaults render exactly as before
 //  M3 a scene override wins over the project; reset-to-project removes it
+//  A1 a reference attached in D is measured and cached (content hash); the Studio shows "measured only" + palette
+//  A2 an unreachable link is labelled "not accessible" (never "analysed") and offers an upload fallback that works
+//  A3 "Ask Claude Code to analyse" creates an analysis request; Claude Code's observations (recorded with
+//     ref_analysis.py) show as "analysed", with inferred motion kept apart; a still cannot get observed motion
+//  A4 the analysis is reused in another scene; refresh re-measures and keeps the earlier observations in history
+//  A5 Claude Code's build request prints the analysis of its references
 // Usage: node studio/tests/upgrade.mjs [--keep]
 import { execSync, spawn, spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
@@ -23,7 +29,8 @@ const PORT = 3010;
 const BASE = `http://127.0.0.1:${PORT}`;
 const keep = process.argv.includes("--keep");
 const tmp = mkdtempSync(path.join(os.tmpdir(), "upgrade_e2e_"));
-const env = { ...process.env, VV_SOUNDS_JSON: path.join(tmp, "sounds.json"), VV_SOUND_DOC: path.join(tmp, "sounds.md") };
+const LIB = path.join(tmp, "library");
+const env = { ...process.env, VV_SOUNDS_JSON: path.join(tmp, "sounds.json"), VV_SOUND_DOC: path.join(tmp, "sounds.md"), VV_LIBRARY: LIB };
 const results = [];
 const check = (n, ok, msg) => {
   results.push({ n, ok, msg });
@@ -189,6 +196,83 @@ try {
   const afterReset = await page.getByTestId("motion-softness").inputValue();
   check("M3", Number(sceneShown) === 0.1 && Number(afterReset) === 0.9 && docOf().constants.motion.softness === 0.9,
     "the scene's softness 0.1 overrides the project's 0.9; reset to project removes the override and the scene follows 0.9 again");
+
+
+  // ---------------------------------------------------------------- A1 measured + cached
+  const openD = async (id) => {
+    await page.getByTestId(`seg-${id}`).click();
+    await page.getByTestId("tab-creative").click();
+    await waitFor(async () => (await page.getByTestId("creative-panel").locator("h2").first().innerText().catch(() => "")) === id, `the ${id} panel`);
+  };
+  await openD("S01");
+  await page.getByTestId("d-text").fill("A dark card arrives from the right, the status turns Paid, it leaves left.");
+  await page.getByTestId("d-ref-search").fill("ONS-024");
+  await page.getByTestId("d-ref-add-ONS-024").click();
+  await page.getByTestId("ra-status-ONS-024").waitFor({ timeout: 30000 });
+  const st1 = await page.getByTestId("ra-status-ONS-024").innerText();
+  const sw1 = await page.getByTestId("ref-analysis-ONS-024").locator(".swatch").count();
+  const cached = existsSync(path.join(LIB, "analysis")) ? readdirSync(path.join(LIB, "analysis")).filter((f) => f.endsWith(".json")) : [];
+  const onsSha = execSync(`sha256sum "${path.join(REPO, ".claude/skills/video-editing/assets/references/ONS")}"/ONS-024__*`).toString().split(" ")[0];
+  check("A1", /measured only/.test(st1) && sw1 >= 3 && cached.includes(`${onsSha}.json`),
+    `ONS-024 attached in D: measured and cached by content hash (library/analysis/${onsSha.slice(0, 12)}….json), the Studio shows "${st1}" with ${sw1} palette swatches`);
+
+  // ---------------------------------------------------------------- A2 unreachable link
+  await page.getByTestId("d-ref-url").fill("http://127.0.0.1:9/never-there.mp4");
+  await page.getByTestId("d-ref-url-add").click();
+  await page.getByTestId("ra-inaccessible-URL-1").waitFor({ timeout: 30000 });
+  const offText = await page.getByTestId("ra-inaccessible-URL-1").innerText();
+  const statusShown = await page.getByTestId("ra-status-URL-1").count();
+  const [chooser] = await Promise.all([page.waitForEvent("filechooser"), page.getByTestId("ra-upload-URL-1").click()]);
+  await chooser.setFiles(path.join(tmp, "base-hold.png"));
+  await waitFor(() => (docOf().segments.find((s) => s.id === "S01").dDraft?.attachments ?? []).some((a) => a.kind === "upload" && /instead of the link/.test(a.note ?? "")), "the fallback upload");
+  check("A2", /Not accessible/.test(offText) && /upload/i.test(offText) && statusShown === 0,
+    "an unreachable link is shown as \"Not accessible\" (never analysed) with the reason; \"Upload a screenshot or clip instead\" attaches the upload, noted as standing in for the link");
+
+  // ---------------------------------------------------------------- A3 Claude Code's analysis
+  await page.getByTestId("ra-ask-ONS-024").click();
+  await waitFor(() => (docOf().requests ?? []).some((q) => q.type === "analysis" && q.brief.ref === "ONS-024" && q.status === "pending"), "the analysis request");
+  const areq = docOf().requests.find((q) => q.type === "analysis");
+  const ashow = py("edit_decisions.py", "show", SLUG, "--request", areq.id);
+  writeFileSync(path.join(tmp, "bad.json"), JSON.stringify({ observed: { color: "deep navy" }, observedMotion: [{ t: 1, what: "glides" }] }));
+  const bad = py("ref_analysis.py", "record", "ONS-024", "--file", path.join(tmp, "bad.json"));
+  writeFileSync(path.join(tmp, "good.json"), JSON.stringify({
+    observed: { color: "near-black navy card, one blue rim light at the bottom", typography: "small grey label, large white 400% numerals", layout: "stat top-left, bell curve across the middle" },
+    inferredMotion: "the curve probably draws left to right and the dot settles on the peak",
+    takeaways: "one bright accent on the key number only",
+  }));
+  const good = py("ref_analysis.py", "record", "ONS-024", "--file", path.join(tmp, "good.json"));
+  const done = py("edit_decisions.py", "done", SLUG, "--request", areq.id, "--reason", "analysed ONS-024");
+  await page.reload();
+  await openD("S01");
+  await page.getByTestId("ra-status-ONS-024").waitFor({ timeout: 30000 });
+  const st3 = await page.getByTestId("ra-status-ONS-024").innerText();
+  const box3 = await page.getByTestId("ref-analysis-ONS-024").innerText();
+  check("A3", /REFERENCE TO ANALYSE: ONS-024/.test(ashow.out) && /palette/.test(ashow.out) && bad.status !== 0 && /still image does not show motion/.test(bad.out) && good.status === 0 && done.status === 0 &&
+    /analysed by Claude Code/.test(st3) && /one blue rim light/.test(box3) && /Inferred motion \(a guess\)/.test(box3),
+    "analysis request -> show prints the measured facts; recording observed motion for a still is refused; the recorded observations show as \"analysed by Claude Code\" with inferred motion labelled as a guess");
+
+  // ---------------------------------------------------------------- A4 reuse + refresh
+  const before = JSON.parse(py("ref_analysis.py", "show", "ONS-024", "--json").out.trim().split("\n").pop());
+  await openD("S02");
+  await page.getByTestId("d-ref-search").fill("ONS-024");
+  await page.getByTestId("d-ref-add-ONS-024").click();
+  await page.getByTestId("ra-status-ONS-024").waitFor({ timeout: 30000 });
+  const st4 = await page.getByTestId("ra-status-ONS-024").innerText();
+  await page.getByTestId("ra-ask-ONS-024").click();
+  await waitFor(async () => /measured only/.test(await page.getByTestId("ra-status-ONS-024").innerText()), "the refreshed (re-measured) analysis");
+  const after = JSON.parse(py("ref_analysis.py", "show", "ONS-024", "--json").out.trim().split("\n").pop());
+  check("A4", /analysed by Claude Code/.test(st4) && after.measuredAt >= before.measuredAt && after.status === "measured" && (after.history ?? []).some((h) => /one blue rim light/.test(JSON.stringify(h.observed))) &&
+    (docOf().requests ?? []).filter((q) => q.type === "analysis" && q.status === "pending").length === 1,
+    "S02 reuses the stored analysis (analysed); Refresh re-measures, keeps Claude Code's earlier observations in the history and asks Claude Code again");
+
+  // ---------------------------------------------------------------- A5 the build request carries the analysis
+  await page.getByTestId("d-text").fill("The same card, now for every payment.");
+  await page.getByTestId("choose-D").click();
+  await waitFor(() => (docOf().requests ?? []).some((q) => q.type === "implement" && q.segmentId === "S02"), "the S02 build request");
+  const breq = docOf().requests.find((q) => q.type === "implement" && q.segmentId === "S02");
+  const bshow = py("edit_decisions.py", "show", SLUG, "--request", breq.id);
+  check("A5", /analysis of ONS-024\s+\[measured\]/.test(bshow.out) && /palette:/.test(bshow.out),
+    "Claude Code's build request prints the stored analysis of each reference (status, measured facts)");
 
   check("errors", pageErrors.length === 0, `no page errors (${pageErrors.slice(0, 2).join(" | ")})`);
 } catch (e) {

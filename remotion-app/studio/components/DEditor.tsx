@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import type { ConceptOption, CreativeSegment, EditDoc, RefAttachment, RefScope } from "../../src/kit/project";
 import { INFLUENCE_LABEL, ROLE_LABEL, SCOPE_LABEL, kindOf, resolveRefs } from "../../src/kit/refs";
 import { api, Ref } from "../api";
+import { RefAnalysis } from "./RefAnalysis";
 import { attach, detach, draftOf, editDraft, moveScope, sceneAttachments, thumbOf, toggleInherit, updateAttachment } from "../dDraft";
 
 type Mine = { id: string; name: string; tags: string[]; note: string; kind: string };
@@ -53,16 +54,19 @@ export const DEditor: React.FC<{
   const resolved = useMemo(() => resolveRefs(doc, seg), [doc, seg]);
   const attachedHere = new Set(all.map((x) => x.a.id));
 
-  const upload = (files: File[]) =>
+  const upload = (files: File[], note?: string) =>
     wrap("d-upload", async () => {
       let next = doc;
       for (const f of files) {
         if (!/\.(png|jpe?g|webp|gif)$/i.test(f.name)) continue;
         const r = await api.upload(doc.slug, f.name, await readB64(f));
-        next = attach(next, seg.id, `UP-${r.path.split(/[\\/]/).pop()}`, "upload", { path: r.path });
+        next = attach(next, seg.id, `UP-${r.path.split(/[\\/]/).pop()}`, "upload", { path: r.path, ...(note ? { note } : {}) });
       }
       setDoc(next);
     });
+  // "upload instead" for a link that could not be opened: the upload keeps a note pointing to the link
+  const fallback = React.useRef<HTMLInputElement>(null);
+  const [fallbackFor, setFallbackFor] = useState("");
 
   const row = ({ a, at }: { a: RefAttachment; at: RefScope }) => {
     const thumb = thumbOf(doc.slug, a);
@@ -109,6 +113,21 @@ export const DEditor: React.FC<{
             value={a.note ?? ""}
             onChange={(e) => setDoc(updateAttachment(doc, seg.id, a.id, at, { note: e.target.value }))}
             data-testid={`d-att-note-${a.id}`}
+          />
+        </div>
+        <div className="d-att-analysis">
+          <RefAnalysis
+            slug={doc.slug}
+            segId={seg.id}
+            att={a}
+            onUploadInstead={
+              a.kind === "url"
+                ? () => {
+                    setFallbackFor(a.url ?? a.id);
+                    fallback.current?.click();
+                  }
+                : undefined
+            }
           />
         </div>
         {at === "project" ? (
@@ -228,6 +247,14 @@ export const DEditor: React.FC<{
           </button>
         </div>
         {all.length ? <div className="d-atts">{all.map(row)}</div> : null}
+        <input
+          ref={fallback}
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/gif"
+          style={{ display: "none" }}
+          data-testid="d-upload-fallback"
+          onChange={(e) => upload(Array.from(e.target.files ?? []), fallbackFor ? `instead of the link ${fallbackFor}` : undefined)}
+        />
       </div>
 
       <button className="ghost small" onClick={() => setShowHints(!showHints)} data-testid="d-hints-toggle">

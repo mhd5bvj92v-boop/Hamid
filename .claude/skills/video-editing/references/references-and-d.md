@@ -58,3 +58,30 @@ If the D text conflicts with a reference, the text wins. Say so in the build's c
 2. Open the files. A still image proves colour, type, layout and material, not motion. Write inferred motion as inferred.
 3. Implement the text completely; use references only for their role. Never use an excluded one.
 4. `preview`, compare, iterate, then `built` (premium-motion.md §5).
+
+## Stored reference analysis (`scripts/ref_analysis.py`)
+
+Every attachment in the D editor shows its stored analysis. It is cached in `<repo>/library/analysis/<sha256>.json`: local, not in git, keyed by the file's content hash and the analysis version. The same picture is measured once and reused in every scene and project. A link is keyed by its URL and fetched again on refresh, because links can change.
+
+| Part | Written by | What it may contain |
+| --- | --- | --- |
+| `measured` | the script, automatically, whenever the file is accessible | Size, palette with shares, luminance, light/dark foundation, contrast, saturation, detail. A clip adds duration, fps and a strip of six frames. |
+| `observed` | Claude Code, only after LOOKING at the file | Colour, typography, layout, materials, hierarchy, composition, notes. Only what is visible. |
+| `observedMotion` | Claude Code, clips only (from the frame strip) | `[{t, what}]`. `record` refuses it for a still image. |
+| `inferredMotion` | Claude Code | A labelled guess. The Studio shows it as "Inferred motion (a guess)". |
+| `takeaways` | Claude Code | What to use from it. |
+
+**Status:**
+- `measured`: facts only.
+- `analysed`: Claude Code recorded what it saw.
+- `inaccessible`: the link or file could not be opened. The reason is shown with an **Upload a screenshot or clip instead** button. The upload is attached with a note pointing to the link. An inaccessible reference is never recorded as analysed.
+
+**Ask Claude Code to analyse / Refresh analysis** creates an `analysis` request. Claude Code then:
+1. Runs `show` (it prints the measured facts and the frame strip).
+2. Looks at the file.
+3. Records its observations: `python3 .claude/skills/video-editing/scripts/ref_analysis.py record "<ref>" --file analysis.json`.
+4. Closes the request: `edit_decisions.py done --request REQ-…`.
+
+A refresh re-measures and moves the earlier observations into `history`. Build requests print each reference's stored analysis under THIS SCENE WILL USE.
+
+Built-in references (ONS/TXT/FUL) also carry the observed and inferred notes written when the library was built (`data/references.json`).
