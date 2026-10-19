@@ -1,0 +1,16 @@
+{
+  "video": "../edit_v1.mp4",
+  "hook_end": 4.2,
+  "layers": [
+    {"name": "01 hook",               "cues": "01-hook_cues.json",             "offset": 0.00,  "system": "B"},
+    {"name": "02 hacking",            "cues": "02-hacking_cues.json",          "offset": 6.40,  "system": "B"},
+    {"name": "03 different things",   "cues": "03-different-things_cues.json", "offset": 11.80, "system": "B"},
+    {"name": "04 paths",              "cues": "04-paths_cues.json",            "offset": 14.00, "system": "A"},
+    {"name": "05 really cool",        "cues": "05-really-cool_cues.json",      "offset": 28.60, "system": "B"},
+    {"name": "06 something else",     "cues": "06-something-else_cues.json",   "offset": 31.20, "system": "B"},
+    {"name": "07 rabbit hole",        "cues": "07-rabbit-hole_cues.json",      "offset": 35.30, "system": "C", "fullscreen": true, "duration": 3.8},
+    {"name": "08 hardest parts",      "cues": "08-hardest-parts_cues.json",    "offset": 46.40, "system": "B"},
+    {"name": "09 stick with",         "cues": "09-stick-with_cues.json",       "offset": 53.30, "system": "B"}
+  ],
+  "events": "video_events.json"
+}

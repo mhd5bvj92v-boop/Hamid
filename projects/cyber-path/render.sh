@@ -44,5 +44,6 @@ python3 scripts/compare.py --render "$W/qc/3.2.png"  --refs TXT-001 --out "$W/qc
 
 # 4. sound (System D): needs an indexed SFX library (scripts/sfx_index.py scan <folder>)
 python3 scripts/video_events.py "$W/edit_v1.mp4" --out "$W/sound/video_events.json" --strip "$W/sound/events_strip.png"
-echo "Next: write $W/sound/plan.json from the *_cues.json files (fullscreen_windows = [[35.30, 39.10]]),"
-echo "      then sfx_plan.py -> cues.json -> sound_mix.py --passes 1 / 1,2 / 1,2,3 --no-music -> sound_qc.py"
+cp "$HERE/sound-plan.json" "$W/sound/plan.json"     # layer offsets: keep in sync with step 2 above
+python3 scripts/sfx_plan.py "$W/sound/plan.json" --out "$W/sound/cues.json"
+echo "Done. Draft cue sheet: $W/sound/cues.json  (next: choose sounds, then sound_mix.py passes 1 / 1,2 / 1,2,3 + sound_qc.py)"
