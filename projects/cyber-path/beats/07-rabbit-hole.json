@@ -1,0 +1,19 @@
+{
+  "_beat": "07 FULL-SCREEN 'stuck in this massive rabbit hole' | cut in at 35.30s, hard cut back to face at 39.10s",
+  "lead": "stuck in this massive",
+  "key": "rabbit hole",
+  "leadAt": 0.35,
+  "keyAt": 1.05,
+  "fallAt": 0.5,
+  "fallDur": 2.9,
+  "outAt": 3.55,
+  "outDur": 0.25,
+  "rim": "#FF7A1A",
+  "core": "#FFE3C7",
+  "accent": "#FF9A3D",
+  "glow": "rgba(255,122,26,.45)",
+  "bg": [
+    "#160A02",
+    "#000000"
+  ]
+}

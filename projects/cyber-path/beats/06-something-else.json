@@ -1,0 +1,28 @@
+{
+  "_beat": "06 'But then I find something else. And then something else.' | layer starts at 31.20s | the caption stays on through the second 'something else'",
+  "anchor": {
+    "x": 0.5,
+    "y": 0.56
+  },
+  "colors": {
+    "text": "#FFFFFF",
+    "accent": "#FF8A2A",
+    "glow": "rgba(255,138,42,.42)",
+    "script": "#FFB36B",
+    "boldFill": "linear-gradient(180deg,#FFFFFF,#FFB36B)"
+  },
+  "lines": [
+    {
+      "text": "but then I find",
+      "style": "sans-sm",
+      "at": 0.1
+    },
+    {
+      "text": "something else",
+      "style": "serif",
+      "at": 0.6
+    }
+  ],
+  "outAt": 3.6,
+  "outDur": 0.28
+}

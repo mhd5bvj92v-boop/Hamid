@@ -1,0 +1,28 @@
+{
+  "_beat": "08 '...honestly one of the hardest parts' | layer starts at 46.40s | emotional line: NO sound on this one",
+  "anchor": {
+    "x": 0.5,
+    "y": 0.56
+  },
+  "colors": {
+    "text": "#FFFFFF",
+    "accent": "#FF8A2A",
+    "glow": "rgba(255,138,42,.42)",
+    "script": "#FFB36B",
+    "boldFill": "linear-gradient(180deg,#FFFFFF,#FFB36B)"
+  },
+  "lines": [
+    {
+      "text": "honestly one of the",
+      "style": "sans-sm",
+      "at": 0.1
+    },
+    {
+      "text": "hardest parts",
+      "style": "serif",
+      "at": 0.9
+    }
+  ],
+  "outAt": 2.45,
+  "outDur": 0.3
+}

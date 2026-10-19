@@ -1,0 +1,28 @@
+{
+  "_beat": "03 '...so many different things you can do' | layer starts at 11.80s",
+  "anchor": {
+    "x": 0.5,
+    "y": 0.56
+  },
+  "colors": {
+    "text": "#FFFFFF",
+    "accent": "#FF8A2A",
+    "glow": "rgba(255,138,42,.42)",
+    "script": "#FFB36B",
+    "boldFill": "linear-gradient(180deg,#FFFFFF,#FFB36B)"
+  },
+  "lines": [
+    {
+      "text": "there are so many",
+      "style": "sans-sm",
+      "at": 0.05
+    },
+    {
+      "text": "different things",
+      "style": "serif",
+      "at": 0.65
+    }
+  ],
+  "outAt": 1.85,
+  "outDur": 0.25
+}

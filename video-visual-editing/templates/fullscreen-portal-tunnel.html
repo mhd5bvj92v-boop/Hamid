@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="_ui.css">
 <style>
-  .scene { position: absolute; inset: 0; background: radial-gradient(ellipse 80% 60% at 50% 60%, #0E0A24 0%, #05040D 70%); overflow: hidden; }
+  .scene { position: absolute; inset: 0; background: radial-gradient(ellipse 80% 60% at 50% 60%, var(--bg1) 0%, var(--bg2) 70%); overflow: hidden; }
   canvas { position: absolute; inset: 0; }
   .head { position: absolute; left: 6%; right: 6%; text-align: center; }
   .lead { font: 600 5.6rem/1 var(--sans); color: #fff; letter-spacing: -0.01em; text-shadow: 0 .2rem 1.6rem rgba(0,0,0,.6); }
@@ -23,6 +23,7 @@
 window.DEFAULT_CONFIG = {
   width: 1080, height: 1920,
   rim: '#8B5CF6', core: '#E9DDFF', accent: '#A78BFA', glow: 'rgba(139,92,246,.45)',
+  bg: ['#0E0A24', '#05040D'],      // scene gradient (centre, edge)
   lead: 'stuck in this massive', key: 'rabbit hole',
   vanish: { x: 0.5, y: 0.60 },     // vanishing point (centre of the doorway) as frame fractions
   door: { w: 0.30, h: 0.26 },      // first doorway size as frame fractions
@@ -35,7 +36,7 @@ window.DEFAULT_CONFIG = {
 const S = {};
 window.setup = (c) => {
   document.documentElement.style.fontSize = (10 * c.width / 1080) + 'px';
-  const r = document.documentElement.style; r.setProperty('--accent', c.accent); r.setProperty('--glow', c.glow);
+  const r = document.documentElement.style; r.setProperty('--accent', c.accent); r.setProperty('--glow', c.glow); r.setProperty('--bg1', c.bg[0]); r.setProperty('--bg2', c.bg[1]);
   const cv = document.getElementById('cv'); cv.width = c.width; cv.height = c.height; S.g = cv.getContext('2d');
   S.lead = document.getElementById('lead'); S.lead.textContent = c.lead;
   S.key = document.getElementById('key'); S.key.textContent = c.key;
@@ -44,6 +45,7 @@ window.setup = (c) => {
 };
 window.duration = (c) => c.outAt + c.outDur + 0.1;
 
+const rgba = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
 function doorway(g, cx, cy, w, h, alpha, rim, core) {
   // floor-rooted doorway: open bottom glow + rim on three sides, like FUL-093
   const x = cx - w / 2, y = cy - h / 2, rad = Math.min(w, h) * 0.04;
@@ -54,7 +56,7 @@ function doorway(g, cx, cy, w, h, alpha, rim, core) {
   g.lineTo(x + w - rad, y); g.quadraticCurveTo(x + w, y, x + w, y + rad); g.lineTo(x + w, y + h); g.stroke();
   g.shadowBlur = 0;
   const fl = g.createLinearGradient(0, y + h - h * 0.45, 0, y + h);      // light pouring up from the floor
-  fl.addColorStop(0, 'rgba(139,92,246,0)'); fl.addColorStop(1, rim);
+  fl.addColorStop(0, rgba(rim, 0)); fl.addColorStop(1, rim);
   g.globalAlpha = alpha * 0.55; g.fillStyle = fl; g.fillRect(x, y + h * 0.55, w, h * 0.45);
   g.globalAlpha = alpha; g.strokeStyle = core; g.lineWidth = Math.max(1, w * 0.006);
   g.beginPath(); g.moveTo(x, y + h); g.lineTo(x + w, y + h); g.stroke();  // hot floor line
@@ -88,7 +90,7 @@ window.renderFrame = (t, c) => {
   });
   // central bloom grows as we fall in
   const bl = g.createRadialGradient(cx, cy, 0, cx, cy, W * lerp(0.25, 0.6, f));
-  bl.addColorStop(0, `rgba(167,139,250,${0.35 * reveal + 0.25 * f})`); bl.addColorStop(1, 'rgba(139,92,246,0)');
+  bl.addColorStop(0, rgba(c.accent, 0.35 * reveal + 0.25 * f)); bl.addColorStop(1, rgba(c.rim, 0));
   g.fillStyle = bl; g.fillRect(0, 0, W, H);
   enter(S.lead, prog(t, c.leadAt, 0.3), { rise: 14, blur: 6 });
   enter(S.key, prog(t, c.keyAt, 0.42, 'outQuart'), { rise: 0, blur: 10, scale: 0.92 });

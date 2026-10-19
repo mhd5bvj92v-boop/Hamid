@@ -1,11 +1,33 @@
 {
-  "_beat": "01 hook | layer starts at 0.00s (video time) | all times below are relative to the layer start",
-  "anchor": {"x": 0.5, "y": 0.56},
-  "colors": {"text": "#FFFFFF", "accent": "#5B8CFF", "glow": "rgba(47,107,255,.40)", "script": "#F3E6C4"},
+  "_beat": "01 hook | layer starts at 0.00s | TXT-002 layout: small sans lead, big serif phrase, tracked sub-line",
+  "anchor": {
+    "x": 0.5,
+    "y": 0.56
+  },
+  "colors": {
+    "text": "#FFFFFF",
+    "accent": "#FF8A2A",
+    "glow": "rgba(255,138,42,.42)",
+    "script": "#FFB36B",
+    "boldFill": "linear-gradient(180deg,#FFFFFF,#FFB36B)"
+  },
   "lines": [
-    {"text": "the deeper I got", "style": "tracked", "at": 0.15},
-    {"text": "the harder it became to", "style": "sans-sm", "at": 1.55},
-    {"text": "choose a path", "style": "serif", "at": 2.55}
+    {
+      "text": "the harder it became to",
+      "style": "sans-sm",
+      "at": 1.55
+    },
+    {
+      "text": "choose a path",
+      "style": "serif",
+      "at": 2.55
+    },
+    {
+      "text": "the deeper I got",
+      "style": "tracked",
+      "at": 0.15
+    }
   ],
-  "outAt": 3.95, "outDur": 0.28
+  "outAt": 3.95,
+  "outDur": 0.28
 }
