@@ -145,6 +145,7 @@ Planet rim or atmospheric arcs (FUL-002, FUL-007, FUL-013, FUL-021, FUL-028, FUL
 Speed lines, anamorphic beams, light walls (FUL-006, FUL-012, FUL-025, FUL-029, FUL-032, FUL-093).
 - **Use:** transitions and backgrounds for a single statement. Keep the streaks behind the text.
 - **Motion:** streaks accelerate toward the camera or sweep once. Never loop them busily under text.
+- **Template:** `templates/fullscreen-portal-tunnel.html` (FUL-093 doorway, camera falls through nested doorways).
 
 ### 3D-METAPHOR
 One photoreal or stylised hero object that embodies the idea (34 references, for example FUL-010, FUL-016, FUL-022, FUL-017, FUL-057, FUL-064).

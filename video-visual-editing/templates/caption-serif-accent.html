@@ -16,6 +16,7 @@
   .sans    { font: 600 5.6rem/1 var(--sans); color: var(--text); letter-spacing: -0.01em; text-shadow: 0 0.2rem 1.6rem rgba(0,0,0,.45); }
   .sans-sm { font: 500 4.4rem/1 var(--sans); color: var(--text); letter-spacing: -0.01em; text-shadow: 0 0.2rem 1.4rem rgba(0,0,0,.45); }
   .bold    { font: 800 9rem/0.9 var(--sans); letter-spacing: -0.03em; background: var(--boldFill); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 0 1.8rem var(--glow)); }
+  .bold .w { background: var(--boldFill); -webkit-background-clip: text; background-clip: text; color: transparent; }   /* clip per word: a transformed child breaks the parent clip and renders invisible */
   .serif   { font: italic var(--serifWeight) 16rem/0.84 var(--serif); color: var(--accent); text-shadow: 0 0 3rem var(--glow), 0 0.3rem 1.2rem rgba(0,0,0,.35); letter-spacing: -0.035em; font-variant-numeric: lining-nums; font-feature-settings: "lnum" 1; }
   .serif .w, .script .w { transform-origin: 50% 60%; }
   .condense { display: inline-block; transform: scaleX(var(--condense)); }

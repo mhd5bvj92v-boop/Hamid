@@ -1,0 +1,11 @@
+{
+  "_beat": "01 hook | layer starts at 0.00s (video time) | all times below are relative to the layer start",
+  "anchor": {"x": 0.5, "y": 0.56},
+  "colors": {"text": "#FFFFFF", "accent": "#5B8CFF", "glow": "rgba(47,107,255,.40)", "script": "#F3E6C4"},
+  "lines": [
+    {"text": "the deeper I got", "style": "tracked", "at": 0.15},
+    {"text": "the harder it became to", "style": "sans-sm", "at": 1.55},
+    {"text": "choose a path", "style": "serif", "at": 2.55}
+  ],
+  "outAt": 3.95, "outDur": 0.28
+}

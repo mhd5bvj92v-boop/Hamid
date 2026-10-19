@@ -33,6 +33,7 @@ Every template in `templates/` follows this contract:
 | `templates/stat-card.html` | A / C | ONS-024, ONS-050 stat cards (`fullscreen: true` for System C) |
 | `templates/ai-input-bar.html` | A | ONS-034, ONS-044 prompt bars |
 | `templates/fullscreen-horizon-title.html` | C | FUL-002 horizon numeral title (HORIZON-ARC family) |
+| `templates/fullscreen-portal-tunnel.html` | C | FUL-093 light doorway + fall through nested doorways (LIGHT-STREAK family): "going deeper", rabbit holes, new chapters |
 
 To build a new design, copy the closest template, keep the contract, and put the new design tokens in CSS variables. If the design should be reusable, add it to `templates/` and to the table above.
 

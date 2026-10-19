@@ -1,0 +1,16 @@
+{
+  "_beat": "03 the four paths | layer starts at 14.00s | each chip on its spoken word",
+  "variant": "chips",
+  "panel": {"x": 0.29, "y": 0.60, "width": 0.42},
+  "header": {"title": "Cyber paths", "badge": 4},
+  "items": [
+    {"avatar": "P", "title": "Pentesting",     "sub": "Red team", "at": 0.30},
+    {"avatar": "B", "title": "Blue team",      "sub": "Defend & detect", "at": 1.25},
+    {"avatar": "C", "title": "Cloud security", "sub": "AWS · Azure · GCP", "at": 2.20},
+    {"avatar": "N", "title": "Networking",     "sub": "The foundation", "at": 3.15}
+  ],
+  "node": null,
+  "activeIndex": -1,
+  "uiScale": 1.5,
+  "outAt": 4.45, "outDur": 0.3
+}

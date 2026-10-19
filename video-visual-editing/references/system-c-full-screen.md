@@ -45,7 +45,7 @@ Limits:
 
 ## Production paths (choose by what the environment actually has)
 
-1. **HTML/CSS/SVG/Canvas → Playwright frames** (always available here). Good for typography, UI, charts, glows, planet arcs and particles. Template: `templates/fullscreen-horizon-title.html`; `templates/stat-card.html` with `"fullscreen": true`.
+1. **HTML/CSS/SVG/Canvas → Playwright frames** (always available here). Good for typography, UI, charts, glows, planet arcs and particles. Templates: `templates/fullscreen-horizon-title.html`, `templates/fullscreen-portal-tunnel.html`; `templates/stat-card.html` with `"fullscreen": true`.
 2. **Generated or licensed still plus 2.5D animation:** the hero object (hourglass, chess pieces, brain) as an image, animated with parallax layers, light sweeps, a particle overlay (sand, dust, sparks) and a camera push in HTML or ffmpeg. State that the base image was generated or sourced, and check licensing.
 3. **True 3D (Blender, if installed):** extruded numerals, glass tiles, neon rims, slat waves and coils. Use emission plus bloom (Eevee) or Cycles with glass/rim lights. Render a PNG sequence and composite it with `compose.py`.
 4. **Third-party tools the user has** (After Effects, DaVinci Resolve/Fusion, Premiere): hand off ProRes 4444 layers plus a timing sheet if the user will finish there.

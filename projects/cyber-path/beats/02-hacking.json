@@ -1,0 +1,11 @@
+{
+  "_beat": "02 'it's just... hacking' | layer starts at 6.40s",
+  "anchor": {"x": 0.5, "y": 0.56},
+  "colors": {"text": "#FFFFFF", "accent": "#5B8CFF", "glow": "rgba(47,107,255,.45)",
+             "boldFill": "linear-gradient(180deg,#FFFFFF,#9DB8FF)"},
+  "lines": [
+    {"text": "you think it's just", "style": "sans-sm", "at": 0.10},
+    {"text": "HACKING", "style": "bold", "at": 0.95}
+  ],
+  "outAt": 2.15, "outDur": 0.25
+}
