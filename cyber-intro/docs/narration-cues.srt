@@ -1,0 +1,23 @@
+1
+00:00:00,000 --> 00:00:03,500
+I used to browse the internet without thinking twice.
+
+2
+00:00:03,500 --> 00:00:07,000
+Open a link. Accept the cookies. Move on.
+
+3
+00:00:07,000 --> 00:00:11,500
+Then I started learning cybersecurity.
+
+4
+00:00:11,500 --> 00:00:16,500
+And suddenly, I started noticing everything behind the screen.
+
+5
+00:00:16,500 --> 00:00:21,000
+The permissions. The trackers. The little things I'd always ignored.
+
+6
+00:00:21,000 --> 00:00:25,000
+The internet didn't change. The way I see it did.

@@ -1,0 +1,6 @@
+node_modules/
+out/draft*
+out/stills/
+.remotion/
+out/drafttx/
+out/*.mp4.part

@@ -1,0 +1,26 @@
+{
+  "name": "cyber-intro",
+  "private": true,
+  "version": "1.0.0",
+  "description": "25s 1080p60 YouTube intro: The internet looks different now",
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "stills": "node tools/render-stills.mjs",
+    "draft": "remotion render src/index.ts CyberIntro out/draft.mp4 --scale=0.5 --crf=28 --concurrency=4",
+    "render": "remotion render src/index.ts CyberIntro out/cyber-intro-1080p60.mp4 --codec=h264 --crf=14 --pixel-format=yuv420p --x264-preset=slow --concurrency=4"
+  },
+  "dependencies": {
+    "@remotion/bundler": "4.0.537",
+    "@remotion/cli": "4.0.537",
+    "@remotion/fonts": "^4.0.537",
+    "@remotion/renderer": "4.0.537",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "remotion": "4.0.537"
+  },
+  "devDependencies": {
+    "@types/react": "19.1.8",
+    "typescript": "5.8.3"
+  }
+}
