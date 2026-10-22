@@ -1,0 +1,5 @@
+node_modules/
+out/stills/
+out/proof*
+out/frames*/
+.remotion/
