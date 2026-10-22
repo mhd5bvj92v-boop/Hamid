@@ -7,7 +7,7 @@
 <style>
   .bg { position: absolute; inset: 0; background: radial-gradient(80% 50% at 50% 60%, var(--bgGlow), transparent 70%), #05070D; }
   .sc { position: absolute; transform: translate(-50%, -50%); aspect-ratio: 0.8; border-radius: 7rem; overflow: hidden;
-        background: linear-gradient(180deg, rgba(14,18,32,.92), rgba(8,12,26,.95));
+        background: var(--cardBg, linear-gradient(180deg, rgba(14,18,32,.92), rgba(8,12,26,.95)));
         border: .15rem solid color-mix(in srgb, var(--accent) 40%, transparent);
         box-shadow: inset 0 -3.2rem 5rem -2.4rem var(--accent),            /* light pooling on the lower glass */
                     inset 0 -.5rem .6rem -.3rem rgba(255,255,255,.75),     /* hot rim on the bottom edge */
@@ -39,6 +39,7 @@ window.DEFAULT_CONFIG = {
 };
 const S = {};
 window.setup = (c) => {
+  if (c.cardBg) document.documentElement.style.setProperty('--cardBg', c.cardBg);   // optional card fill override (e.g. warm black for orange-on-black edits)
   document.documentElement.style.fontSize = (10 * c.width / 1080 * (c.uiScale || 1)) + 'px';
   const r = document.documentElement.style; r.setProperty('--accent', c.accent); r.setProperty('--glow', c.glow); r.setProperty('--bgGlow', c.glow.replace(/[\d.]+\)$/, '.18)'));
   const st = document.getElementById('stage');

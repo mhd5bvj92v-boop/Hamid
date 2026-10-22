@@ -1,0 +1,28 @@
+{
+  "_beat": "07 all the times they were completely lost | layer @26.00s | TXT-001 lead + serif",
+  "anchor": {
+    "x": 0.5,
+    "y": 0.7
+  },
+  "colors": {
+    "text": "#FFFFFF",
+    "accent": "#FF8A2A",
+    "glow": "rgba(255,138,42,.42)",
+    "script": "#FFB36B",
+    "boldFill": "linear-gradient(180deg,#FFFFFF,#FFB36B)"
+  },
+  "lines": [
+    {
+      "text": "all the times they were completely",
+      "style": "sans-sm",
+      "at": 0.75
+    },
+    {
+      "text": "lost too.",
+      "style": "serif",
+      "at": 1.75
+    }
+  ],
+  "outAt": 2.85,
+  "outDur": 0.25
+}

@@ -1,0 +1,143 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Iceberg feed (System C)</title>
+<!-- "We only see what people actually post": one polished post above a dashed
+     waterline; the camera sinks and reveals the tall column of things that never
+     got posted (drafts, failed builds, stuck days). Inspired by ONS-028 (iceberg:
+     tip above, mass below) in orange-on-black. Opaque full-screen layer. -->
+<link rel="stylesheet" href="_ui.css">
+<style>
+  #stage { background: radial-gradient(ellipse 90% 60% at 50% 105%, #2A1204 0%, #160A02 38%, #000 80%); }
+  .world { position: absolute; left: 0; top: 0; width: 100%; will-change: transform; }
+  .post { position: absolute; padding: 2.4rem; }
+  .post .who { display: flex; align-items: center; gap: 1.2rem; }
+  .post .av { width: 6rem; height: 6rem; border-radius: 50%; background: linear-gradient(140deg, #FFB36B, #C9551A); display: grid; place-items: center; font: 700 2rem/1 var(--sans); color: #1A0B02; }
+  .post .h { font: 600 2.8rem/1.1 var(--sans); }
+  .post .t { font: 400 2.2rem/1.2 var(--sans); color: var(--ink-3); }
+  .post .body { font: 500 3.3rem/1.25 var(--sans); margin: 2rem 0 1.8rem; }
+  .post .img { height: 21rem; border-radius: 1.6rem; background: radial-gradient(ellipse 80% 90% at 70% 110%, rgba(255,138,42,.85), rgba(201,85,26,.35) 40%, rgba(30,20,14,1) 75%); border: .1rem solid var(--hairline); position: relative; overflow: hidden; }
+  .post .img .ui { position: absolute; left: 2.2rem; top: 2.2rem; right: 2.2rem; height: 7rem; border-radius: 1.2rem; background: rgba(0,0,0,.45); border: .1rem solid rgba(255,255,255,.12); }
+  .post .img .ui b { position: absolute; left: 2rem; top: 2.2rem; font: 700 2.2rem/1 var(--sans); }
+  .post .img .ui span { position: absolute; right: 2rem; top: 2rem; font: 600 1.5rem/1 var(--sans); padding: .6rem 1rem; border-radius: 99rem; background: var(--accent); color: #1A0B02; }
+  .post .stats { display: flex; gap: 3rem; margin-top: 1.8rem; font: 600 2.5rem/1 var(--sans); color: var(--ink-2); }
+  .post .stats .likes { color: #fff; }
+  .post .stats svg { width: 2rem; height: 2rem; vertical-align: -.35rem; margin-right: .6rem; }
+  .tag { position: absolute; font: 700 2rem/1 var(--sans); letter-spacing: .18em; padding: .8rem 1.2rem; border-radius: 99rem; }
+  .tag.on { background: var(--accent); color: #1A0B02; }
+  .tag.off { border: .12rem solid rgba(255,255,255,.28); color: var(--ink-2); }
+  .water { position: absolute; left: 0; right: 0; height: 0; border-top: .25rem dashed rgba(255,138,42,.55); }
+  .ghost { position: absolute; padding: 2.2rem 2.6rem; display: flex; align-items: center; gap: 1.6rem; background: rgba(18,18,22,.82); }
+  .ghost .ic { width: 5.6rem; height: 5.6rem; border-radius: 1.2rem; display: grid; place-items: center; border: .12rem solid rgba(255,255,255,.14); flex: none; }
+  .ghost .ic svg { width: 2.4rem; height: 2.4rem; }
+  .ghost .a { font: 600 3rem/1.15 var(--sans); }
+  .ghost .b { font: 400 2.3rem/1.2 var(--sans); color: var(--ink-2); margin-top: .4rem; }
+  .ghost.err .ic { border-color: rgba(255,138,42,.6); }
+  .head { position: absolute; left: 0; right: 0; text-align: center; }
+  .lead { font: 600 5.2rem/1 var(--sans); color: #fff; letter-spacing: -0.01em; text-shadow: 0 .2rem 1.6rem rgba(0,0,0,.6); }
+  .key  { font: italic 600 13.5rem/0.9 'Playfair Display', Georgia, serif; color: var(--accent); letter-spacing: -0.035em; margin-top: .3rem; text-shadow: 0 0 3rem var(--accent-glow); }
+  .count { position: absolute; font: 600 2.4rem/1 var(--sans); letter-spacing: .12em; color: var(--ink-2); text-transform: uppercase; }
+  .count b { color: var(--accent); }
+  .fadeTop { position: absolute; left: 0; right: 0; top: 0; height: 34%; background: linear-gradient(#000 0%, rgba(0,0,0,.85) 55%, rgba(0,0,0,0) 100%); }
+</style>
+<script src="_runtime.js"></script></head>
+<body><div id="stage"><div class="world" id="world"></div><div class="fadeTop" id="fadeTop"></div>
+<div class="head" id="head"><div class="lead anim" id="lead"></div><div class="key anim" id="key"></div></div>
+<div class="count anim" id="count"></div></div>
+<script>
+window.DEFAULT_CONFIG = {
+  width: 1080, height: 1920,
+  accent: '#FF8A2A', glow: 'rgba(255,138,42,.45)',
+  post: { avatar: 'M', handle: '@maya.builds', time: '2h', body: 'Shipped my first full-stack app. Couldn’t be prouder.', app: 'Launch day', badge: 'Live', likes: '2.4k', comments: '186' },
+  ghosts: [
+    { icon: 'trash', a: 'Draft 1', b: 'Deleted before posting' },
+    { icon: 'err', a: 'Build failed', b: '03:12 AM · attempt 23' },
+    { icon: 'clock', a: 'Day 9', b: 'Still don’t get it' },
+    { icon: 'video', a: 'Tutorial #14', b: 'Abandoned halfway' },
+    { icon: 'err', a: 'Error 404', b: 'Spent 6 hours on a typo' },
+    { icon: 'loop', a: 'Started over', b: 'Again' },
+    { icon: 'chat', a: '“Does anyone get this?”', b: 'No replies' },
+  ],
+  lead: 'we only see what people', key: 'actually post',
+  leadAt: 0.2, keyAt: 0.75,
+  postAt: 0.05, waterAt: 0.55,
+  sinkAt: 1.15, sinkDur: 2.6, sinkBy: 0.78,      // camera sinks by this fraction of the frame height
+  ghostStagger: 0.16,
+  counter: { posted: 1, label1: 'posted', label2: 'not posted' }, counterAt: 1.6,
+  outAt: 4.05, outDur: 0.25
+};
+const ICONS = {
+  trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
+  err: '<path d="M12 3l9.5 17h-19z M12 10v4 M12 17h.01" fill="none" stroke="#FF8A2A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
+  clock: '<circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 7.5V12l3 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+  video: '<rect x="3" y="6" width="13" height="12" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M16 10.5l5-3v9l-5-3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>',
+  loop: '<path d="M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3M18 3v4h-4M6 21v-4h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
+  chat: '<path d="M4 5h16v11H9l-5 4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>',
+};
+const S = {};
+window.setup = (c) => {
+  document.documentElement.style.fontSize = (10 * c.width / 1080) + 'px';
+  const r = document.documentElement.style; r.setProperty('--accent', c.accent); r.setProperty('--accent-glow', c.glow);
+  const W = c.width, H = c.height, w = document.getElementById('world');
+  w.style.height = (H * 2.2) + 'px';
+  const cw = 0.84, left = (1 - cw) / 2;
+  // the one post that made it online
+  const p = document.createElement('div'); p.className = 'card post anim';
+  Object.assign(p.style, { left: left * 100 + '%', width: cw * 100 + '%', top: (H * 0.33) + 'px' });
+  p.innerHTML = `<div class="who"><div class="av">${c.post.avatar}</div><div><div class="h">${c.post.handle}</div><div class="t">${c.post.time}</div></div></div>` +
+    `<div class="body">${c.post.body}</div><div class="img"><div class="ui"><b>${c.post.app}</b><span>${c.post.badge}</span></div></div>` +
+    `<div class="stats"><span class="likes"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" fill="#FF8A2A"/></svg>${c.post.likes}</span><span>${c.post.comments} comments</span></div>`;
+  w.appendChild(p); S.post = p;
+  const tagOn = document.createElement('div'); tagOn.className = 'tag on anim'; tagOn.textContent = 'POSTED';
+  Object.assign(tagOn.style, { left: (left * 100 + 1.5) + '%', top: (H * 0.33 - 62) + 'px' }); w.appendChild(tagOn); S.tagOn = tagOn;
+  const water = document.createElement('div'); water.className = 'water anim'; water.style.top = (H * 0.83) + 'px'; w.appendChild(water); S.water = water;
+  const tagOff = document.createElement('div'); tagOff.className = 'tag off anim'; tagOff.textContent = 'NOT POSTED';
+  Object.assign(tagOff.style, { left: (left * 100 + 1.5) + '%', top: (H * 0.83 + 34) + 'px' }); w.appendChild(tagOff); S.tagOff = tagOff;
+  S.ghosts = c.ghosts.map((g, i) => {
+    const d = document.createElement('div'); d.className = 'card ghost anim' + (g.icon === 'err' ? ' err' : '');
+    const gw = 0.78, x = 0.5 - gw / 2 + (i % 2 ? 0.03 : -0.03);
+    Object.assign(d.style, { left: x * 100 + '%', width: gw * 100 + '%', top: (H * 0.83 + 120 + i * 190) + 'px', color: 'rgba(255,255,255,.55)' });
+    d.innerHTML = `<div class="ic"><svg viewBox="0 0 24 24">${ICONS[g.icon] || ''}</svg></div><div><div class="a">${g.a}</div><div class="b">${g.b}</div></div>`;
+    w.appendChild(d); return { el: d, y: H * 0.83 + 120 + i * 190, rot: (i % 2 ? 1 : -1) * (1.2 + (i % 3) * 0.5) };
+  });
+  const head = document.getElementById('head'); head.style.top = (H * 0.075) + 'px';
+  document.getElementById('lead').textContent = c.lead; document.getElementById('key').textContent = c.key;
+  S.lead = document.getElementById('lead'); S.key = document.getElementById('key');
+  S.count = document.getElementById('count'); S.count.style.left = '12%'; S.count.style.bottom = (H * 0.05) + 'px';
+  S.world = w; S.fadeTop = document.getElementById('fadeTop');
+};
+window.duration = (c) => c.outAt + c.outDur;
+window.renderFrame = (t, c) => {
+  const { prog, enter, E, clamp, lerp } = VV;
+  const H = c.height;
+  const sink = prog(t, c.sinkAt, c.sinkDur, 'inOutCubic');
+  const camY = -sink * H * c.sinkBy;
+  S.world.style.transform = `translateY(${camY}px)`;
+  enter(S.post, prog(t, c.postAt, 0.5, 'settle'), { rise: 40, blur: 12, scale: 0.95 });
+  enter(S.tagOn, prog(t, c.postAt + 0.3, 0.35), { rise: 10, blur: 4, scale: 0.9 });
+  const wp = prog(t, c.waterAt, 0.6, 'outCubic');
+  S.water.style.clipPath = `inset(0 ${(1 - wp) * 100}% 0 0)`; S.water.style.opacity = wp ? 1 : 0;
+  enter(S.tagOff, prog(t, c.waterAt + 0.35, 0.35), { rise: 10, blur: 4, scale: 0.9 });
+  S.ghosts.forEach((g, i) => {
+    // each ghost resolves as the camera brings it into view
+    const screenY = g.y + camY;
+    const vis = clamp((H * 0.98 - screenY) / (H * 0.18));
+    const p = Math.min(vis, prog(t, c.sinkAt + i * c.ghostStagger, 0.5));
+    g.el.style.opacity = p * 0.95;
+    g.el.style.transform = `translateY(${(1 - p) * 30}px) rotate(${g.rot * p}deg) scale(${lerp(0.94, 1, p)})`;
+    g.el.style.filter = `blur(${(1 - p) * 6}px)`;
+  });
+  S.fadeTop.style.opacity = prog(t, c.leadAt, 0.4);
+  enter(S.lead, prog(t, c.leadAt, 0.3), { rise: 14, blur: 6 });
+  enter(S.key, prog(t, c.keyAt, 0.42, 'outQuart'), { rise: 0, blur: 10, scale: 0.92 });
+  const shown = Math.round(c.ghosts.length * prog(t, c.counterAt, c.sinkDur - 0.3, 'linear'));
+  S.count.innerHTML = `<b>${c.counter.posted}</b> ${c.counter.label1} · <b>${shown}</b> ${c.counter.label2}`;
+  enter(S.count, prog(t, c.counterAt, 0.35), { rise: 10, blur: 4, scale: 1 });
+  const out = t < c.outAt ? 1 : 1 - E.inCubic(clamp((t - c.outAt) / c.outDur));
+  document.getElementById('stage').style.opacity = out;
+};
+window.SFX_TRACK = '.post,.ghost,.key';
+window.sfxCues = (c) => [
+  { id: 'entry', label: 'full-screen cut in, post lands', kind: 'event', t: c.postAt, category: 'SCI', roles: ['sci-fi-impact'], priority: 'recommended', note: 'Entry into the only full-screen: impact on the cut.' },
+  { id: 'key', label: 'key phrase lands', kind: 'event', select: '.key', index: 0, measure: 'visible', t: c.keyAt, category: 'POP', roles: ['pop'], priority: 'optional' },
+  { id: 'sink', label: 'camera sinks below the waterline', kind: 'movement', t: c.sinkAt + c.sinkDur * 0.5, category: 'WSH', roles: ['deep-voice-whoosh', 'hollow-whoosh'], priority: 'recommended', note: 'Low, slow whoosh peaking mid-sink, -14 dB.' },
+];
+</script></body></html>

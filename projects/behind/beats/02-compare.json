@@ -1,0 +1,32 @@
+{
+  "_beat": "02 everyone online vs you | layer @2.80s | System A, chest band",
+  "card": {
+    "x": 0.5,
+    "y": 0.64,
+    "width": 0.58
+  },
+  "eyebrow": "Learning progress",
+  "pill": "What I see",
+  "rows": [
+    {
+      "name": "Everyone online",
+      "value": 94,
+      "suffix": "%",
+      "kind": "them",
+      "at": 0.55
+    },
+    {
+      "name": "Me",
+      "value": 12,
+      "suffix": "%",
+      "kind": "you",
+      "at": 1.55
+    }
+  ],
+  "fillDur": 1.0,
+  "note": "Based only on what gets posted",
+  "noteAt": 2.2,
+  "inAt": 0.1,
+  "outAt": 3.0,
+  "outDur": 0.28
+}

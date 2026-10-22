@@ -35,11 +35,13 @@ window.DEFAULT_CONFIG = {
   node: { label: 'You', x: 0.18, y: 0.68, at: 0.15, linkTo: 0, linkAt: 0.9 },  // null to hide
   activeIndex: 0, activeAt: 1.3,
   uiScale: 1.5,                     // 1.5 matches ONS-001/003 at 1080x1920
+  accent: null,                     // e.g. '#FF8A2A' to override the house blue (badge, active row, connector)
   outAt: 3.4, outDur: 0.3
 };
 const S = {};
 window.setup = (c) => {
   document.documentElement.style.fontSize = (10 * c.width / 1080 * (c.uiScale || 1)) + 'px';
+  if (c.accent) { const r = document.documentElement.style; r.setProperty('--accent', c.accent); r.setProperty('--accent-2', c.accent); r.setProperty('--accent-glow', c.accentGlow || c.accent + '8C'); }
   const st = document.getElementById('stage');
   const p = document.createElement('div'); p.className = 'panel';
   p.style.left = (c.panel.x * 100) + '%'; p.style.top = (c.panel.y * 100) + '%'; p.style.width = (c.panel.width * 100) + '%';

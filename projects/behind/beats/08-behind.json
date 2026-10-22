@@ -1,0 +1,33 @@
+{
+  "_beat": "08 are we behind? | layer @30.70s | TXT-002: tracked line first, then lead + serif",
+  "anchor": {
+    "x": 0.5,
+    "y": 0.68
+  },
+  "colors": {
+    "text": "#FFFFFF",
+    "accent": "#FF8A2A",
+    "glow": "rgba(255,138,42,.42)",
+    "script": "#FFB36B",
+    "boldFill": "linear-gradient(180deg,#FFFFFF,#FFB36B)"
+  },
+  "lines": [
+    {
+      "text": "are we actually behind?",
+      "style": "tracked",
+      "at": 0.3
+    },
+    {
+      "text": "or does the internet just",
+      "style": "sans-sm",
+      "at": 2.2
+    },
+    {
+      "text": "make us feel",
+      "style": "serif",
+      "at": 2.95
+    }
+  ],
+  "outAt": 4.05,
+  "outDur": 0.25
+}

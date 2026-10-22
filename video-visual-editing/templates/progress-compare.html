@@ -1,0 +1,77 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Progress compare (System A)</title>
+<!-- Two progress rows on one black-glass card: "what you see online" vs "you".
+     For comparison beats ("are we behind?"). Chest band, never over the face.
+     Render transparent, composite over footage. -->
+<link rel="stylesheet" href="_ui.css">
+<style>
+  .pc { position: absolute; padding: 2.2rem 2.4rem 2.4rem; display: flex; flex-direction: column; gap: 2rem; }
+  .pc .top { display: flex; align-items: center; justify-content: space-between; }
+  .pc .eyebrow { font: 600 1.35rem/1 var(--sans); letter-spacing: .14em; color: var(--ink-3); text-transform: uppercase; }
+  .pc .pill { font: 600 1.35rem/1 var(--sans); padding: .7rem 1.1rem; border-radius: 99rem; color: var(--accent); background: rgba(255,138,42,.12); border: .1rem solid rgba(255,138,42,.28); }
+  .row2 { display: flex; flex-direction: column; gap: .9rem; }
+  .row2 .line { display: flex; align-items: baseline; justify-content: space-between; }
+  .row2 .name { font: 600 2.1rem/1.1 var(--sans); }
+  .row2 .val { font: 600 2.1rem/1 var(--sans); font-variant-numeric: tabular-nums; }
+  .row2 .val small { font-weight: 500; color: var(--ink-3); font-size: 1.5rem; margin-left: .3rem; }
+  .track { position: relative; height: 1.2rem; border-radius: 99rem; background: rgba(255,255,255,.08); overflow: hidden; }
+  .fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 99rem; }
+  .fill.them { background: linear-gradient(90deg, rgba(255,255,255,.55), #FFFFFF); }
+  .fill.you { background: linear-gradient(90deg, #C9551A, var(--accent)); box-shadow: 0 0 1.6rem var(--accent-glow); }
+  .note { font: 500 1.55rem/1.3 var(--sans); color: var(--ink-2); display: flex; align-items: center; gap: .8rem; }
+  .note i { width: .8rem; height: .8rem; border-radius: 50%; background: var(--accent); display: inline-block; }
+</style>
+<script src="_runtime.js"></script></head>
+<body><div id="stage"></div>
+<script>
+window.DEFAULT_CONFIG = {
+  width: 1080, height: 1920, uiScale: 1.5,
+  card: { x: 0.5, y: 0.66, width: 0.56 },        // centre x, top y, width (frame fractions)
+  eyebrow: 'Learning progress', pill: 'This week',
+  rows: [
+    { name: 'Everyone online', value: 94, suffix: '%', kind: 'them', at: 0.35 },
+    { name: 'You', value: 12, suffix: '%', kind: 'you', at: 0.75 }
+  ],
+  fillDur: 1.1,
+  note: 'Based on what gets posted', noteAt: 1.6,
+  accent: '#FF8A2A', accentGlow: 'rgba(255,138,42,.45)',
+  inAt: 0.1, outAt: 2.8, outDur: 0.28
+};
+const S = {};
+window.setup = (c) => {
+  document.documentElement.style.fontSize = (10 * c.width / 1080 * (c.uiScale || 1)) + 'px';
+  const r = document.documentElement.style; r.setProperty('--accent', c.accent); r.setProperty('--accent-glow', c.accentGlow);
+  const card = document.createElement('div'); card.className = 'card pc anim';
+  card.style.width = (c.card.width * 100) + '%'; card.style.left = ((c.card.x - c.card.width / 2) * 100) + '%'; card.style.top = (c.card.y * 100) + '%';
+  card.innerHTML = `<div class="top"><span class="eyebrow">${c.eyebrow}</span><span class="pill">${c.pill}</span></div>`;
+  S.rows = c.rows.map((row) => {
+    const d = document.createElement('div'); d.className = 'row2 anim';
+    d.innerHTML = `<div class="line"><span class="name">${row.name}</span><span class="val"><b>0</b><small>${row.suffix || ''}</small></span></div>` +
+      `<div class="track"><div class="fill ${row.kind}"></div></div>`;
+    card.appendChild(d);
+    return { el: d, num: d.querySelector('b'), fill: d.querySelector('.fill'), row };
+  });
+  if (c.note) { const n = document.createElement('div'); n.className = 'note anim'; n.innerHTML = `<i></i>${c.note}`; card.appendChild(n); S.note = n; }
+  document.getElementById('stage').appendChild(card); S.card = card;
+};
+window.duration = (c) => c.outAt + c.outDur + 0.1;
+window.renderFrame = (t, c) => {
+  const { prog, envelope, enter, E, clamp } = VV;
+  const out = t < c.outAt ? 1 : 1 - E.inCubic(clamp((t - c.outAt) / c.outDur));
+  enter(S.card, prog(t, c.inAt, 0.45, 'settle'), { rise: 22, blur: 10, scale: 0.96 });
+  S.card.style.opacity = prog(t, c.inAt, 0.35) * out;
+  S.rows.forEach(({ el, num, fill, row }) => {
+    enter(el, prog(t, row.at - 0.2, 0.4, 'outCubic'), { rise: 10, blur: 4, scale: 1 });
+    const p = prog(t, row.at, c.fillDur, 'outQuart');
+    fill.style.width = (row.value * p) + '%';
+    num.textContent = Math.round(row.value * p);
+  });
+  if (S.note) enter(S.note, prog(t, c.noteAt, 0.4), { rise: 8, blur: 4, scale: 1 });
+};
+window.SFX_TRACK = '.pc,.fill';
+window.sfxCues = (c) => [
+  { id: 'card', label: 'comparison card enters', kind: 'event', select: '.pc', index: 0, measure: 'visible', t: c.inAt, category: 'UI', roles: ['ui-click', 'pop'], priority: 'recommended' },
+  ...c.rows.map((r, i) => ({ id: 'fill' + i, label: `${r.name} bar fills`, kind: 'continuous', t: r.at, t_end: r.at + c.fillDur, category: 'MEC', roles: ['video-scan'], priority: i ? 'recommended' : 'optional',
+    note: i ? 'The short orange bar is the punchline: a small low tick when it stops.' : 'Usually silent.' })),
+];
+</script></body></html>

@@ -1,0 +1,28 @@
+{
+  "_beat": "05 bro, what am I even doing? | layer @18.10s | TXT-004",
+  "anchor": {
+    "x": 0.5,
+    "y": 0.7
+  },
+  "colors": {
+    "text": "#FFFFFF",
+    "accent": "#FF8A2A",
+    "glow": "rgba(255,138,42,.42)",
+    "script": "#FFB36B",
+    "boldFill": "linear-gradient(180deg,#FFFFFF,#FFB36B)"
+  },
+  "lines": [
+    {
+      "text": "bro, what am I",
+      "style": "sans-sm",
+      "at": 1.0
+    },
+    {
+      "text": "even doing?",
+      "style": "serif",
+      "at": 1.55
+    }
+  ],
+  "outAt": 2.7,
+  "outDur": 0.25
+}

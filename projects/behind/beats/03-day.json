@@ -1,0 +1,26 @@
+{
+  "_beat": "03 an entire day on one thing | layer @6.40s | stat card, slow count",
+  "center": {
+    "x": 0.5,
+    "y": 0.66
+  },
+  "cardWidth": 0.64,
+  "accent": "#FF8A2A",
+  "glow": "rgba(255,138,42,.45)",
+  "header": "Today",
+  "pill": "1 topic",
+  "label": "Time on one concept",
+  "value": 9,
+  "decimals": 0,
+  "prefix": "",
+  "suffix": " h",
+  "footnote": "and it still hasn't clicked",
+  "inAt": 0.15,
+  "drawAt": 0.45,
+  "drawDur": 1.6,
+  "countAt": 0.6,
+  "countDur": 2.4,
+  "outAt": 4.2,
+  "outDur": 0.3,
+  "cardBg": "linear-gradient(180deg, rgba(26,18,12,.94), rgba(10,8,6,.96))"
+}

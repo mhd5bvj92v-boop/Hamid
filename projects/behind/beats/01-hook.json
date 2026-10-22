@@ -1,0 +1,28 @@
+{
+  "_beat": "01 hook | layer @0.00s | TXT-004: small lead-in + big serif key",
+  "anchor": {
+    "x": 0.5,
+    "y": 0.7
+  },
+  "colors": {
+    "text": "#FFFFFF",
+    "accent": "#FF8A2A",
+    "glow": "rgba(255,138,42,.42)",
+    "script": "#FFB36B",
+    "boldFill": "linear-gradient(180deg,#FFFFFF,#FFB36B)"
+  },
+  "lines": [
+    {
+      "text": "are we actually learning",
+      "style": "sans-sm",
+      "at": 0.2
+    },
+    {
+      "text": "too slowly?",
+      "style": "serif",
+      "at": 0.85
+    }
+  ],
+  "outAt": 2.55,
+  "outDur": 0.25
+}
