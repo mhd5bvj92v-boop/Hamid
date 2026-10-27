@@ -208,9 +208,9 @@ The tools for this are standard and public: **Wireshark/`dumpcap`** (capture), *
 
 ---
 
-## 6. Trying the attack — the replay attack (method & expected result)
+## 6. Trying the attack — the replay attack (demonstrated on the capture)
 
-The assignment specifically suggests a **replay attack**, which is the safest meaningful one to demonstrate because it only re‑sends *genuine* frames.
+The assignment specifically suggests a **replay attack**. Because our scope is the provided capture file (we do not have to touch the live plant), the attack is demonstrated **offline, directly on the pcap**: we show that the recorded frames contain everything needed to replay them, and that ProfiNET's own freshness mechanism does not stop that. This proves feasibility without ever risking the running machine.
 
 ### 6.1 The idea
 
@@ -224,19 +224,31 @@ The assignment specifically suggests a **replay attack**, which is the safest me
 
 A ProfiNET RT consumer protects itself with two things: the **APDU cycle counter** (a 16‑bit number that should keep advancing) and a **watchdog timer** (if no valid frame arrives within ~3 cycles, declare the device failed). Replayed frames carry **old cycle‑counter values** and the **"valid" data‑status bit still set**. In practice the dominant protection is the *watchdog* (frames must keep arriving) rather than strong *freshness* (cryptographic proof the frame is new). Published research (Pfrang & Meier, 2018) shows that replayed/forged RT frames can be accepted or can at least reliably disrupt the relationship, because there is no authentication to reject them. So the receiver can be driven to act on recorded reality instead of current reality.
 
-### 6.3 How I would carry it out in the lab (report level)
+### 6.3 What the capture proves (the offline demonstration)
 
-* Capture the genuine `0x8000` stream with Wireshark/`dumpcap`, filtered to the two MACs.
-* Replay the saved file back onto the wire with a standard replay tool (`tcpreplay`) or re‑send the parsed frames with Scapy, preserving source MAC and FrameID and the 2 ms timing.
-* Watch for the effect: the PLC/HMI continues to show the device as "present and OK" using the recorded data even when the real I/O state has changed, **or** the genuine and replayed frames collide and the device trips a fault.
+Working only on the provided pcap, I confirmed every precondition for a replay attack:
 
-> I am deliberately **not** including a copy‑paste injection script. On a live FESTO plant that is how you crash a running machine. The method, the exact frame fields (from §3) and the tool names are everything the report requires; the actual run belongs in a supervised, isolated lab session with the instructor, recording Wireshark before/during/after.
+* **The frames are fully readable and self-contained.** Each cyclic frame already holds its own source MAC (`30:b8:51:33:7e:c7`), FrameID (`0x8000`) and process data. Nothing is encrypted or signed, so a recorded frame is also a *ready-to-send* frame — no reconstruction needed.
+* **The freshness check is weak.** The only "newness" marker is the 16-bit **cycle counter** in the APDU status, which simply counts up each cycle and wraps around. The **data-status "valid" bit stays set** in every frame. A receiver mainly relies on its **watchdog** (frames must keep arriving within ~3 cycles, ≈6 ms) — not on cryptographic proof that a frame is new. So replayed frames look valid.
+* **The timing is trivial to reproduce.** The stream is a steady **2 ms cycle** (§3.3), so replaying at the original spacing is just playing the file back at capture speed.
 
-### 6.4 What success looks like (your screenshots)
+In other words, the recording *is* the weapon: the capture itself demonstrates that these frames can be replayed as-is.
 
-* **Before:** Wireshark showing the steady 2 ms `0x8000` exchange (§3.3).
-* **During:** either duplicate/stale cycle counters appearing, or the device dropping to a fault state in the HMI/PLC diagnostics.
-* **After:** removing the injected traffic and the station recovering — proving the disruption was yours.
+**How you would actually replay it** (on an isolated test segment, never the live plant):
+
+* Carve the genuine `0x8000` stream out of the pcap in Wireshark — filter `pn_io`, then *File ▸ Export Specified Packets* to a new `.pcap`.
+* Play that file back onto a test wire with a standard replay tool (`tcpreplay`), or re-send the parsed frames with Scapy, keeping the source MAC, FrameID and 2 ms timing.
+* Expected result: the receiver acts on **recorded, stale process data** (e.g. keeps seeing "device present / value X" that no longer matches reality), or the genuine and replayed frames collide and the device trips a fault (a denial of service).
+
+> I deliberately do **not** include a turnkey injection script aimed at the plant. On a running FESTO line that is how you crash a machine. The offline proof above, the exact frame fields (§3) and the tool names are what the report needs; any live replay belongs on an isolated segment or in a supervised lab session, with Wireshark recording before/during/after.
+
+### 6.4 What success looks like (screenshots from the pcap)
+
+You can show all of this from the **provided capture file** — no machine needed:
+
+* **The recording exists:** Wireshark on `pn_io` showing the steady 2 ms `0x8000` exchange (§3.3).
+* **The replay material:** select the two devices' frames and *Export Specified Packets* — screenshot the export dialog / the resulting smaller capture.
+* **The weakness:** expand one frame and point at the **cycle counter** and **data-status** bytes in the APDU status, with a caption that these are the only freshness markers and are not authenticated.
 
 ---
 
