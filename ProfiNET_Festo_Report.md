@@ -33,6 +33,26 @@ I opened the capture and used the filter pn_io. This is what I saw:
 
 So the whole machine is controlled by these small messages, sent 500 times a second, with no protection on them.
 
+Here is one real frame from the capture (PLC to IO device), so you can see what is inside:
+
+```
+Destination MAC : 4c:e7:05:4b:46:4b   (the ET200SP IO device)
+Source MAC      : 30:b8:51:33:7e:c7   (the PLC, station 2)
+EtherType       : 0x8892              (ProfiNET real time)
+FrameID         : 0x8000              (cyclic IO data)
+Status          : cycle counter present, data marked as valid
+```
+
+### Screenshots
+
+I added the three screenshots below from the capture to show how I got the results. To make them yourself: open the file in Wireshark and type the filter.
+
+[ Screenshot 1 - filter: pn_io - the list of ProfiNET messages between the PLC and the IO device ]
+
+[ Screenshot 2 - click one frame and open it, so you see EtherType 0x8892 and FrameID 0x8000 and the data ]
+
+[ Screenshot 3 - filter: lldp - the packet that shows the device is a Siemens ET200SP with the name pniodispense ]
+
 ## 3. Which attacks have been done against ProfiNET (with sources)
 
 Because the messages have no protection, researchers have found several attacks. These are real and written about:
@@ -43,13 +63,7 @@ Because the messages have no protection, researchers have found several attacks.
 - Replay attack. You record the normal messages and send them again later. Because there is no protection, the receiver can believe the old (recorded) data.
 - Fake messages / flooding (denial of service). You send your own 0x8000 messages faster than the real ones, or you flood the device so it loses the connection and stops.
 
-Sources I used:
-
-- Pfrang and Meier, "Detecting and preventing replay attacks in industrial automation networks operated with PROFINET IO", 2018.
-- Akerberg and Bjorkman, "Exploring Security in PROFINET IO", 2009.
-- Paul, Schuster and Konig, "Towards the Protection of Industrial Control Systems ... PROFINET IO", 2013.
-- Mehner and Konig, "Attacking Profinet IO Automation Networks Using DCP", 2019.
-- PROFINET Security Guideline (PI organisation).
+For the full list of sources with titles, see the last part of this report.
 
 ## 4. How I want to attack the machine and my goal
 
@@ -69,32 +83,40 @@ The plan would be:
 
 Tools for this are normal and free: Wireshark to record, and tcpreplay or Scapy to send the messages again.
 
-## 5. Trying the replay attack (on the capture)
+## 5. Trying the attack: replay (analysis of the capture)
 
-Because I only had to work with the capture file, I did the replay part on the capture itself. This already shows that the attack works:
+To be clear about what I did: I only analysed the given capture file offline. I did not send any packets to the real Festo machine. A capture proves that the frames can be recorded and read, but it does not prove that the IO device really accepts messages that are sent again. A ProfiNET receiver can still reject frames, for example by checking the cycle counter, the connection it belongs to, or the timing. So I checked the capture to see how realistic a replay attack is (the attack surface), not to confirm it works.
 
-- The messages are complete and readable. Every message already has the right MAC address, the right FrameID and the data. So a recorded message is also a message you can send again, you do not have to build anything.
-- The only "freshness" check is a small counter in the message (the cycle counter) and the data is always marked as valid. The receiver mostly only checks that messages keep coming in time (the watchdog). So an old, recorded message still looks fine.
-- The timing is easy to copy, because it is just every 2 ms.
+What the capture shows:
 
-So the recording itself is already the proof: these messages can be sent again as they are.
+- The frames are complete and readable. In the example frame in part 2 you can already see the source MAC, the FrameID 0x8000 and the data. Nothing is encrypted, so a recorded frame is also a frame you could send again.
+- There is only a small freshness marker: a cycle counter in the status and a bit that says the data is valid. The receiver mostly watches that frames keep coming in time (the watchdog).
+- The timing (every 2 ms) is easy to copy.
 
-If you really wanted to replay it on a test setup (not the real running machine), you would:
+To really test the replay (on a test setup, not the running machine) you would:
 
-- In Wireshark, filter pn_io and use File, Export Specified Packets to save only these messages.
-- Play that file back on the network with tcpreplay, or send it with Scapy, keeping the same MAC, FrameID and 2 ms timing.
-- The device would then act on the old recorded data, or the real and fake messages would clash and the device would go into error (which stops the dispenser).
+- In Wireshark filter pn_io, then use File, Export Specified Packets to save only these frames.
+- Replay that file with tcpreplay, or resend it with Scapy, keeping the same MAC, FrameID and 2 ms timing.
+- Then check if the device acts on the old data or goes into error.
 
-I did not run this on the real machine, because on a running machine this can really stop it and that is not safe. But the capture shows that nothing stops you from doing it.
+Honest conclusion for this part: the provided packet capture was analysed to assess the feasibility of a replay attack. The capture contains cyclic PROFINET IO frames with identifiable MAC addresses, FrameIDs and timing information. This suggests a potential replay attack surface. However, no packets were retransmitted to the physical Festo machine, so successful replay and its effects could not be experimentally confirmed.
 
 ## Conclusion
 
-The dispense station is fully controlled by ProfiNET messages that have no password and no encryption. Anyone who can plug into the switch in the cabinet can read them, copy them and send them again. So the main risk is that someone with access to the network can stop the machine or feed it false data. The best protection is not on the messages themselves (that is not really possible), but around them: keep the OT network separate from the normal network, lock the switch ports, and keep the cabinet physically locked.
+The dispense station is controlled by ProfiNET messages that, in this setup, have no password and no encryption. Anyone who can plug into the switch in the cabinet can read them, copy them and in theory send them again. So the main risk is that someone with access to the network could disturb the machine or feed it false data.
+
+What helps against this:
+
+- Keep the OT network separate from the normal office network.
+- Lock the switch ports and keep the cabinet physically locked.
+- Use the newer PROFINET Security features. The PROFINET standard now has extra protection for the integrity and the authenticity of the communication (see PROFINET Security, PI). So protecting the messages themselves is possible on newer devices; the devices in this capture just do not use it.
 
 ## Sources
 
-- Pfrang and Meier, Detecting and preventing replay attacks in industrial automation networks operated with PROFINET IO, 2018.
-- Akerberg and Bjorkman, Exploring Security in PROFINET IO, COMPSAC 2009.
-- Paul, Schuster and Konig, Towards the Protection of Industrial Control Systems, DIMVA 2013.
-- Mehner and Konig, Attacking Profinet IO Automation Networks Using DCP, DIMVA 2019.
-- PROFIBUS and PROFINET International, PROFINET Security Guideline.
+- Pfrang, S. and Meier, D. (2018). Detecting and preventing replay attacks in industrial automation networks operated with PROFINET IO. Journal of Computer Virology and Hacking Techniques, volume 14. (available on ResearchGate / Request PDF)
+- Akerberg, J. and Bjorkman, M. (2009). Exploring Security in PROFINET IO. 33rd IEEE International Computer Software and Applications Conference (COMPSAC), IEEE Xplore.
+- Paul, A., Schuster, F. and Konig, H. (2013). Towards the Protection of Industrial Control Systems - Conclusions of a Vulnerability Analysis of PROFINET IO. DIMVA 2013, Springer.
+- Mehner, S. and Konig, H. (2019). No Need to Marry to Change Your Name! Attacking Profinet IO Automation Networks Using DCP. DIMVA 2019 (BTU Cottbus-Senftenberg).
+- PROFIBUS and PROFINET International (PI). PROFINET Security (Comprehensive Concept). https://www.profibus.com
+
+(Please check the exact page numbers and the links in your library before handing in, these can differ per edition.)
