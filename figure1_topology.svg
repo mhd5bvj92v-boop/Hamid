@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="820" height="420" font-family="Segoe UI, Arial, sans-serif">
+  <rect width="820" height="420" fill="#ffffff"/>
+  <text x="410" y="30" font-size="18" font-weight="bold" text-anchor="middle" fill="#1a1a1a">FESTO Dispense Station – ProfiNET monitoring setup</text>
+
+  <!-- PLC -->
+  <rect x="40" y="90" width="190" height="90" rx="8" fill="#e8f0fe" stroke="#3b6fd4" stroke-width="2"/>
+  <text x="135" y="120" font-size="14" font-weight="bold" text-anchor="middle" fill="#1a3a7a">IO-Controller (PLC)</text>
+  <text x="135" y="142" font-size="12" text-anchor="middle" fill="#333">Siemens S7, Station 2</text>
+  <text x="135" y="160" font-size="11" text-anchor="middle" fill="#555">IP 172.21.2.1</text>
+  <text x="135" y="175" font-size="10" text-anchor="middle" fill="#777">MAC 30:b8:51:33:7e:c7</text>
+
+  <!-- Switch -->
+  <rect x="320" y="90" width="180" height="120" rx="8" fill="#fff4e5" stroke="#e08a00" stroke-width="2"/>
+  <text x="410" y="118" font-size="14" font-weight="bold" text-anchor="middle" fill="#8a4b00">Netgear switch</text>
+  <text x="410" y="138" font-size="11" text-anchor="middle" fill="#555">Port 1 ◀▶ PLC</text>
+  <text x="410" y="154" font-size="11" text-anchor="middle" fill="#555">Port 2 ◀▶ I/O device</text>
+  <text x="410" y="172" font-size="11" text-anchor="middle" fill="#b00">Port 5 = MIRROR (1+2)</text>
+  <text x="410" y="192" font-size="10" text-anchor="middle" fill="#777">in the dispenser cabinet</text>
+
+  <!-- IO device -->
+  <rect x="590" y="90" width="190" height="90" rx="8" fill="#e9f7ec" stroke="#2e9e4f" stroke-width="2"/>
+  <text x="685" y="118" font-size="14" font-weight="bold" text-anchor="middle" fill="#1d6b36">IO-Device (remote I/O)</text>
+  <text x="685" y="140" font-size="12" text-anchor="middle" fill="#333">ET200SP IM155-6PN/2 HF</text>
+  <text x="685" y="157" font-size="11" text-anchor="middle" fill="#555">name: "pniodispense"</text>
+  <text x="685" y="173" font-size="10" text-anchor="middle" fill="#777">MAC 4c:e7:05:4b:46:4b</text>
+
+  <!-- links -->
+  <line x1="230" y1="135" x2="320" y2="135" stroke="#3b6fd4" stroke-width="3"/>
+  <line x1="500" y1="135" x2="590" y2="135" stroke="#2e9e4f" stroke-width="3"/>
+
+  <!-- cyclic label -->
+  <rect x="300" y="240" width="220" height="48" rx="6" fill="#f3f3f3" stroke="#999"/>
+  <text x="410" y="262" font-size="12" font-weight="bold" text-anchor="middle" fill="#222">Cyclic RT I/O — FrameID 0x8000</text>
+  <text x="410" y="280" font-size="11" text-anchor="middle" fill="#444">EtherType 0x8892 · ~2 ms cycle · 500 Hz</text>
+
+  <!-- laptop / wireshark -->
+  <rect x="320" y="330" width="180" height="70" rx="8" fill="#fde8ef" stroke="#c0398a" stroke-width="2"/>
+  <text x="410" y="356" font-size="13" font-weight="bold" text-anchor="middle" fill="#8a1f5d">Laptop + Wireshark</text>
+  <text x="410" y="376" font-size="11" text-anchor="middle" fill="#555">on mirror port 5</text>
+  <text x="410" y="392" font-size="10" text-anchor="middle" fill="#777">sees all PLC ↔ device traffic</text>
+  <line x1="410" y1="210" x2="410" y2="330" stroke="#c0398a" stroke-width="2" stroke-dasharray="5 4"/>
+
+  <text x="410" y="300" font-size="10" text-anchor="middle" fill="#999">No VLAN · no encryption · no authentication</text>
+</svg>
