@@ -90,6 +90,16 @@ class Mix:
         s = sum(np.sin(2 * np.pi * base * r * tt) * np.exp(-tt * (3 + i * 2)) / (i + 1) for i, r in enumerate((1, 2.76, 5.4, 8.93)))
         self.put('sfx', s, t, gain)
 
+    def stem(self, path):
+        """Write SFX + ambience only (music comes from licensed tracks via score.py)."""
+        mix = self.sfx * 0.85 + self.amb
+        mix = np.clip(mix / (np.max(np.abs(mix)) + 1e-9) * 0.9, -1, 1)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with wave.open(path, 'wb') as w:
+            w.setnchannels(2); w.setsampwidth(2); w.setframerate(SR)
+            w.writeframes((mix.T * 32767).astype('<i2').tobytes())
+        print('wrote', path)
+
     def finish(self, path, music_gain=0.9, sfx_gain=0.85, silences=(), fade_end=1.5):
         mus = np.stack([reverb(self.mus[0], 1.6, 0.15, 11), reverb(self.mus[1], 1.6, 0.15, 12)])
         mix = mus * music_gain + self.sfx * sfx_gain + self.amb

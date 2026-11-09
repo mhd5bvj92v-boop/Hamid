@@ -133,4 +133,17 @@ k = np.ones(2400) / 2400; ext = np.convolve(ext, k, 'same'); inn = np.convolve(i
 for c in (0, 1):
     m.amb[c] += np.roll(wind, c * 3001) * 0.05 * ext + np.roll(room, c * 977) * 0.03 * inn
 
-m.finish(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'work', 'audio.wav'), silences=[(49.4, 50.38), (54.6, 55.38)])
+HERE = os.path.dirname(os.path.abspath(__file__))
+m.stem(os.path.join(HERE, 'work', 'sfx.wav'))
+from score import build
+build(os.path.join(HERE, 'work', 'sfx.wav'), [
+    # track,               src,   t0,    t1,   dB,  fadeIn, fadeOut
+    ('Long_Note_Four',      30.0,  0.0,   2.9, -2,  0.2,  0.4),
+    ('Volatile_Reaction',   29.6,  2.6,   7.3,  0,  0.15, 0.5),
+    ('Sneaky_Snitch',        0.0,  7.0,  23.6,  2,  0.3,  0.6),
+    ('Unseen_Horrors',       0.0, 23.2,  28.4,  9,  0.5,  0.5),
+    ('Hitman',              45.0, 28.0,  48.6,  0,  0.6,  1.4),
+    ('Impact_Prelude',     131.6, 50.4,  54.6, -1,  0.02, 0.15),
+    ('Volatile_Reaction',  131.0, 55.4,  60.0, -2,  0.05, 1.5),
+], os.path.join(HERE, 'work', 'audio.wav'), DUR, silences=[(49.4, 50.38), (54.6, 55.38)],
+   ducks=[(16.6, 19.4, -9), (41.0, 47.5, -4)])

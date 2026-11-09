@@ -319,7 +319,24 @@ peak = np.max(np.abs(mix))
 mix = mix / peak * 1.25
 mix = np.tanh(mix) / np.tanh(1.25) * 0.89
 os.makedirs('work', exist_ok=True)
-with wave.open('work/audio.wav', 'wb') as w:
+# SFX + ambience stem (licensed music is mixed in by score.py)
+stem = sfx * 0.85 + amb
+stem *= cut
+stem = np.clip(stem / (np.max(np.abs(stem)) + 1e-9) * 0.9, -1, 1)
+with wave.open('work/sfx.wav', 'wb') as w:
+    w.setnchannels(2); w.setsampwidth(2); w.setframerate(SR)
+    w.writeframes((stem.T * 32767).astype('<i2').tobytes())
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'shared'))
+from score import build
+build('work/sfx.wav', [
+    ('Investigations',        0.0,  0.0, 16.9, 0, 1.2, 0.4),
+    ('Mistake_the_Getaway',   0.0, 16.6, 35.05, 0, 0.1, 0.08),
+    ('Mistake_the_Getaway',  90.0, 37.15, 41.2, 0, 0.05, 0.5),
+    ('Crypto',                0.0, 41.0, 56.0, 0, 0.4, 0.02),
+    ('Impact_Prelude',      131.6, 56.85, 61.0, -1, 0.02, 1.5),
+], 'work/audio_scored.wav', DUR, silences=[(56.0, 56.84)])
+with wave.open('work/audio_synth.wav', 'wb') as w:
     w.setnchannels(2); w.setsampwidth(2); w.setframerate(SR)
     w.writeframes((mix.T * 32767).astype('<i2').tobytes())
 print('wrote work/audio.wav', mix.shape, 'rms', np.sqrt(np.mean(mix ** 2)))
