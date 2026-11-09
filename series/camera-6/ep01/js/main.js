@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { makePerson, kf, blinkAt, clamp, smooth, easeOut, lerp } from '../../../the-paris-job/shared/person.js';
 import { buildStreet, buildBedroom, buildHall, buildLanding, buildGarden, makeFigure, glow, rng } from '../../shared/sets.js';
 import { makeLook } from '../../shared/look.js';
+import { loadNoor, loadFigure, aim } from '../../shared/chars.js';
 
 const W = 1080, H = 1920, PI = Math.PI, lin = u => u;
 const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -17,19 +18,37 @@ const look = makeLook(renderer, W, H);
 
 const street = buildStreet(), bed = buildBedroom(), hall = buildHall(), land = buildLanding(), garden = buildGarden();
 const SC = { street, bed, hall, land, garden };
-const fig = makeFigure();
+const fig = await loadFigure('../assets/Xbot.glb');
 const irL = new THREE.PointLight(0xffffff, 0, 16, 1.2);
 
 // Noor, lying on her right side, facing the room; phone in front of her face
-const noor = makePerson({ real: true, skin: 0xc48e6c, hairStyle: 'ponytail', hair: 0x17100b, shirt: 0x8d97a8, collar: 0x8d97a8, pants: 0x5a6070, lashes: true, lip: 0x9a5a56, eye: 0x2e1c10, browThick: 0.9, scale: 0.95 });
+const noor = await loadNoor('../assets/Michelle.glb');
 bed.scene.add(noor.root);
-const HEAD = V3(-1.42, 0.74, -0.92);
+{ noor.root.updateMatrixWorld(true); const bb = new THREE.Box3().setFromObject(noor.root, true); const h = bb.max.y - bb.min.y; noor.root.scale.multiplyScalar(1.66 / h); }
+noor.root.rotation.set(-PI / 2, PI / 2, 0, 'YXZ');
+noor.root.position.set(0, 0, 0); noor.root.updateMatrixWorld(true);
+{ const hb = noor.bones.Head.getWorldPosition(V3(0, 0, 0)); noor.root.position.add(V3(-1.47, 0.73, -0.92).sub(hb)); noor.root.updateMatrixWorld(true); }
+const HEAD = noor.bones.Head.getWorldPosition(V3(0, 0, 0)).add(V3(0, 0.06, 0));
+const rotW = (bone, axis, ang) => { const wq = bone.getWorldQuaternion(new THREE.Quaternion()); const pq = bone.parent.getWorldQuaternion(new THREE.Quaternion()).invert(); bone.quaternion.copy(pq.multiply(new THREE.Quaternion().setFromAxisAngle(axis, ang).multiply(wq))); bone.updateWorldMatrix(false, true); };
+function poseNoor(t) {
+  const b = noor.bones; noor.reset(); noor.root.updateMatrixWorld(true);
+  const dn = smooth(clamp((t - 50.3) / 0.8));
+  const ph = HEAD.clone().add(V3(0.14 + 0.2 * dn, 0.36 - 0.14 * dn, -0.05 - 0.06 * dn));
+  rotW(b.Neck, V3(1, 0, 0), kf(t, [[50.4, 0.12], [51.2, 0.55]]) * (t > 49 ? 1 : 0) + (t > 49 ? 0 : 0.12));
+  aim(b.LeftArm, b.LeftForeArm, V3(0.45, 0.8, -0.35));
+  aim(b.LeftForeArm, b.LeftHand, ph.clone().sub(b.LeftForeArm.getWorldPosition(V3(0, 0, 0))));
+  aim(b.RightArm, b.RightForeArm, V3(0.95, -0.12, 0.15));
+  aim(b.RightForeArm, b.RightHand, V3(0.45, 0.12, -0.6));
+  noor.root.updateMatrixWorld(true);
+  const hand = b.LeftHand.getWorldPosition(V3(0, 0, 0));
+  phone.position.copy(hand).add(ph.clone().sub(hand).multiplyScalar(0.0)).add(V3(0.03, 0.04, 0));
+  phone.lookAt(HEAD);
+}
 const phone = new THREE.Group(); bed.scene.add(phone);
 { const b = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.155, 0.009), new THREE.MeshStandardMaterial({ color: 0x111114, roughness: 0.3, metalness: 0.6 })); phone.add(b);
-  const scr = new THREE.Mesh(new THREE.PlaneGeometry(0.068, 0.146), new THREE.MeshBasicMaterial({ color: 0xb8d4ff })); scr.position.z = -0.005; scr.rotation.y = PI; phone.add(scr);
-  const hand = new THREE.Mesh(new THREE.CapsuleGeometry(0.03, 0.07, 6, 12), new THREE.MeshStandardMaterial({ color: 0xc48e6c, roughness: 0.6 })); hand.rotation.z = PI / 2; hand.position.set(0, -0.06, 0.02); phone.add(hand);
-  const pl = new THREE.PointLight(0xa8c8ff, 1.0, 1.2, 1.6); pl.position.z = -0.12; phone.add(pl); phone.userData.light = pl; phone.userData.scr = scr; }
-phone.position.set(-1.36, 1.06, -0.86); phone.lookAt(HEAD.clone().add(V3(0.05, 0, 0.0))); // back of phone faces away from her; screen (-z side) faces her
+  const scr = new THREE.Mesh(new THREE.PlaneGeometry(0.068, 0.146), new THREE.MeshBasicMaterial({ color: 0xb8d4ff })); scr.position.z = 0.005; phone.add(scr);
+  const hand = new THREE.Mesh(new THREE.CapsuleGeometry(0.03, 0.07, 6, 12), new THREE.MeshStandardMaterial({ color: 0xc48e6c, roughness: 0.6 })); hand.rotation.z = PI / 2; hand.position.set(0, -0.06, 0.02); 
+  const pl = new THREE.PointLight(0xa8c8ff, 1.0, 1.2, 1.6); pl.position.z = 0.12; phone.add(pl); phone.userData.light = pl; phone.userData.scr = scr; }
 const doorEyes = [0, 1].map(i => { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow, color: 0xffffff, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); s.scale.set(0.035, 0.035, 1); s.position.set(1.92, 1.78, 1.1 + i * 0.07); bed.scene.add(s); return s; });
 
 // ---------------------------------------------------------------- cameras of the house
@@ -44,7 +63,7 @@ const shots = [
   { t0: 0.0, t1: 2.1, sc: 'street', fov: 100, dev: devFeed(), app: 'CAM 1', fig: 'far', cam: () => camLook.street },
   { t0: 2.1, t1: 5.0, sc: 'street', fov: 100, dev: devFeed(), app: 'CAM 1', fig: 'far', zoom: true, cam: t => { const z = smooth(clamp((t - 2.25) / 1.6)); const tg = V3(FIG.far[0], 1.25, FIG.far[1]); return [DOORBELL, V3(0.3, 1.6, 30).lerp(tg, z)]; }, fovf: t => lerp(100, 9, easeOut(clamp((t - 2.25) / 1.6))), pixf: t => lerp(1.6, 5, clamp((t - 2.25) / 1.6)) },
   { t0: 5.0, t1: 9.0, sc: 'street', fov: 100, dev: devFeed(), app: 'CAM 1', fig: 'mid', refresh: 5.0, cam: () => camLook.street },
-  { t0: 9.0, t1: 11.6, sc: 'bed', fov: 30, dev: CINE, cam: t => [V3(kf(t, [[9, 0.7], [11.6, 0.45]], lin), 1.75, kf(t, [[9, 0.9], [11.6, 0.7]], lin)), V3(-1.3, 0.75, -0.9)], ap: 0.003 },
+  { t0: 9.0, t1: 11.6, sc: 'bed', fov: 25, dev: CINE, cam: t => [HEAD.clone().add(V3(-0.32, kf(t, [[9, 0.72], [11.6, 0.62]], lin), 0.42)), HEAD.clone().add(V3(0.1, 0, 0))], up: [-1, 0, 0], ap: 0.004 },
   { t0: 11.6, t1: 14.0, sc: 'chat' },
   { t0: 14.0, t1: 22.0, sc: 'street', fov: 100, dev: devFeed(), app: 'CAM 1', fig: 'gate', refresh: 14.0, cam: t => { const z = smooth(clamp((t - 16.6) / 5.0)); return [DOORBELL, V3(0.3, 1.6, 30).lerp(V3(0.2, 1.75, 6.35), z)]; }, fovf: t => lerp(100, 42, smooth(clamp((t - 16.6) / 5.0))), zoom: t => t > 16.8 },
   { t0: 22.0, t1: 30.0, sc: 'street', fov: 42, dev: devFeed(), app: 'CAM 1', fig: 'gate', audio: true, cam: () => [DOORBELL, V3(0.2, 1.75, 6.35)], fovf: t => lerp(42, 30, smooth(clamp((t - 22) / 8))), zoom: () => true },
@@ -55,7 +74,7 @@ const shots = [
   { t0: 36.8, t1: 41.5, sc: 'street', fov: 100, dev: devFeed(), app: 'CAM 1', fig: null, rain: true, cam: () => camLook.street },
   { t0: 41.5, t1: 46.4, sc: 'hall', fov: 96, dev: IR(), app: 'CAM 3', title: 'Hallway', open: true, cam: t => [V3(-2.2, 2.5, 3.2), V3(-0.1, 0.9, -3.5)] },
   { t0: 46.4, t1: 49.5, sc: 'land', fov: 96, dev: IR(), app: 'CAM 4', title: 'Upstairs', cam: () => [V3(0.85, 2.45, 3.35), V3(0, 0.8, -3.4)] },
-  { t0: 49.5, t1: 51.8, sc: 'bed', fov: 28, dev: CINE, cam: t => [V3(kf(t, [[49.5, -0.2], [51.8, -0.4]], lin), 1.05, kf(t, [[49.5, 0.75], [51.8, 0.6]], lin)), V3(-1.3, 0.85, -0.9)], ap: 0.004 },
+  { t0: 49.5, t1: 51.8, sc: 'bed', fov: 24, dev: CINE, cam: t => [HEAD.clone().add(V3(-0.24, kf(t, [[49.5, 0.5], [51.8, 0.44]], lin), 0.3)), HEAD.clone().add(V3(0.04, 0, 0))], up: [-1, 0, 0], ap: 0.006 },
   { t0: 51.8, t1: 54.0, sc: 'bed', fov: 34, dev: CINE, cam: t => [V3(-1.2, 1.0, -0.55).lerp(V3(0.2, 1.25, 0.3), smooth(clamp((t - 51.8) / 2.2)) * 0.5), V3(1.97, 1.2, 1.0)], ap: 0.003 },
   { t0: 54.0, t1: 57.6, sc: 'none' },
   { t0: 57.6, t1: 61, sc: 'street', fov: 100, dev: devFeed({ noise: 0.05 }), fig: null, end: true, cam: () => camLook.street },
@@ -130,13 +149,10 @@ window.renderAt = function (t) {
   if (shot.sc === 'garden') garden.update(t);
   if (shot.sc === 'land') { land.doors[2].rotation.y = -0.35 + (t > 46.4 ? -0.18 * smooth(clamp((t - 47.2) / 2.0)) : 0); }
   if (shot.sc === 'bed') {
-    const s = 0.95;
-    const P = { x: HEAD.x + 1.55 * s, y: HEAD.y - 0.04, z: HEAD.z, ry: PI / 2, rx: -PI / 2, blink: blinkAt(t, 3), lid: 0.12, furrow: 0.35, hp: 0.15, arms: [[0.05, 0.1, 0, 0.2], [0.05, 0.1, 0, 0.2]] };
-    if (t > 49.5) { P.ex = kf(t, [[50.4, 0], [51.0, 0.9]]); P.ey = kf(t, [[50.4, 0], [51.0, 0.3]]); P.browL = P.browR = kf(t, [[50.2, 0], [50.8, 0.5]]); P.lid = kf(t, [[50.2, 0.12], [50.8, -0.1]]); P.blink = 0; P.mouth = kf(t, [[50.6, 0], [51.0, 0.15]]); }
-    noor.apply(P);
+    poseNoor(t);
     phone.visible = true; phone.userData.light.intensity = shot.dev === CINE ? 1.0 : 0.6;
     const fl = t > 51.8 ? (t < 53.3 ? (Math.sin(t * 40) > -0.3 && Math.sin(t * 9) > -0.8 ? 1 : 0.15) : 0) : 1; bed.landing.intensity = 2.2 * fl; bed.gap.material.color.setRGB(0.16 * fl, 0.2 * fl, 0.28 * fl);
-    if (t > 50.3) { const dn = smooth(clamp((t - 50.3) / 0.8)); phone.position.set(-1.36 + 0.1 * dn, 1.06 - 0.2 * dn, -0.86 + 0.15 * dn); phone.lookAt(HEAD); } else { phone.position.set(-1.36, 1.06, -0.86); phone.lookAt(HEAD.clone().add(V3(0.05, 0, 0))); }
+
     doorEyes.forEach(e => e.visible = t > 53.35 && t < 53.75);
   }
   let [p, l] = shot.cam(t);
@@ -144,7 +160,7 @@ window.renderAt = function (t) {
   set.scene.updateMatrixWorld();
   if (window.OVR && window.OVR.cam) { p = V3(...window.OVR.cam[0]); l = V3(...window.OVR.cam[1]); }
   camera.fov = shot.fovf ? shot.fovf(t) : shot.fov; camera.updateProjectionMatrix();
-  camera.position.copy(p);
+  camera.up.set(...(shot.up || [0, 1, 0])); camera.position.copy(p);
   if (shot.dev === CINE) camera.position.add(V3(Math.sin(t * 0.9) * 0.004, Math.sin(t * 1.3) * 0.003, 0));
   camera.lookAt(l); camera.updateMatrixWorld();
   // device look
@@ -171,3 +187,4 @@ window.renderAt = function (t) {
 window.DURATION = 60.0;
 await document.fonts.ready;
 window.READY = true;
+window.DBG0 = () => { const bb = new THREE.Box3().setFromObject(noor.root, true); const fb = new THREE.Box3().setFromObject(fig, true); return { noor: [bb.min.toArray().map(v => +v.toFixed(2)), bb.max.toArray().map(v => +v.toFixed(2))], scale: noor.root.scale.x, head: HEAD.toArray().map(v => +v.toFixed(2)), fig: [fb.min.toArray().map(v => +v.toFixed(2)), fb.max.toArray().map(v => +v.toFixed(2))] }; };

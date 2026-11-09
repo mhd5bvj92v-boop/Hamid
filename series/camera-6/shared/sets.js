@@ -148,17 +148,17 @@ export function buildBedroom() {
   const pillowM = M(0xd4d0c8, { r: 0.95 });
   const pil = mesh(new THREE.SphereGeometry(0.4, 24, 16), pillowM); pil.scale.set(0.75, 0.28, 1.3); pil.position.set(-1.55, 0.66, -1.0); scene.add(pil);
   // duvet: displaced plane draped over the bed (folds)
-  const dg = new THREE.PlaneGeometry(1.75, 1.95, 60, 60); const p = dg.attributes.position, rr = rng(7);
+  const dg = new THREE.PlaneGeometry(1.92, 1.95, 60, 60); const p = dg.attributes.position, rr = rng(7);
   const bumps = Array.from({ length: 14 }, () => [rr() * 1.6 - 0.8, rr() * 1.8 - 0.9, 0.08 + rr() * 0.12, 0.2 + rr() * 0.3]);
   for (let i = 0; i < p.count; i++) {
     const x = p.getX(i), y = p.getY(i); let z = 0;
     for (const [bx, by, a, s] of bumps) z += a * Math.exp(-((x - bx) ** 2 + (y - by) ** 2) / (s * s));
-    const edge = Math.max(0, Math.abs(y) - 0.72); z -= edge * edge * 3.0; // drape over the sides
+    const edge = Math.max(0, Math.abs(y) - 0.55); z -= Math.min(0.68, edge * edge * 6.0 + edge * 0.9); z -= 0.05 * Math.max(0, -x - 0.8) * 10 * (x < -0.8 ? 1 : 0); // drape over the sides
     z += 0.12 * Math.exp(-((x + 0.45) ** 2) / 0.12) * Math.exp(-(y * y) / 0.25); // body under the duvet
     p.setZ(i, z);
   }
   dg.computeVertexNormals();
-  const duvet = mesh(dg, new THREE.MeshStandardMaterial({ color: 0x262b36, roughness: 0.92, side: THREE.DoubleSide })); duvet.rotation.x = -Math.PI / 2; duvet.position.set(-0.45, 0.62, -0.9); scene.add(duvet);
+  const duvet = mesh(dg, new THREE.MeshStandardMaterial({ color: 0x262b36, roughness: 0.92, side: THREE.DoubleSide })); duvet.rotation.x = -Math.PI / 2; duvet.position.set(-0.36, 0.99, -0.9); scene.add(duvet);
   // nightstand + lamp (off) + glass
   const ns = box(0.5, 0.55, 0.45, M(0x3a2c22, { r: 0.6 })); ns.position.set(-1.6, 0.28, 0.25); scene.add(ns);
   const lb = mesh(new THREE.CylinderGeometry(0.12, 0.15, 0.25, 20), M(0xd8d0c0, { r: 0.6 })); lb.position.set(-1.6, 0.68, 0.2); scene.add(lb);

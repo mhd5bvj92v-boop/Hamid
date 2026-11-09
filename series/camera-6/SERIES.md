@@ -42,6 +42,15 @@ Zeg **"maak part N"**, dan wordt deel N precies volgens dit plan gebouwd.
 
 **Audio-logo:** het korte **"ding-dong" van de app plus een notificatie-pling**. Dat is in elk deel het eerste geluid.
 
+### Personages (sterker uitgewerkt)
+| Wie | Look (3D) | Wat ze wil | Geheim / zwakte | Boog over 5 delen |
+|---|---|---|---|---|
+| **Noor (24)** | Donker haar, dun rond brilletje, wit topje. Altijd verlicht door haar telefoon. | Een nieuwe start: ze is verhuisd na de verdwijning van haar zus **Sami**, een jaar geleden. | Ze slaapt slecht en checkt haar telefoon te vaak. De ring die de figuur draagt, is **Sami's ring**. | Van slachtoffer naar iemand die terugvecht (deel 4), en uiteindelijk wordt ze zelf de figuur (deel 5). |
+| **Het ding ("De Huurder")** | Mat zwart, 2,12 m, armen en vingers te lang, hoofd scheef. Ogen die alleen op nachtzicht oplichten. | Een nieuwe "bewoner". Het neemt elke nacht één camera, tot de laatste: jou. | Het kan zich **niet bewegen terwijl iemand kijkt** (vandaar regel 1). | Komt elke nacht een camera dichterbij. In deel 5 heeft het Noors gezicht. |
+| **Lisa** | Alleen als berichten en spraakberichten | Noor beschermen | Antwoordt in deel 1 niet. In deel 3 blijkt waarom: haar laatste bericht kwam óók om 03:17. | Een betrouwbare stem die onbetrouwbaar wordt. |
+| **Mara** | Een oude stem aan de telefoon, rood haar op een oude foto | Waarschuwen, en zich verontschuldigen | Ze heeft het briefje geschreven, en het huis "doorgegeven" aan Noor om zelf vrij te komen | De vorige Noor. Vertelt wat er gaat gebeuren. |
+| **Sami** (nooit gezien) | Alleen de ring en één foto | — | Was de huurder vóór Mara? | De open vraag van seizoen 2. |
+
 ---
 
 ## 3. De vijf delen (tijd in seconden)
@@ -165,7 +174,7 @@ Zeg **"maak part N"**, dan wordt deel N precies volgens dit plan gebouwd.
 
 ---
 ## 8. Technisch (hoe het gebouwd is)
-Alles wordt gemaakt door Claude: 3D in three.js (gestileerd, net zoals THE PARIS JOB), maar elk shot gaat door een **camerafilter** (fisheye, nachtzicht/IR, pixelzoom, ruis, glitch) met een strakke HTML-app-interface erover. Het geluid wordt in Python gesynthetiseerd (sfeerlagen, interface-geluiden, hartslag, drone, piano), en het gefluister komt van espeak-ng.
+Alles wordt gemaakt door Claude: 3D in three.js. De personages zijn echte geriggede modellen (Mixamo-rigs uit de three.js-voorbeelden, op te halen via `assets/fetch.sh`): Noor is een aangepaste Michelle, zonder zonnebril en koptelefoon en met bril; de figuur is een uitgerekte X Bot in mat zwart, maar elk shot gaat door een **camerafilter** (fisheye, nachtzicht/IR, pixelzoom, ruis, glitch) met een strakke HTML-app-interface erover. Het geluid wordt in Python gesynthetiseerd (sfeerlagen, interface-geluiden, hartslag, drone, piano), en het gefluister komt van espeak-ng.
 - Gedeelde code: `shared/sets.js` (straat, slaapkamer, hal, overloop, tuin en de figuur), `shared/look.js` (camerafilter)
 - Per deel: `epNN/index.html` (interface), `epNN/js/main.js` (tijdlijn), `epNN/audio.py` (geluid), `epNN/finish.sh`
 - Renderen vanuit `series/camera-6`: `node tools/render.js epNN video <van> <tot> epNN/work/seg/segK.mp4`, daarna `epNN/finish.sh` → `output/`
