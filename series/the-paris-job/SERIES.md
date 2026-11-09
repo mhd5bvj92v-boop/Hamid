@@ -1,101 +1,100 @@
-# THE PARIS JOB — Seriebijbel (5 afleveringen)
+# THE PARIS JOB — Seriebijbel v2 (serieuze thriller, 5 delen)
 
-Zeg **"maak episode N"**, dan wordt aflevering N precies volgens dit plan gebouwd.
-Taal in de video: Engels (ondertitels). Formaat: 9:16, ±60 s, geen stemmen, dialoog als tekst.
+Zeg **"maak episode N"**, dan wordt deel N precies volgens dit plan gebouwd.
+**Toon:** serieuze heist-thriller in de stijl van een misdaadfilm. Geen cartoongrappen, geen dingen die stuiteren of ploppen.
+Hooguit één droge, korte opmerking per aflevering. Dialoog in het Engels als ondertitels, geen stemmen. Formaat 9:16, ±60 s.
 
-## Vaste regels voor elke aflevering (kijkers vasthouden)
-1. **Eerste beeld = haak.** Begin nooit rustig. Seconde 0 laat de cliffhanger van de vorige aflevering of een vraag zien.
-2. **"PART N/5"-badge** linksboven, de hele video lang. Kijkers weten dan dat het verhaal afloopt en kijken door.
-3. **Open lussen.** Open binnen 3 s een vraag, en sluit die pas aan het einde (of in de volgende aflevering).
-4. **Om de 2–4 s iets nieuws:** een cut, een camerabeweging, een grap, een geluid. Geen shot langer dan ±4 s.
-5. **Patroon: spanning, grap, spanning.** Breek elke spannende scène met één droge grap (meestal Marco of Sasha).
-6. **Callbacks.** Kleine dingen uit eerdere afleveringen komen terug, zoals de sandwich, de koelkastmagneet en de kauwgom.
-7. **Eindigen op een cliffhanger plus een titelkaart** van de volgende aflevering: "Follow for Part N+1".
-8. **Muziek die meebeweegt:** stil en sluipend bij spanning, vol bij actie, één harde stilte vlak voor de onthulling.
+## Regels voor elke aflevering
+1. **Seconde 0 is spanning:** dreiging, een vraag of de cliffhanger van het vorige deel. Begin nooit rustig.
+2. **De inzet is altijd duidelijk:** wat gebeurt er als het misgaat? (Victor heeft 48 uur, of hij verdwijnt.)
+3. **Een klok die doortikt:** de tijd van de deadline staat in beeld (bijvoorbeeld "47:12:09").
+4. **Elke scène verandert de situatie:** iets lukt, iets gaat mis, of er komt een nieuw gevaar bij.
+5. **Opzet en uitbetaling:** wat in deel 1 kort te zien is, wordt in deel 5 de oplossing.
+6. **Camera en acteren zijn realistisch:** langzame camerabewegingen, stilte, ademhaling, blikken. Personages bewegen rustig en geloofwaardig.
+7. **Muziek alleen serieus:** dreigende drones, opbouwende spanning, harde stilte voor een onthulling.
+8. **Altijd eindigen op een cliffhanger** plus een kaart met "PART N+1/5".
 
 ## Personages
-| Naam | Rol | Kenmerk |
+| Naam | Wie | Wat ze willen |
 |---|---|---|
-| **Victor** | "The Brain (allegedly)" | Zwarte coltrui, gladgekamd haar, te zelfverzekerd |
-| **Sasha** | "The Hacker (actually the brain)" | Paarse hoodie, ronde bril, kauwgom, droog sarcastisch |
-| **Marco** | "The Driver (no license)" | Rode muts, baard, leren jas, altijd een sandwich |
-| **Camille** | "The Competition" | Zwart pak, wit masker, rode paardenstaart; Victors ex-partner in crime |
-| **Gérard** | De bewaker | Grote snor, pet, slaperig, gek op jambon-beurre |
+| **Victor** | Kunstdief, ooit de beste van Parijs. Zit nu diep in de schulden. | Overleven: hij heeft 48 uur |
+| **Sasha** | Hacker. Rustig, scherp en vertrouwt niemand. | Victor betaalt haar, maar ze heeft een eigen reden |
+| **Marco** | Chauffeur, ex-militair. Zegt weinig. | Loyaal aan Victor, die ooit zijn leven redde |
+| **Camille** | Victors ex-partner. Verraadde hem 5 jaar geleden. | Niemand weet het, en dat is het punt |
+| **Le Comte** | Rijke verzamelaar en gangster. We zien alleen zijn hand, zijn ring en zijn silhouet. | De Mona Lisa, en een zondebok |
 
-## Verhaallijn (de grote twist)
-In aflevering 2 koopt Marco een poster in de museumwinkel. Tijdens de chaos stopt hij de **echte** Mona Lisa
-in zijn sandwichzak "om hem te beschermen" en hangt hij de poster in de lijst. Camille steelt in aflevering 3
-dus de poster. Dit wordt pas in aflevering 5 onthuld.
-
----
-
-## EP 1 — "The Plan" ✅ gemaakt
-Crew op een dak in Parijs, het plan, de sandwich-grap. Cliffhanger: er staat al een gemaskerde figuur bij de Mona Lisa.
-
-## EP 2 — "The Competition" ✅ gemaakt (zie `ep02/`)
-| Tijd | Scène |
-|---|---|
-| 0–2.5 | **Haak:** camerabeeld van de gemaskerde figuur die zwaait. Tekst "PREVIOUSLY…" |
-| 2.5–7 | Het Louvre buiten, 's nachts. De crew sluipt naar de glazen piramide. Titel. |
-| 7–11 | Gang binnen. Marco heeft een tasje van de museumwinkel. **MARCO:** "I went to the gift shop." **SASHA:** "It's 2 AM." |
-| 11–19 | Bewaker Gérard. Marco schuift zijn sandwich over de vloer, Gérard eet hem op en valt in slaap. **SASHA:** "That actually worked?!" **MARCO:** "Never underestimate a sandwich." |
-| 19–25 | De zaal van de Mona Lisa. Iemand staat al bij het schilderij. **VICTOR:** "We're not alone." |
-| 25–31 | De figuur draait zich om. **MASK:** "You're late, Victor." **VICTOR:** "…How do you know my name?" |
-| 31–40 | Marco valt aan, mist, en knalt in de touwpaaltjes. Die vallen als dominostenen. **ALARM**, rood licht. |
-| 40–47 | De figuur loopt op Victor af. **MASK:** "Still pretending you're the brain?" Sasha grinnikt. |
-| 47–56 | Het masker gaat af. We zien alleen de rug van de figuur (rode paardenstaart) en Victors geschokte gezicht. **VICTOR:** "…Camille?!" |
-| 56–61 | Eindkaart: **EPISODE 3 — THE EX** · Follow for Part 3 |
-
-## EP 3 — "The Ex"
-| Tijd | Scène |
-|---|---|
-| 0–3 | **Haak:** Camilles gezicht voor het eerst te zien. Ze glimlacht. **CAMILLE:** "Hello, Victor." Het alarm loeit. |
-| 3–9 | **VICTOR:** "You said you retired." **CAMILLE:** "I lied. You taught me that." Sasha kijkt Victor aan: "Ex?!" |
-| 9–15 | Zaklampen in de gang: bewakers komen eraan. **CAMILLE:** "Work together. 50/50. Or we all go to jail." |
-| 15–24 | Ze verstoppen zich in de beeldenzaal door zelf als standbeelden te poseren. Een bewaker loopt langs. Marco moet niezen… en houdt het in. Daarna niest Sasha toch. |
-| 24–32 | Rennen. **MARCO:** "I trust her. She has macarons." Camille geeft hem een macaron. |
-| 32–42 | Terug bij de Mona Lisa. Ze tillen samen de lijst van de muur. Even een warm moment tussen Victor en Camille. |
-| 42–50 | De lichten gaan uit (stilte, alleen ademhaling). |
-| 50–56 | De lichten gaan weer aan: Camille en het schilderij zijn weg. Op het glas staat een kus in lippenstift en "Thanks, darling. — C". **SASHA:** "Told you." |
-| 56–61 | Eindkaart: **EPISODE 4 — THE GETAWAY** |
-
-## EP 4 — "The Getaway"
-| Tijd | Scène |
-|---|---|
-| 0–3 | **Haak:** Camille op een scooter, met het schilderij op haar rug, scheurt over de Pont des Arts. |
-| 3–9 | Buiten het Louvre onthult Marco trots de vluchtauto: een piepklein oud autootje. **VICTOR:** "That's the getaway car?" **MARCO:** "It's vintage." |
-| 9–20 | Achtervolging over de Rue de Rivoli, met snelle cuts en camera bij de wielen. Sasha hackt de stoplichten: alles springt op groen. |
-| 20–30 | Het rondpunt bij de Arc de Triomphe: chaos, ze draaien 4 rondjes. **SASHA:** "EXIT. TAKE THE EXIT." **MARCO:** "Which one?!" |
-| 30–38 | Ze schampen bijna een bakfiets vol stokbroden. **MARCO:** "I learned to drive in video games." |
-| 38–46 | Camille rijdt naar de Eiffeltoren en neemt de lift. |
-| 46–56 | De crew in de lift. Spannende muziek, de verdiepingen tellen op. De deuren gaan open bovenaan… Camille wacht al. Dan schijnt een **politiehelikopter** een felle lamp op iedereen. |
-| 56–61 | Eindkaart: **EPISODE 5 — THE REAL ONE** |
-
-## EP 5 — "The Real One" (finale)
-| Tijd | Scène |
-|---|---|
-| 0–3 | **Haak:** bovenop de Eiffeltoren, wind, de lamp van de helikopter. Iedereen staat oog in oog. |
-| 3–12 | **CAMILLE:** "Sorry, Victor. Nothing personal." Ze rolt het schilderij triomfantelijk uit. |
-| 12–18 | Stilte. Er staat een prijsstickertje op: **"LOUVRE BOUTIQUE — €12"**. Camille kijkt geschokt. |
-| 18–26 | **VICTOR:** "Then where's the real one?" Iedereen kijkt naar… Marco. |
-| 26–34 | Marco opent langzaam zijn sandwichzak: de **echte Mona Lisa**. **MARCO:** "I was protecting her." (flashback van 2 s uit EP2) |
-| 34–44 | Ontsnapping: zij nemen de lift naar beneden terwijl de politie de trap op rent. Camille knipoogt en springt met een paraglider van de toren. |
-| 44–54 | De volgende ochtend, café in Parijs. Krantenkop: **"MONA LISA RETURNED BY ANONYMOUS HEROES."** **VICTOR:** "We… gave it back?" **SASHA:** "Now the Louvre owes us a favor." |
-| 54–58 | Er wordt een ansichtkaart bezorgd met een lippenstiftkus: **"Next job: VENICE. — C"** |
-| 58–61 | Eindkaart: **THE PARIS JOB — THE END** · *Season 2 coming soon* |
+## Het grote verhaal (opzet en uitbetaling)
+- In deel 1 laat Sasha zien dat ze een **piepkleine tracker in de lijst van de vervalsing** verstopt.
+- Le Comte wil niet alleen het schilderij. Hij wil dat de crew wordt opgepakt, zodat niemand ooit naar hem zoekt.
+- Camille werkt al voor Le Comte, maar speelt dubbelspel.
+- In deel 5 blijkt Victor dit allemaal te hebben verwacht. De tracker leidt de politie naar Le Comte.
 
 ---
 
-## Plaatsingsschema (voorstel)
-- **1 aflevering per dag, elke dag op hetzelfde tijdstip.** Een serie van 5 delen is dan in 5 dagen klaar en kijkers onthouden het ritme.
-- Eventueel 2 per dag (bijvoorbeeld 12:00 en 19:00) zodra er een voorraad klaarstaat. Ga niet hoger: YouTube's regel over
-  "inauthentic content" pakt kanalen die massa's bijna identieke video's uploaden.
-- Zet in de titel steeds "Part N/5" en maak een afspeellijst per serie, zodat kijkers doorklikken naar het volgende deel.
-- Daarna begint de volgende serie (horror, thriller, …) in dezelfde stijl.
+## DEEL 1 — "48 Hours"
+| Tijd | Scène |
+|---|---|
+| 0–4 | **Haak:** een donkere loods en één lamp. Victor zit op een stoel, licht toegetakeld. Een hand met een zware gouden ring zet een klok neer. Tekst: **"48 HOURS."** |
+| 4–10 | Silhouet van Le Comte. **LE COMTE:** "The Mona Lisa. Forty-eight hours." **VICTOR:** "And if I say no?" **LE COMTE:** "Then you disappear." |
+| 10–14 | Titel: THE PARIS JOB — PART 1/5. Er verschijnt een klok in beeld: **47:59:59** en die begint af te tellen. |
+| 14–24 | Een dak in Parijs, 's nachts, met de Eiffeltoren. Sasha en Marco wachten. **SASHA:** "You said you were out." **VICTOR:** "I was. Until tonight." |
+| 24–34 | Het plan op tafel: een plattegrond van het Louvre en een perfecte **vervalsing** in een kist. **VICTOR:** "Tomorrow, 2 AM. The power drops for ninety seconds. We swap them." |
+| 34–40 | Sasha opent haar laptop en verstopt een minuscule tracker in de lijst van de vervalsing. Victor ziet het, Marco niet. *(opzet voor deel 5)* |
+| 40–50 | Sasha hackt de camera's van het Louvre. Een beeld van de Mona Lisa-zaal, leeg… Iets beweegt. |
+| 50–57 | Een gemaskerde figuur staat bij het schilderij, draait zich langzaam om en kijkt recht in de camera. Ze houdt een briefje omhoog: **"TOO LATE, VICTOR."** |
+| 57–60 | Kaart: **PART 2/5 — THE INSIDE MAN** |
+
+## DEEL 2 — "The Inside Man"
+| Tijd | Scène |
+|---|---|
+| 0–3 | **Haak:** het camerabeeld met "TOO LATE, VICTOR". De klok staat op **23:14:02**. |
+| 3–10 | 01:58 AM, onder de glazen piramide. Een onderhoudstunnel met druppend water. De crew in het zwart, met zaklampen. |
+| 10–20 | **De stroom valt uit (90 s).** Alles wordt donker en de noodverlichting kleurt rood. Een bewaker met een zaklamp komt eraan. De crew drukt zich tegen de muur; de lichtbundel glijdt op centimeters langs Victors gezicht. Doodse stilte. |
+| 20–30 | Ze rennen door de galerij. In beeld loopt een timer: **00:61… 00:60…** |
+| 30–40 | De Mona Lisa-zaal. Er is niemand meer, en het schilderij hangt er nog. **SASHA:** "Then who was that?" Victor kijkt naar het glas: er zit een vingerafdruk op, van iemand die het al geopend heeft. |
+| 40–50 | Ze wisselen het schilderij om in 20 seconden. **00:12… 00:11…** De stroom komt te vroeg terug. |
+| 50–57 | **ALARM.** Stalen rolluiken slaan dicht. De crew zit opgesloten in de zaal. Een stem achter hen: **"Hello, Victor."** |
+| 57–60 | Kaart: **PART 3/5 — CAMILLE** |
+
+## DEEL 3 — "Camille"
+| Tijd | Scène |
+|---|---|
+| 0–4 | **Haak:** Camille stapt uit de schaduw, het masker in haar hand. |
+| 4–14 | **VICTOR:** "Five years. Not a word." **CAMILLE:** "You'd have done the same." **SASHA:** "Who is she?" **VICTOR:** "The reason I went to prison." |
+| 14–22 | Blauwe zwaailichten door het dakraam: de politie omsingelt het museum. **CAMILLE:** "There's a way out. The ventilation. But we split it. Fifty-fifty." |
+| 22–38 | Ze kruipen door een smalle ventilatieschacht. Marco draagt de kist. Beneden lopen agenten met honden. Een hond blijft staan en kijkt omhoog… en loopt dan door. |
+| 38–46 | Ze klimmen het dak op en komen in een busje aan de Seine terecht. Marco rijdt rustig weg. |
+| 46–56 | In het busje schijnt Sasha met een UV-lamp op het schilderij: het is de **vervalsing**. Iedereen kijkt naar Camille, maar die is verdwenen, met de echte Mona Lisa. |
+| 56–60 | Kaart: **PART 4/5 — THE CHASE** |
+
+## DEEL 4 — "The Chase"
+| Tijd | Scène |
+|---|---|
+| 0–3 | **Haak:** Camille op een motor door de natte straten van Parijs, met de koker op haar rug. |
+| 3–12 | Sasha volgt Camilles telefoon. **SASHA:** "She's heading west. Fast." Marco trapt het gas in. |
+| 12–28 | Achtervolging langs de Seine en door een tunnel. Er duikt een tweede auto op: **zwart, de mannen van Le Comte.** |
+| 28–38 | De zwarte auto ramt het busje. Marco blijft heel rustig en ontwijkt ze bij de Pont Alexandre III. |
+| 38–48 | Camille wordt klemgereden onder een brug. Ze zegt tegen Victor: "He never wanted the painting from you. He wanted *you* caught." |
+| 48–56 | Koplampen. Een Rolls-Royce stopt. Er stapt een man uit; we zien de **gouden ring**. **LE COMTE:** "Victor. Right on time." |
+| 56–60 | Kaart: **PART 5/5 — THE REAL ONE** |
+
+## DEEL 5 — "The Real One"
+| Tijd | Scène |
+|---|---|
+| 0–4 | **Haak:** de mannen van Le Comte omsingelen de crew. De klok staat op **00:04:59**. |
+| 4–14 | Le Comte neemt het schilderij van Camille aan. **LE COMTE:** "Thank you, my dear." Camille glimlacht koud. Ze werkte al die tijd voor hem. |
+| 14–24 | **VICTOR:** "Check the frame." Le Comte fronst. Sasha toont haar telefoon: de tracker uit deel 1 zendt al uren signaal… **naar de politie.** |
+| 24–34 | Sirenes van alle kanten en een felle lamp van een helikopter. Le Comte wil vluchten. Marco blokkeert met het busje de enige weg. |
+| 34–44 | Le Comte wordt in de boeien geslagen. Camille is weg en Victor kijkt naar de lege plek waar ze stond. |
+| 44–54 | De volgende ochtend het journaal: **"MONA LISA RECOVERED — ART CARTEL DISMANTLED."** De klok springt op **00:00:00** en verdwijnt. Victor is vrij. |
+| 54–58 | Een envelop zonder afzender met een foto van Venetië, met lippenstift: **"Next time, partner. — C"** |
+| 58–60 | **THE PARIS JOB — THE END** · Season 2 coming soon |
 
 ---
-## Technisch (voor het maken van een aflevering)
-- Gedeelde code staat in `shared/`: personages (`person.js`), het dak en de museumzaal (`world.js`), het Louvre buiten en de gang (`louvre.js`), de geluidsbibliotheek (`audiolib.py`) en de renderer (`render.js`).
-- Elke aflevering heeft een eigen map (`epNN/`) met `index.html`, `js/main.js` (tijdlijn), `audio.py` en `finish.sh`.
-- Renderen (vanuit `series/the-paris-job`, eenmalig `npm install`):
-  `node shared/render.js ep02 video 0 600 ep02/work/seg/seg0.mp4` (+ 600–1200 en 1200–1800), daarna `ep02/finish.sh`.
+
+## Plaatsingsschema
+1 deel per dag, steeds op hetzelfde tijdstip. Zet "Part N/5" in de titel, maak een afspeellijst per serie en zet de muziekvermelding (`MUSIC_CREDITS.md`) in elke beschrijving.
+
+## Technisch
+Gedeelde code staat in `shared/` (personages, sets, geluid, renderer en score-mixer). Elke aflevering heeft een eigen map `epNN/`.
+Renderen gaat vanuit `series/the-paris-job`: `node shared/render.js epNN video <van> <tot> epNN/work/seg/segK.mp4`, daarna `epNN/finish.sh`.
