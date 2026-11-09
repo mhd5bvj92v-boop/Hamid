@@ -162,3 +162,10 @@ Zeg **"maak part N"**, dan wordt deel N precies volgens dit plan gebouwd.
 - **Thumbnail/eerste frame:** het deurbelbeeld met de figuur onder de lantaarn. Altijd dezelfde opmaak.
 - **Pinned comment** per deel met een detail om op te letten: dat zorgt voor herkijken en reacties.
 - **Ritme:** één deel per dag om 21:00, met een afspeellijst "CAMERA 6", en elk deel gelinkt naar het volgende.
+
+---
+## 8. Technisch (hoe het gebouwd is)
+Alles wordt gemaakt door Claude: 3D in three.js (gestileerd, net zoals THE PARIS JOB), maar elk shot gaat door een **camerafilter** (fisheye, nachtzicht/IR, pixelzoom, ruis, glitch) met een strakke HTML-app-interface erover. Het geluid wordt in Python gesynthetiseerd (sfeerlagen, interface-geluiden, hartslag, drone, piano), en het gefluister komt van espeak-ng.
+- Gedeelde code: `shared/sets.js` (straat, slaapkamer, hal, overloop, tuin en de figuur), `shared/look.js` (camerafilter)
+- Per deel: `epNN/index.html` (interface), `epNN/js/main.js` (tijdlijn), `epNN/audio.py` (geluid), `epNN/finish.sh`
+- Renderen vanuit `series/camera-6`: `node tools/render.js epNN video <van> <tot> epNN/work/seg/segK.mp4`, daarna `epNN/finish.sh` → `output/`

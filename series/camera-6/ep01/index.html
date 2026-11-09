@@ -1,0 +1,129 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>CAMERA 6 — Part 1</title>
+<style>
+@font-face { font-family: Inter; font-weight: 400; src: url(../../the-paris-job/node_modules/@fontsource/inter/files/inter-latin-400-normal.woff2); }
+@font-face { font-family: Inter; font-weight: 700; src: url(../../the-paris-job/node_modules/@fontsource/inter/files/inter-latin-700-normal.woff2); }
+@font-face { font-family: Inter; font-weight: 800; src: url(../../the-paris-job/node_modules/@fontsource/inter/files/inter-latin-800-normal.woff2); }
+@font-face { font-family: Inter; font-weight: 900; src: url(../../the-paris-job/node_modules/@fontsource/inter/files/inter-latin-900-normal.woff2); }
+@font-face { font-family: Bebas; src: url(../../the-paris-job/node_modules/@fontsource/bebas-neue/files/bebas-neue-latin-400-normal.woff2); }
+:root { --mono: "DejaVu Sans Mono", ui-monospace, monospace; }
+html, body { margin: 0; background: #000; overflow: hidden; }
+#root { position: relative; width: 1080px; height: 1920px; overflow: hidden; background: #000; font-family: Inter, sans-serif; color: #fff; }
+#stage, #stage canvas { position: absolute; inset: 0; width: 1080px; height: 1920px; }
+.ov { position: absolute; inset: 0; pointer-events: none; }
+.hide { display: none !important; }
+
+/* ---------- app chrome over a camera feed ---------- */
+#app .topfade { position: absolute; left: 0; right: 0; top: 0; height: 330px; background: linear-gradient(#000d 0%, #0008 60%, #0000 100%); }
+#app .botfade { position: absolute; left: 0; right: 0; bottom: 0; height: 520px; background: linear-gradient(#0000 0%, #000a 35%, #000e 100%); }
+.status { position: absolute; left: 70px; right: 70px; top: 38px; display: flex; justify-content: space-between; font-weight: 700; font-size: 34px; letter-spacing: 0.01em; }
+.status .ic { display: flex; gap: 16px; align-items: center; }
+.bars { display: flex; gap: 4px; align-items: flex-end; } .bars i { display: block; width: 7px; background: #fff; border-radius: 2px; }
+.batt { width: 52px; height: 24px; border: 3px solid #fffc; border-radius: 7px; position: relative; } .batt::after { content: ''; position: absolute; left: 3px; top: 3px; bottom: 3px; width: 14px; background: #ff453a; border-radius: 3px; }
+#hdr { position: absolute; left: 50px; right: 50px; top: 120px; display: flex; align-items: center; gap: 22px; }
+#hdr .back { font-size: 64px; font-weight: 400; margin-top: -8px; opacity: 0.9; }
+#hdr .ttl { font-weight: 800; font-size: 46px; }
+#hdr .sub { font-weight: 700; font-size: 26px; color: #ffffffa8; letter-spacing: 0.12em; margin-top: 4px; }
+#hdr .live { margin-left: auto; display: flex; align-items: center; gap: 12px; background: #ff3b30; padding: 10px 20px; border-radius: 30px; font-weight: 900; font-size: 26px; letter-spacing: 0.12em; }
+#hdr .live b { width: 14px; height: 14px; border-radius: 50%; background: #fff; display: block; }
+#stamp { position: absolute; left: 60px; bottom: 560px; font-family: var(--mono); font-size: 30px; line-height: 1.45; color: #f2f2f2; text-shadow: 0 0 4px #000, 0 0 2px #000; letter-spacing: 0.02em; }
+#zoom { position: absolute; right: 60px; bottom: 560px; font-family: var(--mono); font-size: 30px; background: #0008; border: 2px solid #fff6; padding: 6px 16px; border-radius: 10px; }
+#audio { position: absolute; left: 50%; transform: translateX(-50%); top: 250px; display: flex; align-items: center; gap: 18px; background: #ff3b30e0; padding: 14px 30px; border-radius: 40px; font-weight: 800; font-size: 28px; letter-spacing: 0.06em; white-space: nowrap; }
+#wave { display: flex; gap: 5px; align-items: center; height: 34px; } #wave i { display: block; width: 6px; background: #fff; border-radius: 3px; }
+#tabs { position: absolute; left: 50px; right: 50px; bottom: 320px; display: flex; gap: 14px; }
+#tabs div { flex: 1; text-align: center; padding: 16px 0; border-radius: 18px; background: #ffffff1a; font-weight: 800; font-size: 26px; letter-spacing: 0.08em; color: #ffffffb0; }
+#tabs div.on { background: #fff; color: #000; }
+#btns { position: absolute; left: 90px; right: 90px; bottom: 120px; display: flex; justify-content: space-between; }
+#btns div { width: 132px; height: 132px; border-radius: 50%; background: #ffffff22; display: flex; align-items: center; justify-content: center; }
+#btns div.red { background: #ff3b30; }
+#btns svg { width: 60px; height: 60px; stroke: #fff; fill: none; stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; }
+#spin { position: absolute; left: 50%; top: 46%; width: 110px; height: 110px; margin: -55px; border-radius: 50%; border: 9px solid #fff3; border-top-color: #fff; }
+#det { position: absolute; border: 3px solid #ffd60a; border-radius: 6px; box-shadow: 0 0 10px #0008; }
+#det span { position: absolute; left: -3px; top: -46px; background: #ffd60a; color: #000; font-weight: 800; font-size: 24px; padding: 6px 12px; border-radius: 6px 6px 6px 0; white-space: nowrap; letter-spacing: 0.04em; }
+#rec { position: absolute; left: 60px; top: 260px; font-family: var(--mono); font-size: 28px; color: #fff; text-shadow: 0 0 4px #000; }
+
+/* ---------- notification banner ---------- */
+#banner { position: absolute; left: 36px; right: 36px; top: 24px; display: flex; gap: 26px; align-items: center; padding: 30px 32px; border-radius: 46px;
+  background: rgba(44, 44, 50, 0.86); box-shadow: 0 20px 60px #000a; backdrop-filter: blur(20px); }
+#banner .icon { width: 96px; height: 96px; border-radius: 24px; background: linear-gradient(145deg, #2a2d34, #0d0e11); display: flex; align-items: center; justify-content: center; flex: none; border: 2px solid #ffffff1c; }
+#banner .icon i { width: 40px; height: 40px; border-radius: 50%; border: 7px solid #e8e8e8; position: relative; } #banner .icon i::after { content: ''; position: absolute; width: 12px; height: 12px; border-radius: 50%; background: #ff3b30; left: 7px; top: 7px; }
+#banner .txt { flex: 1; } #banner .app { font-size: 26px; font-weight: 700; color: #ffffff90; letter-spacing: 0.08em; display: flex; justify-content: space-between; }
+#banner .msg { font-size: 38px; font-weight: 800; margin-top: 6px; } #banner .det { font-size: 30px; color: #ffffffc0; margin-top: 4px; }
+#ripple { position: absolute; width: 140px; height: 140px; margin: -70px; border-radius: 50%; background: #ffffff55; border: 4px solid #fff9; }
+
+/* ---------- messaging screen ---------- */
+#chat { background: #000; }
+#chat .head { position: absolute; left: 0; right: 0; top: 0; height: 290px; background: #121214; border-bottom: 2px solid #ffffff14; }
+#chat .av { position: absolute; left: 50%; top: 110px; width: 110px; height: 110px; margin-left: -55px; border-radius: 50%; background: linear-gradient(#8a8f9a, #5a5f6a); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 46px; }
+#chat .nm { position: absolute; left: 0; right: 0; top: 232px; text-align: center; font-size: 28px; font-weight: 700; color: #ddd; }
+#chat .old { position: absolute; right: 50px; top: 900px; max-width: 640px; padding: 26px 36px; border-radius: 44px; background: #2c2c30; font-size: 42px; left: auto; }
+#chat .oldL { position: absolute; left: 50px; top: 760px; max-width: 640px; padding: 26px 36px; border-radius: 44px; background: #2c2c30; font-size: 42px; }
+#chat .day { position: absolute; left: 0; right: 0; top: 1060px; text-align: center; color: #888; font-size: 26px; font-weight: 700; }
+#bub { position: absolute; right: 50px; top: 1130px; max-width: 720px; padding: 26px 36px; border-radius: 44px; background: #0a84ff; font-size: 44px; font-weight: 400; }
+#read { position: absolute; right: 64px; top: 1250px; color: #9a9a9a; font-size: 28px; font-weight: 700; }
+#chat .input { position: absolute; left: 40px; right: 40px; bottom: 690px; height: 96px; border-radius: 48px; border: 3px solid #ffffff2a; font-size: 40px; color: #fff; padding: 0 36px; display: flex; align-items: center; }
+#chat .caret { display: inline-block; width: 4px; height: 46px; background: #0a84ff; margin-left: 4px; }
+#chat .kb { position: absolute; left: 0; right: 0; bottom: 0; height: 660px; background: #1c1c1e; }
+#chat .kb div { position: absolute; height: 120px; border-radius: 14px; background: #4a4a4e; }
+
+/* ---------- captions / titles ---------- */
+#cc { position: absolute; left: 0; right: 0; bottom: 760px; text-align: center; }
+#cc span { display: inline-block; background: #000c; padding: 14px 28px; font-size: 50px; font-weight: 700; border-radius: 8px; }
+#cc em { font-style: italic; color: #ffffffa0; font-weight: 400; margin-right: 12px; }
+#black { background: #000; }
+#night { display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 78px; letter-spacing: 0.3em; color: #e8e8e8; }
+#end { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; background: radial-gradient(ellipse at 50% 45%, #0008, #000e 70%); }
+#end .logo { font-family: Bebas; font-size: 220px; letter-spacing: 0.08em; line-height: 0.9; }
+#end .logo b { color: #ff3b30; font-weight: 400; }
+#end .part { margin-top: 40px; font-weight: 800; font-size: 42px; letter-spacing: 0.4em; color: #bbb; }
+#end .nxt { margin-top: 14px; font-family: Bebas; font-size: 120px; letter-spacing: 0.06em; }
+#end .follow { margin-top: 90px; font-size: 34px; font-weight: 700; color: #aaa; letter-spacing: 0.05em; }
+#vig { background: radial-gradient(ellipse 80% 62% at 50% 50%, #0000 55%, #0009 100%); }
+</style>
+</head>
+<body>
+<div id="root">
+  <div id="stage"></div>
+  <div class="ov" id="vig"></div>
+  <div class="ov" id="app">
+    <div class="topfade"></div><div class="botfade"></div>
+    <div class="status"><span>3:17</span><span class="ic"><span class="bars"><i style="height:10px"></i><i style="height:15px"></i><i style="height:20px;opacity:.35"></i><i style="height:25px;opacity:.35"></i></span><span class="batt"></span></span></div>
+    <div id="hdr"><span class="back">‹</span><div><div class="ttl" id="camTitle">Front Door</div><div class="sub" id="camSub">CAM 1 · HOMEWATCH</div></div><div class="live"><b></b>LIVE</div></div>
+    <div id="rec">● REC</div>
+    <div id="audio"><span>🎙</span><span>TWO-WAY AUDIO ON</span><span id="wave"></span></div>
+    <div id="det"><span>PERSON 0.91</span></div>
+    <div id="stamp"></div>
+    <div id="zoom">4.0×</div>
+    <div id="spin"></div>
+    <div id="tabs"><div>CAM 1</div><div>CAM 2</div><div>CAM 3</div><div>CAM 4</div><div>CAM 5</div></div>
+    <div id="btns">
+      <div id="bMic"><svg viewBox="0 0 48 48"><rect x="17" y="6" width="14" height="24" rx="7"/><path d="M10 22a14 14 0 0 0 28 0M24 36v6"/></svg></div>
+      <div><svg viewBox="0 0 48 48"><path d="M8 18h8l10-8v28l-10-8H8z"/><path d="M33 17a10 10 0 0 1 0 14"/></svg></div>
+      <div><svg viewBox="0 0 48 48"><path d="M38 24a14 14 0 1 1-4-9.9M38 8v8h-8"/></svg></div>
+      <div><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="14"/><circle cx="24" cy="24" r="6" fill="#ff3b30" stroke="none"/></svg></div>
+    </div>
+  </div>
+  <div class="ov" id="chat">
+    <div class="head"><div class="av">L</div><div class="nm">Lisa ›</div></div>
+    <div class="oldL">u home yet?? 🙃</div>
+    <div class="old">yeah just moved the last boxes. new place is nice</div>
+    <div class="day">Today 3:17 AM</div>
+    <div id="bub"></div>
+    <div id="read">Read 3:17 AM</div>
+    <div class="input"><span id="typed"></span><span class="caret" id="caret"></span></div>
+    <div class="kb" id="kb"></div>
+  </div>
+  <div id="banner" style="position:absolute"><div class="icon"><i></i></div><div class="txt"><div class="app"><span>HOMEWATCH</span><span>now</span></div><div class="msg" id="bMsg">Motion detected</div><div class="det" id="bDet">Front Door · CAM 1</div></div></div>
+  <div id="ripple"></div>
+  <div id="cc"><span><em>[whispering]</em>Noor.</span></div>
+  <div class="ov" id="black"></div>
+  <div class="ov" id="night">NIGHT 1 / 5</div>
+  <div class="ov" id="end"><div class="logo">CAMERA <b>6</b></div><div class="part">PART 2/5</div><div class="nxt">THE NOTE</div><div class="follow">Follow so you don’t miss night 2</div></div>
+</div>
+<script type="importmap">{"imports":{"three":"../../the-paris-job/node_modules/three/build/three.module.js","three/addons/":"../../the-paris-job/node_modules/three/examples/jsm/"}}</script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
