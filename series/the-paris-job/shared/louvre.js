@@ -49,7 +49,7 @@ export function buildExterior() {
   const pyrMat = new THREE.MeshStandardMaterial({ color: 0x8fb6e8, emissive: 0xffffff, emissiveMap: lattice, emissiveIntensity: 0.55, roughness: 0.1, metalness: 0.6, transparent: true, opacity: 0.82, side: THREE.DoubleSide });
   const pyrGeo = new THREE.ConeGeometry(35 / Math.SQRT2, 21.6, 4, 1, true); pyrGeo.rotateY(Math.PI / 4); pyrGeo.translate(0, 10.8, 0);
   const pyr = new THREE.Mesh(pyrGeo, pyrMat); scene.add(pyr);
-  const inner = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xffb060, transparent: true, opacity: 0.6, depthWrite: false, blending: THREE.AdditiveBlending }));
+  const inner = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xffb060, transparent: true, opacity: 0.22, depthWrite: false, blending: THREE.AdditiveBlending }));
   inner.position.set(0, 8, 0); inner.scale.set(50, 30, 1); scene.add(inner);
   const pyrL = new THREE.PointLight(0xffc27a, 900, 70, 1.6); pyrL.position.set(0, 6, 0); scene.add(pyrL);
   for (const [x, z] of [[-30, 22], [30, 22], [0, -30]]) {
@@ -101,9 +101,17 @@ export function buildExterior() {
   }
   const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(lampPos, 3));
   scene.add(new THREE.Points(lg, new THREE.PointsMaterial({ map: glowTex, size: 2.4, color: 0xffc070, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })));
-  for (let z = 40; z < 80; z += 20) { const l = new THREE.PointLight(0xffb060, 10, 18, 1.5); l.position.set(0, 4, z); scene.add(l); }
+  for (let z = 40; z < 80; z += 20) { const l = new THREE.PointLight(0xffb060, 3, 18, 1.5); l.position.set(0, 4, z); scene.add(l); }
+  const rainN = 4000, rp = new Float32Array(rainN * 6), seeds = [];
+  { const r = rng(44); for (let k = 0; k < rainN; k++) seeds.push([r() * 40 - 20, r() * 22, r() * 40 + 30]); }
+  const rainGeo = new THREE.BufferGeometry(); rainGeo.setAttribute('position', new THREE.BufferAttribute(rp, 3));
+  const rain = new THREE.LineSegments(rainGeo, new THREE.LineBasicMaterial({ color: 0xb8c8e8, transparent: true, opacity: 0.35 })); scene.add(rain);
+  const updateRain = t => {
+    for (let k = 0; k < rainN; k++) { const [x, y0, z] = seeds[k]; const y = ((y0 - t * 14) % 22 + 22) % 22; rp.set([x + 0.05, y, z, x, y - 0.5, z], k * 6); }
+    rainGeo.attributes.position.needsUpdate = true;
+  };
   const keyL = new THREE.DirectionalLight(0xffe6d2, 0); scene.add(keyL, keyL.target);
-  return { scene, keyL };
+  return { scene, keyL, updateRain };
 }
 
 // ---------------------------------------------------------------- CORRIDOR
@@ -118,7 +126,7 @@ export function buildCorridor() {
     for (let i = 0; i < 60; i++) { g.beginPath(); g.moveTo(r() * w, r() * h); g.bezierCurveTo(r() * w, r() * h, r() * w, r() * h, r() * w, r() * h); g.stroke(); }
   });
   marble.wrapS = marble.wrapT = THREE.RepeatWrapping; marble.repeat.set(2.5, 12);
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(5, 26), new THREE.MeshStandardMaterial({ map: marble, roughness: 0.18, metalness: 0.15 }));
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(5, 26), new THREE.MeshStandardMaterial({ map: marble, roughness: 0.5, metalness: 0.05 }));
   floor.rotation.x = -Math.PI / 2; floor.position.z = -3.6; floor.receiveShadow = true; scene.add(floor);
   const wallM = M(0xcfc3a8, { r: 0.85 }), pil = M(0xe2d8c2, { r: 0.7 });
   for (const sx of [-1, 1]) {
@@ -135,13 +143,15 @@ export function buildCorridor() {
   const stone = M(0xeeeae2, { r: 0.6 });
   for (let z = 1.5; z > -14; z -= 3) for (const sx of [-1, 1]) {
     if (z < -7 && z > -11 && sx > 0) continue; // space for desk
+    if (sx < 0 && z > -2 && z < 4) continue; // hiding spot
     const ped = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.1, 0.5), stone); ped.position.set(sx * 1.85, 0.55, z); ped.castShadow = true; scene.add(ped);
     const sh = new THREE.Mesh(new THREE.SphereGeometry(0.22, 20, 14), stone); sh.scale.set(1.3, 0.7, 0.8); sh.position.set(sx * 1.85, 1.25, z); scene.add(sh);
     const hd = new THREE.Mesh(new THREE.SphereGeometry(0.13, 20, 14), stone); hd.scale.set(0.9, 1.1, 1); hd.position.set(sx * 1.85, 1.52, z); hd.rotation.y = -sx * 0.6; scene.add(hd);
   }
   // ceiling lights
+  const ceilLights = [];
   for (let z = 4; z > -14; z -= 4.5) {
-    const l = new THREE.PointLight(0xffd9a8, 14, 9, 1.4); l.position.set(0, 4.8, z); scene.add(l);
+    const l = new THREE.PointLight(0xffd9a8, 14, 9, 1.4); ceilLights.push(l); l.position.set(0, 4.8, z); scene.add(l);
     const fx = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.06, 16), new THREE.MeshBasicMaterial({ color: 0xffe8c8 })); fx.position.set(0, 5.45, z); scene.add(fx);
   }
   // guard desk + chair + lamp
@@ -157,6 +167,10 @@ export function buildCorridor() {
   const monitor = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.3, 0.05), M(0x111111)); monitor.position.set(0.3, 0.95, -9.45); scene.add(monitor);
   const mscreen = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.26), new THREE.MeshBasicMaterial({ color: 0x5a8a6a })); mscreen.position.set(0.3, 0.95, -9.42); scene.add(mscreen);
   const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.035, 0.1, 12), M(0xffffff, { r: 0.4 })); cup.position.set(-0.05, 0.83, -9.2); scene.add(cup);
+  for (const z of [6.5, -4, -14.5]) {
+    const sign = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.2, 0.05), new THREE.MeshBasicMaterial({ color: 0x18c060 })); sign.position.set(-2.4, 3.6, z); sign.rotation.y = Math.PI / 2; scene.add(sign);
+    const el = new THREE.PointLight(0x30ff80, 2.5, 4, 1.5); el.position.set(-2.1, 3.5, z); scene.add(el);
+  }
   const keyL = new THREE.DirectionalLight(0xffe6d2, 0); scene.add(keyL, keyL.target);
-  return { scene, keyL };
+  return { scene, keyL, ceilLights };
 }

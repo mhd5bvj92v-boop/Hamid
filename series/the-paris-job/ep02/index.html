@@ -54,8 +54,10 @@ html, body { margin: 0; background: #000; overflow: hidden; }
 #endFollow b { color: #fff; }
 #badge { position: absolute; left: 60px; top: 120px; font-weight: 900; font-size: 30px; letter-spacing: 0.18em; padding: 10px 18px; background: rgba(0,0,0,0.45); border: 2px solid rgba(245,192,74,0.85); color: #f5c04a; border-radius: 6px; }
 #prev { position: absolute; left: 0; right: 0; top: 760px; text-align: center; font-weight: 900; font-size: 46px; letter-spacing: 0.35em; color: #fff; text-shadow: 0 0 20px rgba(255,40,40,0.9), 0 3px 10px #000; opacity: 0; }
-#zzz { position: absolute; right: 150px; top: 520px; font-family: Bebas; font-size: 120px; color: #fff; text-shadow: 0 4px 20px rgba(0,0,0,0.8); opacity: 0; }
-#zzz span { display: inline-block; }
+#clock { position: absolute; right: 60px; top: 124px; font-family: monospace; font-weight: 700; font-size: 30px; letter-spacing: 0.08em; color: #ddd; text-shadow: 0 2px 8px #000; opacity: 0; }
+#clock b { color: #ff4a3a; font-size: 34px; }
+#timer { position: absolute; left: 0; right: 0; top: 250px; text-align: center; font-family: monospace; font-weight: 700; font-size: 110px; color: #fff; letter-spacing: 0.05em; text-shadow: 0 0 24px rgba(0,0,0,0.9), 0 4px 0 #000; opacity: 0; }
+#earlier { position: absolute; left: 60px; top: 200px; font-weight: 900; font-size: 34px; letter-spacing: 0.4em; color: #e8d2a8; text-shadow: 0 2px 10px #000; opacity: 0; }
 #alarm { mix-blend-mode: multiply; background: radial-gradient(ellipse at 50% 45%, rgba(255,60,60,0.6), rgba(150,0,0,1)); opacity: 0; }
 #alarmTxt { position: absolute; left: 0; right: 0; top: 330px; text-align: center; font-family: Bebas; font-size: 150px; color: #ff2a2a; letter-spacing: 0.08em; text-shadow: 0 0 40px rgba(255,0,0,0.8), 0 4px 0 #000; opacity: 0; }
 </style>
@@ -78,24 +80,26 @@ html, body { margin: 0; background: #000; overflow: hidden; }
   </div>
   <div class="ov" id="glitch"></div>
   <div class="ov" id="alarm"></div>
-  <div id="alarmTxt">⚠ ALARM</div>
-  <div id="zzz"><span>Z</span><span>z</span><span>z</span></div>
+  <div id="alarmTxt">LOCKDOWN</div>
+  <div id="clock">DEADLINE <b id="clockT">41:58:07</b></div>
+  <div id="timer">00:40</div>
+  <div id="earlier">EARLIER</div>
   <div id="prev">PREVIOUSLY…</div>
   <div id="badge">PART 2/5</div>
   <div id="loc"></div>
-  <div id="title"><div id="titleMain">THE PARIS JOB</div><div id="titleSub">EPISODE 2 — THE COMPETITION</div></div>
+  <div id="title"><div id="titleMain">THE PARIS JOB</div><div id="titleSub">PART 2 — THE COMPETITION</div></div>
   <div id="card"><div id="cardName"></div><div id="cardRoleWrap"><span id="cardRole"></span></div><div id="cardNote"></div></div>
   <div id="sub"><div id="subName"></div><div id="subText"></div></div>
   <div class="ov" id="flash"></div>
   <div class="ov" id="black"></div>
   <div class="ov" id="end">
     <div id="endShow">THE PARIS JOB</div>
-    <div id="endEp">EPISODE 3</div>
-    <div id="endTitle">THE EX</div>
+    <div id="endEp">PART 3/5</div>
+    <div id="endTitle">LOCKDOWN</div>
     <div id="endFollow">Follow so you don’t miss <b>Part 3/5</b></div>
   </div>
 </div>
-<script type="importmap">{"imports":{"three":"./../node_modules/three/build/three.module.js"}}</script>
+<script type="importmap">{"imports":{"three":"../node_modules/three/build/three.module.js","three/addons/":"../node_modules/three/examples/jsm/"}}</script>
 <script type="module" src="js/main.js"></script>
 </body>
 </html>

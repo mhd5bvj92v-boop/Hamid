@@ -420,9 +420,16 @@ export function buildGallery() {
     g.strokeStyle = '#6a3a22'; g.lineWidth = 3; g.beginPath(); g.arc(128, 140, 12, 0.3, Math.PI - 0.3); g.stroke();
     g.fillStyle = '#2a1a10'; g.beginPath(); g.arc(114, 120, 4, 0, 7); g.arc(142, 120, 4, 0, 7); g.fill();
   });
-  const pf = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.98, 0.06), gold); pf.position.set(0, 1.75, -6.97); scene.add(pf);
-  const pp = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.85), new THREE.MeshStandardMaterial({ map: portrait, roughness: 0.7 })); pp.position.set(0, 1.75, -6.93); scene.add(pp);
+  const painting = new THREE.Group(); painting.position.set(0, 1.75, -6.95); scene.add(painting);
+  const pf = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.98, 0.06), gold); pf.castShadow = true; painting.add(pf);
+  const pp = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.85), new THREE.MeshStandardMaterial({ map: portrait, roughness: 0.7 })); pp.position.z = 0.035; painting.add(pp);
   const glass = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.25, 0.25), new THREE.MeshStandardMaterial({ color: 0xaaccdd, transparent: true, opacity: 0.12, roughness: 0.05, metalness: 0.5 })); glass.position.set(0, 1.75, -6.85); scene.add(glass);
+  const alarmBtn = new THREE.Group(); alarmBtn.position.set(1.65, 1.3, -6.99); scene.add(alarmBtn);
+  alarmBtn.add(new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.2, 0.04), M(0xcc1111, { r: 0.4 })));
+  const btnGlass = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.02), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xff3030, emissiveIntensity: 0.4 })); btnGlass.position.z = 0.03; alarmBtn.add(btnGlass);
+  const shutterTex = canvasTex(256, 256, (g, w, h) => { for (let y = 0; y < h; y += 16) { const gr = g.createLinearGradient(0, y, 0, y + 16); gr.addColorStop(0, '#9aa0a8'); gr.addColorStop(0.5, '#5a6068'); gr.addColorStop(1, '#2a2e34'); g.fillStyle = gr; g.fillRect(0, y, w, 16); } });
+  shutterTex.wrapS = shutterTex.wrapT = THREE.RepeatWrapping; shutterTex.repeat.set(4, 4);
+  const shutter = new THREE.Mesh(new THREE.BoxGeometry(10, 6, 0.12), new THREE.MeshStandardMaterial({ map: shutterTex, roughness: 0.45, metalness: 0.7 })); shutter.position.set(0, 9, 6.5); shutter.castShadow = true; scene.add(shutter);
   const spot = new THREE.SpotLight(0xfff2d6, 140, 12, 0.4, 0.5); spot.position.set(0, 5.2, -3.5); spot.target.position.set(0, 1.75, -7); spot.castShadow = true; scene.add(spot, spot.target);
   // rope barrier
   const brass = M(0xc8a040, { r: 0.3, m: 0.9 }), velvet = M(0x8a1020, { r: 0.8 });
@@ -444,5 +451,5 @@ export function buildGallery() {
   const fill = new THREE.PointLight(0x8899cc, 45, 18, 1.2); fill.position.set(2, 4.5, 4); scene.add(fill);
   const alarms = [[-4, 5.2, 2], [4, 5.2, -4], [0, 5.2, 6]].map(([x, y, z]) => { const l = new THREE.PointLight(0xff1a1a, 0, 22, 1.2); l.position.set(x, y, z); scene.add(l); return l; });
   const keyL = new THREE.DirectionalLight(0xffe6d2, 0); scene.add(keyL, keyL.target);
-  return { scene, posts: postPivots, ropes, alarms, fill, keyL };
+  return { scene, posts: postPivots, ropes, alarms, fill, keyL, painting, alarmBtn: btnGlass, shutter };
 }

@@ -26,10 +26,11 @@ function surfZ(dx, dy) {
 
 export function makePerson(cfg) {
   const s = cfg.scale ?? 1, w = cfg.build ?? 1;
+  const RL = !!cfg.real;
   const root = new THREE.Group();
   const body = new THREE.Group(); body.scale.setScalar(s); root.add(body);
 
-  const skin = M(cfg.skin, { r: 0.68 });
+  const skin = RL ? new THREE.MeshPhysicalMaterial({ color: cfg.skin, roughness: 0.58, sheen: 0.12, sheenColor: new THREE.Color(0xb08070), sheenRoughness: 0.7 }) : M(cfg.skin, { r: 0.68 });
   const shirt = M(cfg.shirt, { r: 0.85 });
   const pants = M(cfg.pants, { r: 0.85 });
   const shoes = M(cfg.shoes ?? 0x161616, { r: 0.45 });
@@ -62,6 +63,12 @@ export function makePerson(cfg) {
     const strip = box(0.08 * w, 0.4, 0.02, M(cfg.jacketFront, { r: 0.9 }));
     strip.position.set(0, 0.32, 0.13 * w); spine.add(strip);
   }
+  if (cfg.coat) { // long coat skirt from the waist
+    const cprof = [[0.17, 0.12], [0.2, -0.05], [0.23, -0.3], [0.26, -0.52], [0.255, -0.54]].map(([x, y]) => new THREE.Vector2(x, y));
+    const skirt = mesh(new THREE.LatheGeometry(cprof, 32), M(cfg.coat, { r: 0.75 }));
+    skirt.material.side = THREE.DoubleSide; skirt.scale.set(w, 1, 0.75 * w); spine.add(skirt);
+    for (const side of [-1, 1]) { const lap = box(0.07, 0.3, 0.02, M(cfg.coat, { r: 0.6 })); lap.position.set(side * 0.07 * w, 0.45, 0.115 * w); lap.rotation.z = side * 0.35; spine.add(lap); }
+  }
   if (cfg.collar) { // turtleneck / hoodie collar
     const c = mesh(new THREE.CylinderGeometry(0.068, 0.085, 0.12, 24), M(cfg.collar, { r: 0.9 }));
     c.position.y = 0.6; spine.add(c);
@@ -75,7 +82,7 @@ export function makePerson(cfg) {
   const arms = [];
   for (const side of [-1, 1]) {
     const sh = new THREE.Group(); sh.position.set(side * 0.2 * w, 0.5, 0); spine.add(sh);
-    const shoulderBall = sph(0.07 * w, sleeveM); sh.add(shoulderBall);
+    const shoulderBall = sph((RL ? 0.062 : 0.07) * w, sleeveM); sh.add(shoulderBall);
     const up = cap(0.06 * w, 0.2, sleeveM); up.position.y = -0.14; sh.add(up);
     const el = new THREE.Group(); el.position.y = -0.29; sh.add(el);
     const fo = cap(0.052 * w, 0.19, sleeveM); fo.position.y = -0.13; el.add(fo);
@@ -83,12 +90,14 @@ export function makePerson(cfg) {
     const handM = cfg.gloves ? M(cfg.gloves, { r: 0.6 }) : skin;
     const palm = sph(0.048, handM); palm.scale.set(0.8, 1.1, 0.55); palm.position.y = -0.03; hand.add(palm);
     const thumb = cap(0.016, 0.03, handM); thumb.position.set(-side * 0.03, -0.02, 0.02); thumb.rotation.z = side * 0.6; hand.add(thumb);
+    if (cfg.ring && side < 0) { const rg = mesh(new THREE.TorusGeometry(0.02, 0.008, 10, 24), M(0xffc845, { r: 0.18, m: 1 })); rg.position.set(0.012, -0.07, 0.0); rg.rotation.y = Math.PI / 2; hand.add(rg); const gem = sph(0.009, M(0x8a0010, { r: 0.1, m: 0.3 })); gem.position.set(0.012, -0.07, 0.03); hand.add(gem); }
     arms.push({ sh, el, hand, side });
   }
 
   // neck + head
   const neck = mesh(new THREE.CylinderGeometry(0.052, 0.058, 0.13, 20), skin); neck.position.y = 0.62; spine.add(neck);
   const headPivot = new THREE.Group(); headPivot.position.y = 0.66; spine.add(headPivot);
+  if (RL) { headPivot.scale.setScalar(0.86); headPivot.position.y = 0.635; neck.scale.set(1.12, 0.8, 1.12); neck.position.y = 0.61; }
   const head = new THREE.Group(); head.position.y = HC; headPivot.add(head);
   const skull = sph(R, cfg.mask ? M(0x101012, { r: 0.8 }) : skin, 40); skull.scale.set(SX, SY, SZ); head.add(skull);
   const jaw = sph(R * 0.82, cfg.mask ? M(0x101012, { r: 0.8 }) : skin, 32); jaw.scale.set(SX * 0.98, 0.8, SZ * 0.95); jaw.position.set(0, -0.05, 0.004); head.add(jaw);
@@ -119,8 +128,9 @@ export function makePerson(cfg) {
     const shine = new THREE.MeshBasicMaterial({ color: 0xffffff });
     const lidM = cfg.lidColor ? M(cfg.lidColor, { r: 0.5 }) : skin;
     for (const side of [-1, 1]) {
-      const ex = side * 0.052, ey = 0.012;
-      const eg = new THREE.Group(); eg.position.set(ex, ey, surfZ(ex, ey) - 0.017); head.add(eg);
+      const ex = side * (RL ? 0.049 : 0.052), ey = 0.012;
+      const eg = new THREE.Group(); eg.position.set(ex, ey, surfZ(ex, ey) - (RL ? 0.019 : 0.017)); head.add(eg);
+      if (RL) eg.scale.setScalar(0.84);
       const ew = sph(0.031, white); ew.scale.set(1, 1, 0.7); eg.add(ew);
       const irisG = new THREE.Group(); eg.add(irisG);
       const iris = sph(0.0185, irisM); iris.scale.set(1, 1, 0.45); iris.position.z = 0.0175; irisG.add(iris);
@@ -140,16 +150,23 @@ export function makePerson(cfg) {
     face.brows = [];
     const browM = M(cfg.brow ?? cfg.hair ?? 0x1a1410, { r: 0.7 });
     for (const side of [-1, 1]) {
-      const bx = side * 0.055, by = 0.066;
+      const bx = side * 0.055, by = RL ? 0.055 : 0.066;
       const bg = new THREE.Group(); bg.position.set(bx, by, surfZ(bx, by) + 0.002); head.add(bg);
-      const b = cap(0.0085 * (cfg.browThick ?? 1), 0.05, browM); b.rotation.z = Math.PI / 2; b.scale.set(1, 1, 0.7); bg.add(b);
+      const b = cap((RL ? 0.0062 : 0.0085) * (cfg.browThick ?? 1), RL ? 0.055 : 0.05, browM); b.rotation.z = Math.PI / 2; b.scale.set(1, 1, 0.7); bg.add(b);
       bg.rotation.y = side * 0.35;
       face.brows.push({ bg, side, by });
     }
     // nose
+    if (RL) {
+      const bridge = cap(0.0105, 0.042, skin); bridge.scale.set(0.85, 1, 1); bridge.position.set(0, -0.014, surfZ(0, -0.014) + 0.0); bridge.rotation.x = -0.38; head.add(bridge);
+      const tip = sph(0.0155, skin); tip.scale.set(1, 0.85, 0.9); tip.position.set(0, -0.04, surfZ(0, -0.04) + 0.012); head.add(tip);
+      for (const sd of [-1, 1]) { const wing = sph(0.011, skin); wing.position.set(sd * 0.015, -0.045, surfZ(sd * 0.015, -0.045) + 0.004); head.add(wing); }
+      const chin = sph(0.032, skin); chin.scale.set(1.2, 0.75, 0.7); chin.position.set(0, -0.112, surfZ(0, -0.112) - 0.02); head.add(chin);
+    } else {
     const nose = sph(0.02, skin); nose.scale.set(0.9, 1.1, 1.0);
     nose.position.set(0, -0.03, surfZ(0, -0.03) + 0.004); head.add(nose);
     const bridge = cap(0.009, 0.03, skin); bridge.position.set(0, -0.005, surfZ(0, -0.005) - 0.004); head.add(bridge);
+    }
     // beard (behind mouth)
     if (cfg.beard) {
       const bm = M(cfg.beard, { r: 0.95 });
@@ -174,15 +191,15 @@ export function makePerson(cfg) {
     // mouth
     const mz = cfg.beard ? 0.022 : 0.004;
     const mg = new THREE.Group(); mg.position.set(0, -0.083, surfZ(0, -0.083) + mz); head.add(mg);
-    const inner = sph(0.024, M(0x1e0608, { r: 0.8 })); inner.scale.set(1, 0.2, 0.35); mg.add(inner);
+    const inner = sph(0.024, M(0x1e0608, { r: 0.8 })); inner.scale.set(RL ? 0.85 : 1, 0.2, 0.35); mg.add(inner);
     const teeth = box(0.026, 0.006, 0.005, M(0xf4f0e6, { r: 0.3 })); teeth.position.set(0, 0.002, 0.006); mg.add(teeth);
-    const lipM = M(cfg.lip ?? 0xa85a52, { r: 0.45 });
-    const upper = cap(0.0048, 0.032, lipM); upper.rotation.z = Math.PI / 2; mg.add(upper);
-    const lower = cap(0.0058, 0.028, lipM); lower.rotation.z = Math.PI / 2; mg.add(lower);
+    const lipM = RL ? M(new THREE.Color(cfg.lip ?? 0xa85a52).lerp(new THREE.Color(cfg.skin), 0.45).getHex(), { r: 0.42 }) : M(cfg.lip ?? 0xa85a52, { r: 0.45 });
+    const upper = cap(RL ? 0.0038 : 0.0048, 0.032, lipM); upper.rotation.z = Math.PI / 2; mg.add(upper);
+    const lower = cap(RL ? 0.005 : 0.0058, 0.028, lipM); lower.rotation.z = Math.PI / 2; mg.add(lower);
     const corners = [];
     for (const side of [-1, 1]) {
       const cg = new THREE.Group(); cg.position.x = side * 0.019; mg.add(cg);
-      const c = cap(0.0058, 0.012, lipM); c.rotation.z = Math.PI / 2; c.position.x = side * 0.007; cg.add(c);
+      const c = cap(RL ? 0.0038 : 0.0058, 0.012, lipM); c.rotation.z = Math.PI / 2; c.position.x = side * 0.007; cg.add(c);
       corners.push({ cg, side });
     }
     face.mouth = { mg, inner, teeth, upper, lower, corners };
@@ -234,7 +251,6 @@ export function makePerson(cfg) {
     const tie = mesh(new THREE.TorusGeometry(0.03, 0.009, 8, 20), M(0x111111, { r: 0.4 })); tie.position.set(0, 0.07, -0.175); tie.rotation.x = 0.9; head.add(tie);
     const tail = cap(0.038, 0.2, hairM); tail.position.set(0, -0.05, -0.2); tail.rotation.x = 0.28; head.add(tail);
     const tip = sph(0.03, hairM); tip.position.set(0, -0.19, -0.24); head.add(tip);
-    for (const side of [-1, 1]) { const bang = cap(0.022, 0.07, hairM); bang.position.set(side * 0.07, 0.1, 0.105); bang.rotation.z = side * 0.9; head.add(bang); }
   } else if (hs === 'guardcap') {
     const cm = M(cfg.capColor ?? 0x1c2a4a, { r: 0.6 });
     const back = sph(R * 0.95, hairM, 24); back.scale.set(SX, 0.75, 0.82); back.position.set(0, -0.01, -0.045); head.add(back);
