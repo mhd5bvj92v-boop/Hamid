@@ -330,12 +330,12 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'shared'))
 from score import build
 build('work/sfx.wav', [
-    ('Investigations',        0.0,  0.0, 16.9, 0, 1.2, 0.4),
-    ('Mistake_the_Getaway',   0.0, 16.6, 35.05, 0, 0.1, 0.08),
-    ('Mistake_the_Getaway',  90.0, 37.15, 41.2, 0, 0.05, 0.5),
-    ('Crypto',                0.0, 41.0, 56.0, 0, 0.4, 0.02),
+    ('Five_Armies',           0.0,  0.0, 16.9, 1, 0.8, 0.5),
+    ('Rynos_Theme',          29.5, 16.6, 37.4, -1, 0.1, 0.4),
+    ('Volatile_Reaction',    29.6, 37.15, 41.3, 0, 0.1, 0.4),
+    ('Crypto',                0.0, 41.0, 56.0, 1, 0.3, 0.02),
     ('Impact_Prelude',      131.6, 56.85, 61.0, -1, 0.02, 1.5),
-], 'work/audio_scored.wav', DUR, silences=[(56.0, 56.84)])
+], 'work/audio_scored.wav', DUR, silences=[(56.0, 56.84)], ducks=[(35.0, 37.1, -10)])
 with wave.open('work/audio_synth.wav', 'wb') as w:
     w.setnchannels(2); w.setsampwidth(2); w.setframerate(SR)
     w.writeframes((mix.T * 32767).astype('<i2').tobytes())
