@@ -45,7 +45,7 @@ const roofM = M(0x5a6070, { r: 0.4, m: 0.6 });
 { const walkw = new THREE.Mesh(new THREE.BoxGeometry(60, 0.12, 2.2), roofM); walkw.position.set(0, 26.05, -90.6); walkw.receiveShadow = true; ext.scene.add(walkw);
   for (let x = -24; x <= 24; x += 8) { const ch = new THREE.Mesh(new THREE.BoxGeometry(1.0, 2.2, 0.9), M(0x7a5a48, { r: 0.9 })); ch.position.set(x + 3, 27.1, -99.6); ext.scene.add(ch); }
   const hatch = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.3, 1.0), M(0x2a2c30, { r: 0.5, m: 0.6 })); hatch.position.set(-12, 26.25, -92.3); ext.scene.add(hatch); }
-const yardBlue = new THREE.PointLight(0x2a50ff, 0, 160, 1.0); yardBlue.position.set(0, 10, -40); ext.scene.add(yardBlue);
+const yardBlue = new THREE.PointLight(0x2a50ff, 0, 160, 1.0); yardBlue.position.set(0, 22, -70); ext.scene.add(yardBlue);
 const heli = makeBeam(60, 0.05, 0xdfe8ff, 0.07); ext.scene.add(heli);
 const heliSpot = new THREE.SpotLight(0xdfe8ff, 0, 120, 0.07, 0.4, 0.6); ext.scene.add(heliSpot, heliSpot.target);
 const heliGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xffffff, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); heliGlow.scale.set(6, 6, 1); ext.scene.add(heliGlow);
@@ -250,7 +250,7 @@ const shots = [
   { t0: 18.95, t1: 20.0, sc: 'gal', fov: 28, key: 0.25, cam: t => { const h = hp(camille); return [[h.x + 0.45, h.y + 0.02, h.z + kf(t, [[18.95, 2.2], [20, 2.1]], lin)], dn(h, 0.08)]; }, sh: 0.003 },
   // --- duct
   { t0: 20.0, t1: 23.0, sc: 'duct', fov: 40, key: 0.3, cam: t => { const z = camZ(t); return [[0.12, 0.42, z - kf(t, [[20, 2.1], [23, 1.6]], lin)], [0.0, 0.25, z + 1.5]]; }, sh: 0.003, ap: 0.005 },
-  { t0: 23.0, t1: 25.4, sc: 'duct', fov: 30, cam: t => { const p = tube.localToWorld(V3(0, -0.2, -0.06)); return [[-0.3, p.y + 0.3, p.z - kf(t, [[23, 0.62], [25.4, 0.5]], lin)], [p.x, p.y - 0.02, p.z + 0.15]]; }, sh: 0.002, ap: 0.012 },
+  { t0: 23.0, t1: 25.4, sc: 'duct', fov: 30, cam: t => { const p = tube.localToWorld(V3(0, -0.2, -0.06)); return [[0.34, p.y + 0.22, p.z - kf(t, [[23, 0.2], [25.4, 0.12]], lin)], [p.x, p.y - 0.02, p.z + 0.1]]; }, sh: 0.002, ap: 0.012 },
   { t0: 25.4, t1: 27.4, sc: 'duct', fov: 34, cam: t => { const h = hp(victor); return [[h.x + 0.3, 0.32, h.z - kf(t, [[25.4, 0.66], [27.4, 0.6]], lin)], [h.x, h.y + 0.02, h.z]]; }, sh: 0.002, ap: 0.008 },
   { t0: 27.4, t1: 30.0, sc: 'duct', fov: 50, cam: t => [[0.3, 0.66, -5.95], [0.05, duct.FY, -7.7]], sh: 0.002, ap: 0.0 },
   { t0: 30.0, t1: 31.8, sc: 'duct', fov: 58, cam: t => [[1.75, duct.FY + kf(t, [[30, 0.8], [31.8, 0.9]], lin), kf(t, [[30, -4.7], [31.8, -4.9]], lin)], [0.0, duct.FY + 1.6, -6.75]], sh: 0.003, ap: 0.0 },
@@ -374,19 +374,19 @@ window.renderAt = function (t) {
   // per-set animation
   const pulse = alarmPulse(t);
   if (shot.sc === 'gal') {
-    gal.alarms.forEach(l => l.intensity = 38 * pulse);
+    gal.alarms.forEach(l => l.intensity = 26 * pulse);
     const sb = (0.25 + 0.75 * Math.max(strobe(t), strobe(t, 0.5) * 0.8)) * (t >= 12 ? 1 : 0);
-    blueL.forEach((l, i) => l.intensity = (i ? strobe(t, 0.5) : strobe(t)) * 380 * (t >= 12 ? 1 : 0) + (t >= 12 ? 40 : 0));
+    blueL.forEach((l, i) => l.intensity = (i ? strobe(t, 0.5) : strobe(t)) * 220 * (t >= 12 ? 1 : 0) + (t >= 12 ? 12 : 0));
     skyBlue.material.color.setRGB(0.06 * sb, 0.16 * sb, 0.75 * sb);
   }
   if (shot.sc === 'ext') {
     ext.updateRain(t);
-    extCars.forEach((c, i) => c.userData.update(t, i, 1.4, false));
+    extCars.forEach((c, i) => c.userData.update(t, i, window.OVR && window.OVR.nocars ? 0 : 1.4, false));
     const a = t * 0.35; const hx = 30 * Math.sin(a), hz = 40 + 20 * Math.cos(a * 0.7);
     const src = V3(-40, 70, 10), tgt = t < 30 ? V3(hx, 0, hz) : V3(kf(t, [[34, -30], [37.6, -10]], lin), 26, -84);
     heli.position.copy(src); heli.lookAt(tgt); heli.scale.set(1, 1, src.distanceTo(tgt) / 60);
-    heliSpot.position.copy(src); heliSpot.target.position.copy(tgt); heliSpot.target.updateMatrixWorld(); heliSpot.intensity = 120;
-    heliGlow.position.copy(src); yardBlue.intensity = 3000 * Math.max(strobe(t), strobe(t, 0.5));
+    heliSpot.position.copy(src); heliSpot.target.position.copy(tgt); heliSpot.target.updateMatrixWorld(); heliSpot.intensity = t < 30 ? 0 : 120; heli.visible = t >= 30;
+    heliGlow.position.copy(src); heliGlow.visible = !(window.OVR && window.OVR.nohg); yardBlue.intensity = (window.OVR && window.OVR.noyb) ? 0 : (t < 30 ? 350 : 1500) * Math.max(strobe(t), strobe(t, 0.5));
   }
   if (shot.sc === 'duct') {
     tracker.parent !== duct.scene && duct.scene.add(tracker);
@@ -432,7 +432,7 @@ window.renderAt = function (t) {
   const look = V3(...l), back = look.clone().sub(camera.position).normalize();
   set.rim.position.copy(look).addScaledVector(back, 3).addScaledVector(right, 1.2).add(V3(0, 1.5, 0));
   set.rim.target.position.copy(look); set.rim.target.updateMatrixWorld();
-  set.rim.intensity = shot.fov < 40 ? (shot.rim ?? (shot.sc === 'gal' ? 0.7 : 1.6)) : 0;
+  set.rim.intensity = shot.fov < 40 ? (shot.rim ?? (shot.sc === 'gal' ? 0.4 : 1.6)) : 0;
   set.rim.color.setHex(shot.sc === 'gal' && t < 12 ? 0xff6a5a : (shot.sc === 'van' && t > 45.5 ? 0x9a70ff : 0x9ab8ff));
   const focus = camera.position.distanceTo(look);
   post.render(set.scene, camera, focus, shot.ap ?? (shot.fov <= 36 ? 0.006 : 0.0025));
